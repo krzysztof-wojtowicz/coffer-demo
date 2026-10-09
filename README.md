@@ -1,4 +1,4 @@
-# Coffer
+# Coffer Financial Assistant
 
 **Coffer** to projekt mający na celu pomóc w codziennym i długoterminowym zarządzaniu całym portfolio finansowym.
 
