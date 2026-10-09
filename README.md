@@ -1,6 +1,22 @@
 # Coffer
-Project for "Building AI Agents in .NET Environment" course.
 
+**Coffer** to projekt mający na celu pomóc w codziennym i długoterminowym zarządzaniu całym portfolio finansowym.
 
-Authors:
-Bartosz Sokołowski, Kostek Sobczyński, Krzysztof Wójtowicz i Krzysztof Wojczakowski
+Projekt jest rozwijany w ramach dwóch przedmiotów na Politechnice Warszawskiej: *Inżynieria Oprogramowania 1* (specyfikacja) oraz *Tworzenie Agentów AI w środowisku .NET* (integracja z agentem)
+
+## Dokumentacja
+
+- [Wizja](docs/vision.md)
+
+## Struktura projektu
+
+```text
+Coffer/
+├── README.md
+├── docs/
+│   └── vision.md
+└── src/
+```
+
+## Autorzy:
+© Bartosz Sokołowski, Kostek Sobczyński, Krzysztof Wójtowicz, Krzysztof Wojczakowski @ Politechnika Warszawska
