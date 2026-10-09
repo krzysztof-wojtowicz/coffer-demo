@@ -11,7 +11,7 @@ Użytkownikiem miałby być człowiek zarządzający własnym budżetem lub moż
 ## Scenariusze
 
 - Analizy comiesięczne budżetu: na co wydałem, ile, czy mogę przyoszczędzić, gdzie i jak zainwestować nadwyżkę
-- chęci kupienia aktywów: ile i co już mam, co najlepiej pasuje do akurat mojego portfela?, co może mnie zainteresować.
+- chęci kupienia aktywów: ile i co już mam, co najlepiej pasuje do akurat mojego portfela?, co może mnie zainteresować, wyszukiwanie informacji w Internecie o spółkach do inwestycji.
 - próba oszczędzania: gdzie i na co moge przestać wydawać, jak zacząć oszczędzać w skali miesiaca
 
 ## Rola agenta AI
