@@ -19,4 +19,9 @@ Coffer/
 ```
 
 ## Autorzy:
-© Bartosz Sokołowski, Kostek Sobczyński, Krzysztof Wójtowicz, Krzysztof Wojczakowski @ Politechnika Warszawska
+© Bartłomiej Sokołowski, Konstanty Sobczyński, Krzysztof Wójtowicz, Krzysztof Wojczakowski @ Politechnika Warszawska
+
+### Grupy zajęciowe:
+
+- **IO1** *Grupa 31* - Bartłomiej Sokołowski, Konstanty Sobczyński, Krzysztof Wójtowicz
+- **Agenci AI** *Grupa 4* - Bartłomiej Sokołowski, Konstanty Sobczyński, Krzysztof Wójtowicz, Krzysztof Wojczakowski
