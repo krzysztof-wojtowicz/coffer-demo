@@ -2,7 +2,7 @@
 
 ## Problem
 
-Chcielibyśmy rozwiązać problem utrudnionego i potrzeby wieloźródłowego zarządzania codziennymi oraz długoterminowymi finansami. Co za tym idzie spróbować ujednolicić i skonstruować pewien system, który mógłby pomóc w analizie, prognozach, planach inwestycyjnych czy potencjalnych zakupach aktywów.
+Chcielibyśmy rozwiązać problem utrudnionego i  wieloźródłowego zarządzania codziennymi oraz długoterminowymi finansami. Co za tym idzie spróbować ujednolicić i skonstruować pewien system, który mógłby pomóc w analizie, prognozach, planach inwestycyjnych czy potencjalnych zakupach aktywów.
 
 ## Użytkownicy
 
