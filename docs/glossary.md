@@ -25,4 +25,3 @@ Jedno pojęcie — jedno znaczenie. Jeśli słowo z tej listy pada w wizji lub w
 | **Analiza miesięczna** | Zestaw podsumowań dla jednego miesiąca: wydatki wg kategorii, przychody, nadwyżka, zmiana względem poprzedniego miesiąca. |
 | **Prognoza** | Szacunek salda budżetu na koniec miesiąca wyliczony z dotychczasowych transakcji. |
 | **Agent AI** | Część systemu korzystająca z modelu językowego, która na żądanie użytkownika tworzy sugestie, wyszukuje informacje i odpowiada na pytania. |
-| **Import** | Wczytanie transakcji z pliku CSV dostarczonego przez użytkownika. |
