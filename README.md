@@ -8,7 +8,7 @@ Projekt jest rozwijany w ramach dwóch przedmiotów na Politechnice Warszawskiej
 
 - [Wizja](docs/vision.md)
 - [Słownik](docs/glossary.md)
-- [Wymagania](docs/requiremens.md)
+- [Wymagania](docs/requirements.md)
 
 ## Struktura projektu
 
