@@ -7,6 +7,8 @@ Projekt jest rozwijany w ramach dwóch przedmiotów na Politechnice Warszawskiej
 ## Dokumentacja
 
 - [Wizja](docs/vision.md)
+- [Słownik](docs/glossary.md)
+- [Wymagania](docs/requiremens.md)
 
 ## Struktura projektu
 
@@ -15,6 +17,8 @@ Coffer/
 ├── README.md
 ├── docs/
 │   └── vision.md
+│   └── glossary.md
+│   └── requirements.md
 └── src/
 ```
 
