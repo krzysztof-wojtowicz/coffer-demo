@@ -1,0 +1,73 @@
+name: Migrations
+
+# Cheap safety net for Alembic: a single head, clean upgrade, downgrade round-trip
+# and no drift between models and migrations.
+on:
+  schedule:
+    - cron: "0 5 * * 1" # Mondays 05:00 UTC
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/backend/alembic/**"
+      - "src/backend/coffer/**/models.py"
+  workflow_dispatch:
+
+concurrency:
+  group: migrations-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  alembic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: coffer
+          POSTGRES_PASSWORD: coffer
+          POSTGRES_DB: coffer
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U coffer"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      COFFER_DATABASE_URL: postgresql+psycopg://coffer:coffer@localhost:5432/coffer
+    defaults:
+      run:
+        working-directory: src/backend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: src/backend/uv.lock
+
+      - run: uv sync --locked
+
+      - name: Exactly one head
+        run: |
+          uv run alembic heads | tee heads.txt
+          count=$(grep -c "(head)" heads.txt)
+          if [ "$count" -ne 1 ]; then
+            echo "::error::Alembic ma $count głów, oczekiwano 1. Użyj 'alembic merge'."
+            exit 1
+          fi
+
+      - name: Upgrade head on a clean database
+        run: uv run alembic upgrade head
+
+      - name: Models match migrations
+        run: uv run alembic check
+
+      - name: Downgrade to base and upgrade again
+        run: |
+          uv run alembic downgrade base
+          uv run alembic upgrade head

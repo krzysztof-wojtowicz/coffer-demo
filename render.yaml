@@ -1,0 +1,47 @@
+# Render Blueprint: Coffer API (FastAPI) on the free plan.
+# Docs: docs/deploy/backend.md. Database: Neon (external), frontend: Vercel (rewrites /api/* here).
+services:
+  - type: web
+    name: coffer-api            # -> https://coffer-api.onrender.com
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./src/backend/Dockerfile   # paths relative to the repo root
+    dockerContext: ./src/backend
+    healthCheckPath: /api/health
+    # Deploys are triggered by GitHub Actions via the deploy hook (secret RENDER_DEPLOY_HOOK_URL)
+    # after tests pass. Manual deploy is always available in the dashboard.
+    autoDeploy: false
+    envVars:
+      # Neon connection string; scheme MUST be postgresql+psycopg://...?sslmode=require
+      - key: COFFER_DATABASE_URL
+        sync: false
+      # Origin of the Vercel frontend (JSON list), e.g. ["https://coffer.vercel.app"]
+      - key: COFFER_ALLOWED_ORIGINS
+        sync: false
+      - key: COFFER_COOKIE_SECURE
+        value: "true"
+      - key: COFFER_SESSION_TTL_DAYS
+        value: "14"
+      # LLM: gemini | openai | anthropic | none (ollama is not available on free hosting)
+      - key: COFFER_LLM_PROVIDER
+        value: gemini
+      - key: COFFER_ANTHROPIC_API_KEY
+        sync: false
+      - key: COFFER_ANTHROPIC_MODEL
+        value: claude-sonnet-5-5
+      - key: COFFER_GEMINI_API_KEY
+        sync: false
+      - key: COFFER_GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: COFFER_OPENAI_API_KEY
+        sync: false
+      - key: COFFER_OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: COFFER_OPENAI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: COFFER_LLM_TIMEOUT_S
+        value: "60"
+      # Paid API in production: keep the per-user daily limit low
+      - key: COFFER_AGENT_DAILY_LIMIT
+        value: "20"

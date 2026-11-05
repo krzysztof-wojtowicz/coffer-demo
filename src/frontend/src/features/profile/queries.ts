@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { components } from '../../api/schema'
 
 export type ProfileIn = components['schemas']['ProfileIn']
+export type ProfileOut = components['schemas']['ProfileOut']
 
 export class ProfileError extends Error {
   messages: string[]
@@ -18,7 +19,7 @@ export function useProfile() {
     queryFn: async () => {
       const res = await apiFetch('/api/profile', { credentials: 'include' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return (await res.json()) as components['schemas']['ProfileOut'] | null
+      return (await res.json()) as ProfileOut | null
     },
   })
 }
@@ -47,8 +48,11 @@ export function useSaveProfile() {
         const err = (await res.json().catch(() => ({}))) as { detail?: unknown }
         throw new ProfileError(detailMessages(err.detail))
       }
-      return (await res.json()) as components['schemas']['ProfileOut']
+      return (await res.json()) as ProfileOut
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['profile'] }),
+    onSuccess: (data) => {
+      qc.setQueryData(['profile'], data)
+      return qc.invalidateQueries({ queryKey: ['profile'] })
+    },
   })
 }

@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+  # Same credentials as compose.yaml; tests derive coffer_test from this URL.
+  COFFER_DATABASE_URL: postgresql+psycopg://coffer:coffer@localhost:5432/coffer
+  # No LLM in CI: tests replace the client via dependency overrides / fakes.
+  COFFER_LLM_PROVIDER: none
+
+jobs:
+  backend:
+    name: Backend (lint + tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: coffer
+          POSTGRES_PASSWORD: coffer
+          POSTGRES_DB: coffer
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U coffer"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: src/backend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: src/backend/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Lint (ruff, pyright, import-linter)
+        working-directory: .
+        run: make lint
+
+      - name: Tests with coverage
+        env:
+          COFFER_TEST_DB: coffer_test
+        run: >-
+          uv run --with pytest-cov pytest
+          --cov=coffer --cov-report=term-missing:skip-covered --cov-report=xml
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: src/backend/coverage.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  frontend:
+    name: Frontend (tsc + vitest + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/frontend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Unit tests
+        run: npx vitest run
+
+      - name: Build
+        run: npx vite build
+
+  openapi-sync:
+    name: OpenAPI types in sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: src/backend/uv.lock
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          (cd src/backend && uv sync --locked)
+          (cd src/frontend && npm ci)
+
+      # Dumping the schema only builds the FastAPI app; no database needed.
+      - name: Regenerate schema.d.ts
+        run: make openapi
+
+      - name: Fail if generated types differ
+        run: |
+          if ! git diff --exit-code -- src/frontend/src/api/schema.d.ts; then
+            echo "::error file=src/frontend/src/api/schema.d.ts::Typy API są nieaktualne. Uruchom 'make openapi' i zacommituj schema.d.ts."
+            exit 1
+          fi

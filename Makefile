@@ -1,7 +1,7 @@
 BACKEND = cd src/backend && uv run
 FRONTEND = cd src/frontend
 
-.PHONY: setup db-up db-down migrate dev-api dev-web test-backend lint check-web check openapi seed
+.PHONY: setup db-up db-down migrate dev-api dev-web test-backend lint check-web check openapi seed mcp-market migrate-remote seed-remote
 
 setup:
 	cd src/backend && uv sync
@@ -15,6 +15,19 @@ db-down:
 
 migrate:
 	$(BACKEND) alembic upgrade head
+
+# Remote DB (e.g. Neon): make migrate-remote COFFER_DATABASE_URL='postgresql://...'
+REMOTE_GUARD = @test -n "$(COFFER_DATABASE_URL)" || { echo "Ustaw COFFER_DATABASE_URL (connection string z Neon)"; exit 1; }
+
+migrate-remote:
+	$(REMOTE_GUARD)
+	@cd src/backend && COFFER_DATABASE_URL='$(COFFER_DATABASE_URL)' uv run alembic upgrade head
+
+# Demo data on a remote DB: only on explicit request (creates a user with a public password)
+seed-remote:
+	$(REMOTE_GUARD)
+	@test "$(CONFIRM)" = "yes" || { echo "Seed zdalnej bazy: dodaj CONFIRM=yes (tworzy konto demo ze znanym hasłem)"; exit 1; }
+	@cd src/backend && COFFER_DATABASE_URL='$(COFFER_DATABASE_URL)' uv run python -m coffer.scripts.seed_demo
 
 dev-api:
 	$(BACKEND) uvicorn coffer.main:app --reload --port 8000
@@ -42,3 +55,6 @@ openapi:
 
 seed:
 	$(BACKEND) python -m coffer.scripts.seed_demo
+
+mcp-market:
+	@$(BACKEND) python -m coffer.market.mcp_server

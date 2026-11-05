@@ -11,9 +11,21 @@ const AssistantPanel: any = (mod as any).AssistantPanel ?? (mod as any).default;
 // Stabilny wrapper na fetch (openapi-fetch może przechwycić fetch przy tworzeniu klienta).
 type Handler = (req: Request) => Promise<Response> | Response;
 const h = vi.hoisted(() => ({ handler: null as null | ((req: Request) => unknown) }));
+// undici's Request rejects jsdom's AbortSignal ("Expected signal to be an instance of
+// AbortSignal"), so the signal is stripped before `new Request`, exposed again as
+// `req.signal` for assertions, and honoured by rejecting with AbortError on abort.
 vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
-  const req = input instanceof Request ? input : new Request(new URL(String(input), "http://localhost"), init);
-  return Promise.resolve(h.handler!(req));
+  if (input instanceof Request) return Promise.resolve(h.handler!(input));
+  const { signal, ...rest } = init ?? {};
+  const req = new Request(new URL(String(input), "http://localhost"), rest);
+  if (!signal) return Promise.resolve(h.handler!(req));
+  Object.defineProperty(req, "signal", { value: signal });
+  const abortError = () => new DOMException("The operation was aborted.", "AbortError");
+  if (signal.aborted) return Promise.reject(abortError());
+  return new Promise((resolve, reject) => {
+    signal.addEventListener("abort", () => reject(abortError()), { once: true });
+    Promise.resolve(h.handler!(req)).then(resolve, reject);
+  });
 });
 
 const json = (body: unknown, status = 200) =>
