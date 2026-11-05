@@ -11,6 +11,7 @@ Nowy przypadek użycia tworzymy na podstawie [szablonu](_template.md).
 flowchart LR
     Uzytkownik["👤 Użytkownik"]
     LLM["👤 Dostawca modelu językowego<br/>«system zewnętrzny»"]
+    Search["👤 Wyszukiwarka internetowa<br/>«system zewnętrzny»"]
 
     subgraph System["Coffer"]
         UC01(["UC-01<br/>Założenie konta"])
@@ -21,6 +22,11 @@ flowchart LR
         UC06(["UC-06<br/>Wskazanie okazji"])
         UC07(["UC-07<br/>Ocena wpływu zakupu na portfel"])
         UC08(["UC-08<br/>Usunięcie konta"])
+        UC09(["UC-09<br/>Logowanie i wylogowanie"])
+        UC10(["UC-10<br/>Ręczne dodanie transakcji"])
+        UC11(["UC-11<br/>Analiza miesięczna budżetu"])
+        UC12(["UC-12<br/>Sugestia wykorzystania nadwyżki"])
+        UC13(["UC-13<br/>Wyszukanie informacji o spółce"])
     end
 
     Uzytkownik --- UC01
@@ -31,11 +37,19 @@ flowchart LR
     Uzytkownik --- UC06
     Uzytkownik --- UC07
     Uzytkownik --- UC08
+    Uzytkownik --- UC09
+    Uzytkownik --- UC10
+    Uzytkownik --- UC11
+    Uzytkownik --- UC12
+    Uzytkownik --- UC13
 
     UC07 -.->|«extend»| UC06
 
     UC06 --- LLM
     UC07 --- LLM
+    UC12 --- LLM
+    UC13 --- LLM
+    UC13 --- Search
 ```
 
 ## Katalog przypadków użycia
@@ -50,3 +64,8 @@ flowchart LR
 | [UC-06](UC-06-find-opportunities.md)      | Wskazanie okazji                                  | Użytkownik, Dostawca modelu językowego | F30, F32, F33, F36, N03, N07, N08 |
 | [UC-07](UC-07-assess-purchase-impact.md)  | Ocena wpływu zakupu na portfel                    | Użytkownik, Dostawca modelu językowego | F23, F32, F33, F37, N03, N08      |
 | [UC-08](UC-08-delete-account.md)          | Usunięcie konta                                   | Użytkownik                             | F09, N02, N09                     |
+| [UC-09](UC-09-log-in.md)                  | Logowanie i wylogowanie                           | Użytkownik                             | F01, F02, N02                     |
+| [UC-10](UC-10-add-transaction.md)         | Ręczne dodanie transakcji                         | Użytkownik                             | F03, N04, N06                     |
+| [UC-11](UC-11-monthly-analysis.md)        | Analiza miesięczna budżetu                        | Użytkownik                             | F10–F15, N04, N08                 |
+| [UC-12](UC-12-surplus-suggestion.md)      | Sugestia wykorzystania nadwyżki                   | Użytkownik, Dostawca modelu językowego | F31, F32, F33, N03, N08           |
+| [UC-13](UC-13-company-info.md)            | Wyszukanie informacji o spółce                    | Użytkownik, Dostawca modelu językowego, Wyszukiwarka internetowa | F34, F35, N07, N08 |

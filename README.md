@@ -1,30 +1,176 @@
 # Coffer Financial Assistant
 
-**Coffer** to projekt mający na celu pomóc w codziennym i długoterminowym zarządzaniu całym portfolio finansowym.
+## 1. Coffer w skrócie
 
-Projekt jest rozwijany w ramach dwóch przedmiotów na Politechnice Warszawskiej: _Inżynieria Oprogramowania 1_ (specyfikacja) oraz _Tworzenie Agentów AI w środowisku .NET_ (integracja z agentem)
+**Coffer** to aplikacja do zarządzania finansami osobistymi z lokalnym asystentem AI. Użytkownik importuje lub dodaje transakcje, widzi analizę miesiąca (przychody, wydatki, nadwyżka) i dostaje sugestię wykorzystania nadwyżki. Liczy rdzeń aplikacji, a model językowy (Ollama, działa lokalnie) tylko interpretuje gotowe agregaty. Projekt powstaje na Politechnice Warszawskiej w ramach przedmiotów _Inżynieria Oprogramowania 1_ (specyfikacja) i _Tworzenie Agentów AI w środowisku .NET_ (integracja z agentem).
 
-## Dokumentacja
+| Działa | Jeszcze nie ma |
+|---|---|
+| konto użytkownika (rejestracja, logowanie) | portfel inwestycyjny |
+| transakcje (dodawanie, lista, usuwanie) | kursy NBP |
+| import CSV z deduplikacją | edycja transakcji |
+| analiza miesiąca (kategorie, nadwyżka) | wyszukiwanie informacji o spółce |
+| profil inwestycyjny | |
+| asystent AI: sugestia nadwyżki, historia, ślad przebiegu | |
 
-- [Wizja](docs/vision.md)
-- [Słownik](docs/glossary.md)
-- [Wymagania](docs/requirements.md)
-- [Przypadki użycia](docs/use-cases/README.md)
+## 2. Wymagania
 
-## Struktura projektu
+| Narzędzie | Wersja | Po co | macOS (Homebrew) |
+|---|---|---|---|
+| Git | dowolna | klonowanie repo | `brew install git` |
+| Docker Desktop | aktualny | Postgres 16 w kontenerze | `brew install --cask docker` (uruchom aplikację) |
+| uv | aktualny | sam instaluje Pythona 3.12 i zależności backendu | `brew install uv` |
+| Node.js + npm | >= 20 | frontend (React, Vite) | `brew install node` |
+| Ollama | aktualny | lokalny model AI (opcjonalnie) | `brew install --cask ollama` |
+
+Model: `ollama pull qwen3:8b` (ok. 5 GB, zalecane min. 16 GB RAM). Mniejsza alternatywa: `ollama pull qwen3:4b` i `COFFER_OLLAMA_MODEL=qwen3:4b` w `.env`.
+
+Linux / Windows: zainstaluj te same narzędzia własnym menedżerem pakietów (Docker Engine albo Docker Desktop, [uv](https://docs.astral.sh/uv/), Node.js, [Ollama](https://ollama.com)). Na Windows pracuj w WSL2 (z włączoną integracją Dockera), potrzebne jest też `make`.
+
+Wolne porty: **5432** (Postgres), **8000** (API), **5173** (frontend), **11434** (Ollama).
+
+## 3. Pierwsze uruchomienie krok po kroku
+
+Wszystkie polecenia z katalogu głównego repozytorium.
+
+| Krok | Komenda | Co robi |
+|---|---|---|
+| 1 | `git clone <adres-repozytorium> coffer && cd coffer` | pobiera kod |
+| 2 | `cp .env.example .env` | (opcjonalnie) plik konfiguracji; bez niego działają wartości domyślne |
+| 3 | `make setup` | instaluje zależności backendu (`uv sync`) i frontendu (`npm install`) |
+| 4 | `make db-up` | uruchamia Postgresa w Dockerze i czeka na gotowość |
+| 5 | `make migrate` | tworzy schemat bazy i kategorie systemowe (Alembic) |
+| 6 | `make seed` | tworzy konto demo i transakcje z 3 ostatnich miesięcy (można powtarzać: transakcje demo są tworzone od nowa) |
+| 7 | `make dev-api` | API na `http://localhost:8000` (terminal 1) |
+| 8 | `make dev-web` | frontend na `http://localhost:5173` (terminal 2) |
+
+Otwórz [http://localhost:5173](http://localhost:5173) i zaloguj się kontem demo:
+
+- e-mail: `demo@coffer.local`
+- hasło: `demo12345`
+
+**Jak sprawdzić, że działa**
+- `curl localhost:8000/api/health` zwraca status `ok`.
+- W panelu asystenta widać status modelu: „`<model>` · dostępny”, „Model niedostępny” albo „AI wyłączone”.
+
+## 4. Konfiguracja
+
+Zmienne środowiskowe `COFFER_*` (z procesu albo z pliku `.env` w katalogu głównym). Wszystkie są opcjonalne.
+
+| Zmienna | Domyślnie | Opis |
+|---|---|---|
+| `COFFER_DATABASE_URL` | `postgresql+psycopg://coffer:coffer@localhost:5432/coffer` | adres bazy (SQLAlchemy + psycopg 3) |
+| `COFFER_ALLOWED_ORIGINS` | `["http://localhost:5173","http://localhost:8000"]` | dozwolone originy dla żądań zmieniających dane (lista JSON) |
+| `COFFER_SESSION_TTL_DAYS` | `14` | ważność sesji w dniach |
+| `COFFER_COOKIE_SECURE` | `false` | `true`, gdy aplikacja działa przez HTTPS |
+| `COFFER_LLM_PROVIDER` | `ollama` | dostawca LLM: `ollama` albo `none` |
+| `COFFER_OLLAMA_URL` | `http://localhost:11434` | adres serwera Ollama |
+| `COFFER_OLLAMA_MODEL` | `qwen3:8b` | nazwa modelu |
+| `COFFER_LLM_TIMEOUT_S` | `90` | limit czasu żądania do modelu (s) |
+| `COFFER_AGENT_DAILY_LIMIT` | `50` | maks. przebiegów agenta na użytkownika na dobę |
+| `COFFER_AGENT_MAX_ATTEMPTS` | `2` | próby wywołania modelu (1 + 1 poprawka po błędzie walidacji) |
+
+- **Wyłączenie AI:** `COFFER_LLM_PROVIDER=none` w `.env` (restart `make dev-api`). Reszta aplikacji działa bez zmian.
+- **Zmiana modelu:** `ollama pull <model>` i `COFFER_OLLAMA_MODEL=<model>`.
+
+## 5. Najczęstsze problemy
+
+| Objaw | Rozwiązanie |
+|---|---|
+| `make db-up` kończy się błędem, Docker nie działa | uruchom Docker Desktop, poczekaj na ikonę „running”, powtórz |
+| „port is already allocated” / „address already in use” | zwolnij port (5432, 8000, 5173) albo zatrzymaj inny Postgres/serwer; `lsof -i :5432` pokaże proces |
+| status „Model niedostępny” | uruchom Ollamę (`ollama serve` albo aplikację), sprawdź `ollama list`, w razie braku `ollama pull qwen3:8b`; sprawdź `COFFER_OLLAMA_URL` i nazwę modelu |
+| odpowiedź modelu trwa długo | pierwsze wywołanie ładuje model do pamięci; na słabszym sprzęcie użyj `qwen3:4b` lub zwiększ `COFFER_LLM_TIMEOUT_S` |
+| chcę zacząć od czystej bazy | `make db-down`, usuń wolumen (`docker volume ls`, potem `docker volume rm <projekt>_coffer-db`; albo od razu `docker compose down -v`), następnie `make db-up`, `make migrate`, `make seed` |
+
+## 6. Jak to działa
 
 ```text
-Coffer/
-├── README.md
-├── docs/
-│   ├── vision.md
-│   ├── glossary.md
-│   ├── requirements.md
-│   └── use-cases/
-│       ├── README.md
-│       └── UC-XX-*.md
-└── src/
+przeglądarka ──► Vite (:5173, proxy /api) ──► FastAPI (:8000) ──┬─► PostgreSQL (:5432)
+                                                                 └─► Ollama (:11434, lokalny LLM)
 ```
+
+**Rdzeń liczy, agent interpretuje.** Sumy, nadwyżki i udziały liczy wyłącznie `coffer.analytics` (czyste funkcje, `Decimal`). Model nigdy nie liczy: dostaje gotowe agregaty i opisuje je słowami. Brak modelu nie psuje rdzenia.
+
+**Sugestia nadwyżki (szczegóły: [`docs/plan.md`](docs/plan.md), sekcja 4):**
+1. Kod woła narzędzia: analiza miesiąca i profil inwestycyjny (`user_id` pochodzi z sesji).
+2. Gdy nadwyżka <= 0, odpowiedź powstaje bez modelu.
+3. Model dostaje tylko agregaty (prompt `agent/prompts/surplus_v2.md`) i zwraca ustrukturyzowany szkic (podsumowanie, uzasadnienie, ryzyka).
+4. Walidator sprawdza, czy uzasadnienie istnieje, a liczby pochodzą z wyników narzędzi.
+5. Przy błędzie następuje jedna poprawka z informacją o błędzie; potem komunikat „asystent niedostępny”.
+6. Sugestia i ślad przebiegu (prompty, narzędzia, wynik) są zapisywane w bazie.
+7. Postęp i wynik płyną do przeglądarki przez SSE (`POST /api/agent/surplus/stream`).
+
+**Deduplikacja importu.** Transakcja to duplikat, gdy istnieje już taka sama trójka: data + kwota + opis ze znormalizowanymi spacjami. Porównanie jest na multizbiorze: dwie identyczne transakcje w pliku przy jednej w bazie dają jedną nową i jednego duplikata.
+
+**Prywatność.** Do modelu trafiają tylko agregaty (przychody, wydatki, kategorie z udziałami, nadwyżka, profil inwestycyjny). Nie trafiają: e-mail, opisy transakcji, identyfikatory. Model działa lokalnie, dane nie opuszczają komputera.
+
+## 7. Struktura kodu
+
+```text
+coffer/
+├── docs/             specyfikacja, plan, karty zadań
+├── data/fixtures/    wymyślone dane testowe (np. csv/testbank-2026-10.csv)
+├── docker/           init bazy Postgres (baza testowa)
+├── .claude/          role agentów, procedura run-task, ustawienia
+├── compose.yaml      Postgres 16
+├── Makefile          komendy projektu
+└── src/
+    ├── backend/      Python 3.12, FastAPI, SQLAlchemy, Alembic
+    │   ├── alembic/  migracje bazy
+    │   ├── tests/    testy (podkatalog na moduł)
+    │   └── coffer/
+    │       ├── main.py        aplikacja FastAPI, /api/health
+    │       ├── core/          konfiguracja, baza, pieniądze (quantize), miesiące, sprawdzanie origin
+    │       ├── accounts/      rejestracja, logowanie, sesje, zależność CurrentUser
+    │       ├── transactions/  transakcje i kategorie
+    │       ├── imports/       import CSV: parser, banki, kategoryzacja, deduplikacja
+    │       ├── budget/        widok miesiąca (łączy transakcje z analityką)
+    │       ├── analytics/     czyste funkcje liczące sumy i udziały
+    │       ├── profile/       profil inwestycyjny
+    │       ├── agent/         asystent AI
+    │       │   ├── tools/       rejestr i narzędzia odczytu danych
+    │       │   ├── workflows/   przebieg sugestii nadwyżki
+    │       │   └── prompts/     wersjonowane prompty (surplus_v1, surplus_v2)
+    │       └── scripts/       dump_openapi, seed_demo
+    └── frontend/     React, TypeScript, Vite
+        └── src/
+            ├── features/    auth, transactions, import, budget, profile, assistant
+            ├── components/  wspólne komponenty; ui/ to prymitywy interfejsu
+            ├── api/         klient HTTP i typy wygenerowane z OpenAPI
+            ├── lib/         pomocnicze: pieniądze, miesiące, błędy, react-query
+            └── i18n/        teksty interfejsu po polsku (pl.ts)
+```
+
+Pliki w `agent/`: `llm.py` (klient Ollama), `validator.py`, `anonymize.py`, `drafts.py`, `sse.py`, `api.py`, `service.py`.
+
+**Zasady modułów:** moduł `coffer/<moduł>/` ma `api.py` (cienki router), `service.py`, `models.py`, `schemas.py`. Inne moduły korzystają z niego tylko przez `service.py` (analityka: publiczne dataclassy). Rdzeń nigdy nie importuje `coffer.agent`; pilnuje tego `import-linter` w `make lint`.
+
+## 8. Testy i jakość
+
+| Komenda | Co robi |
+|---|---|
+| `make check` | całość: lint, testy backendu, sprawdzenie frontu |
+| `make lint` | ruff, pyright, import-linter |
+| `make test-backend ARGS="tests/accounts"` | testy backendu (całość bez `ARGS`) |
+| `make check-web` | tsc, vitest i build frontendu |
+| `make openapi` | zrzut OpenAPI i typy TypeScript |
+
+Testy backendu są w `src/backend/tests/<moduł>`, testy frontu obok kodu (`*.test.ts(x)`). Testy używają osobnej bazy (domyślnie `coffer_test`); żeby równoległe uruchomienia nie kasowały sobie danych, ustaw `COFFER_TEST_DB=coffer_test_<moduł>`.
+
+## 9. Praca z agentami AI
+
+Projekt jest przygotowany do pracy z agentami Claude Code. Każde zadanie ma kartę w `docs/tasks/` z kontraktem, listą plików i kryteriami akceptacji. Role (`implementer`, `tester`, `reviewer`, `spec-writer`) mają rozłączne pliki, a tester pisze testy niezależnie od implementacji. Krótki kontekst dla agentów jest w `CLAUDE.md`. Szczegóły: [`docs/agents.md`](docs/agents.md) i [`docs/tasks/`](docs/tasks/README.md).
+
+## 10. Dokumentacja
+
+- [Wizja](docs/vision.md)
+- [Wymagania](docs/requirements.md)
+- [Słownik](docs/glossary.md)
+- [Przypadki użycia](docs/use-cases/README.md)
+- [Plan techniczny](docs/plan.md)
+- [Format CSV](docs/csv-format.md)
+- [Praca z agentami](docs/agents.md)
 
 ## Autorzy:
 

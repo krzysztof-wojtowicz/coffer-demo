@@ -1,0 +1,72 @@
+[project]
+name = "coffer"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlalchemy>=2",
+    "psycopg[binary]>=3",
+    "alembic",
+    "pydantic>=2",
+    "pydantic-settings",
+    "argon2-cffi",
+    "httpx",
+    "python-multipart",
+]
+
+[dependency-groups]
+dev = ["pytest", "hypothesis", "ruff", "pyright", "import-linter"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["coffer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"coffer/**/api.py" = ["B008"]
+
+[tool.pyright]
+typeCheckingMode = "standard"
+include = ["coffer", "tests", "alembic"]
+executionEnvironments = [
+  { root = "tests", reportOptionalMemberAccess = false, reportOptionalSubscript = false },
+  { root = "." },
+]
+
+[tool.importlinter]
+root_package = "coffer"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Core modules do not import the agent"
+type = "forbidden"
+source_modules = [
+    "coffer.accounts",
+    "coffer.transactions",
+    "coffer.budget",
+    "coffer.imports",
+    "coffer.profile",
+    "coffer.analytics",
+    "coffer.core",
+]
+forbidden_modules = ["coffer.agent"]
+
+[[tool.importlinter.contracts]]
+name = "Analytics is pure"
+type = "forbidden"
+source_modules = ["coffer.analytics"]
+forbidden_modules = ["sqlalchemy", "fastapi", "coffer.core.db"]

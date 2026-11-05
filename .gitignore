@@ -1,1 +1,25 @@
 .DS_Store
+.env
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+dist/
+src/frontend/openapi.json
+*.tsbuildinfo
+
+# Secrets: any env variant except the documented template
+.env.*
+!.env.example
+
+# Local tool caches (most also self-ignore, listed for clarity)
+.hypothesis/
+.import_linter_cache/
+*.log
+
+# Per-developer settings
+.claude/settings.local.json
+.idea/
+.vscode/

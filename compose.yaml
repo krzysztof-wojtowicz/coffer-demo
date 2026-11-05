@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: coffer
+      POSTGRES_PASSWORD: coffer
+      POSTGRES_DB: coffer
+    ports:
+      - "5432:5432"
+    volumes:
+      - coffer-db:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+volumes:
+  coffer-db:
