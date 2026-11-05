@@ -347,6 +347,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portfolio/holdings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Holdings */
+        get: operations["list_holdings_api_portfolio_holdings_get"];
+        put?: never;
+        /** Create Holding */
+        post: operations["create_holding_api_portfolio_holdings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portfolio/holdings/{holding_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Holding */
+        delete: operations["delete_holding_api_portfolio_holdings__holding_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Holding */
+        patch: operations["update_holding_api_portfolio_holdings__holding_id__patch"];
+        trace?: never;
+    };
+    "/api/portfolio/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Summary */
+        get: operations["get_summary_api_portfolio_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Quotes */
+        get: operations["quotes_api_market_quotes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/investment/advice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advice */
+        post: operations["advice_api_agent_investment_advice_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -368,6 +455,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdviceOut */
+        AdviceOut: {
+            /** Top Picks */
+            top_picks: components["schemas"]["TopPickOut"][];
+            /** Tips */
+            tips: components["schemas"]["TipOut"][];
+            /** Llm Used */
+            llm_used: boolean;
+            /**
+             * Disclaimer
+             * @default To nie jest porada inwestycyjna, tylko informacja edukacyjna. Inwestowanie wiąże się z ryzykiem utraty kapitału; decyzję podejmujesz samodzielnie.
+             */
+            disclaimer: string;
+        };
+        /** AdviceRequest */
+        AdviceRequest: {
+            /** Holdings */
+            holdings?: components["schemas"]["HoldingIn"][];
+        };
         /** AgentRunListItem */
         AgentRunListItem: {
             /** Id */
@@ -434,11 +540,23 @@ export interface components {
              * Provider
              * @enum {string}
              */
-            provider: "ollama" | "none";
+            provider: "ollama" | "openai" | "gemini" | "anthropic" | "none";
             /** Model */
             model: string | null;
             /** Available */
             available: boolean;
+        };
+        /** AllocationOut */
+        AllocationOut: {
+            /**
+             * Asset Class
+             * @enum {string}
+             */
+            asset_class: "stock" | "etf" | "bond" | "real_estate" | "commodity" | "crypto" | "cash";
+            /** Value */
+            value: string;
+            /** Share Pct */
+            share_pct: string;
         };
         /** BankOut */
         BankOut: {
@@ -512,6 +630,140 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HoldingCreate */
+        HoldingCreate: {
+            /** Name */
+            name: string;
+            /** Symbol */
+            symbol?: string | null;
+            /**
+             * Asset Class
+             * @enum {string}
+             */
+            asset_class: "stock" | "etf" | "bond" | "real_estate" | "commodity" | "crypto" | "cash";
+            /** Quantity */
+            quantity: number | string;
+            /** Purchase Price */
+            purchase_price: number | string;
+            /**
+             * Currency
+             * @default PLN
+             */
+            currency: string;
+            /** Purchase Date */
+            purchase_date?: string | null;
+            /** Manual Value */
+            manual_value?: number | string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** HoldingIn */
+        HoldingIn: {
+            /** Symbol */
+            symbol?: string | null;
+            /** Asset Class */
+            asset_class: string;
+            /** Quantity */
+            quantity: number | string;
+            /** Current Value */
+            current_value?: number | string | null;
+        };
+        /** HoldingOut */
+        HoldingOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Symbol */
+            symbol: string | null;
+            /**
+             * Asset Class
+             * @enum {string}
+             */
+            asset_class: "stock" | "etf" | "bond" | "real_estate" | "commodity" | "crypto" | "cash";
+            /** Quantity */
+            quantity: string;
+            /** Purchase Price */
+            purchase_price: string;
+            /** Currency */
+            currency: string;
+            /** Purchase Date */
+            purchase_date: string | null;
+            /** Manual Value */
+            manual_value: string | null;
+            /** Note */
+            note: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * HoldingUpdate
+         * @description PATCH body: only sent fields change; required columns cannot be set to null.
+         */
+        HoldingUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Symbol */
+            symbol?: string | null;
+            /** Asset Class */
+            asset_class?: ("stock" | "etf" | "bond" | "real_estate" | "commodity" | "crypto" | "cash") | null;
+            /** Quantity */
+            quantity?: number | string | null;
+            /** Purchase Price */
+            purchase_price?: number | string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Purchase Date */
+            purchase_date?: string | null;
+            /** Manual Value */
+            manual_value?: number | string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** HoldingValuationOut */
+        HoldingValuationOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Symbol */
+            symbol: string | null;
+            /**
+             * Asset Class
+             * @enum {string}
+             */
+            asset_class: "stock" | "etf" | "bond" | "real_estate" | "commodity" | "crypto" | "cash";
+            /** Quantity */
+            quantity: string;
+            /** Currency */
+            currency: string;
+            /** Cost Basis */
+            cost_basis: string;
+            /** Current Value */
+            current_value: string;
+            /**
+             * Value Source
+             * @enum {string}
+             */
+            value_source: "market" | "manual" | "cost";
+            /** Market Price */
+            market_price: string | null;
+            /** Price Currency */
+            price_currency: string | null;
+            /** Gain */
+            gain: string;
+            /** Gain Pct */
+            gain_pct: string | null;
+            /** Share Pct */
+            share_pct: string | null;
+            /** Amount Currency */
+            amount_currency: string;
+            /** Converted */
+            converted: boolean;
+        };
         /** ImportCounts */
         ImportCounts: {
             /** New */
@@ -577,6 +829,25 @@ export interface components {
             /** By Category */
             by_category: components["schemas"]["CategoryTotalOut"][];
         };
+        /** PortfolioSummaryOut */
+        PortfolioSummaryOut: {
+            /** Holdings */
+            holdings: components["schemas"]["HoldingValuationOut"][];
+            /** Allocation */
+            allocation: components["schemas"]["AllocationOut"][];
+            /** Total Value */
+            total_value: string;
+            /** Total Cost */
+            total_cost: string;
+            /** Total Gain */
+            total_gain: string;
+            /** Total Gain Pct */
+            total_gain_pct: string | null;
+            /** Prices Available */
+            prices_available: boolean;
+            /** Fx Missing */
+            fx_missing: string[];
+        };
         /** ProfileIn */
         ProfileIn: {
             /**
@@ -611,6 +882,29 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** QuoteOut */
+        QuoteOut: {
+            /** Symbol */
+            symbol: string;
+            /** Name */
+            name: string | null;
+            /** Price */
+            price: string;
+            /** Currency */
+            currency: string;
+            /** Change Pct */
+            change_pct: string | null;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+        };
+        /** QuotesOut */
+        QuotesOut: {
+            /** Quotes */
+            quotes: components["schemas"]["QuoteOut"][];
         };
         /** RationaleItemOut */
         RationaleItemOut: {
@@ -668,6 +962,32 @@ export interface components {
             suggestion?: components["schemas"]["SuggestionOut"] | null;
             /** Run Id */
             run_id?: number | null;
+        };
+        /** TipOut */
+        TipOut: {
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /** Source */
+            source: string;
+            /** Url */
+            url: string | null;
+        };
+        /** TopPickOut */
+        TopPickOut: {
+            /** Name */
+            name: string;
+            /** Asset Class */
+            asset_class: string;
+            /** Symbol */
+            symbol: string | null;
+            /** Rationale */
+            rationale: string;
+            /** Risk Level */
+            risk_level: number;
+            /** Source Url */
+            source_url: string | null;
         };
         /** TransactionCreate */
         TransactionCreate: {
@@ -1380,6 +1700,208 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_holdings_api_portfolio_holdings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldingOut"][];
+                };
+            };
+        };
+    };
+    create_holding_api_portfolio_holdings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HoldingCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_holding_api_portfolio_holdings__holding_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                holding_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_holding_api_portfolio_holdings__holding_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                holding_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HoldingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_summary_api_portfolio_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioSummaryOut"];
+                };
+            };
+        };
+    };
+    quotes_api_market_quotes_get: {
+        parameters: {
+            query: {
+                /** @description Symbole oddzielone przecinkami, np. AAPL,MSFT */
+                symbols: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuotesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advice_api_agent_investment_advice_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdviceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdviceOut"];
                 };
             };
             /** @description Validation Error */

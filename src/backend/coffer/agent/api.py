@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 
 from coffer.accounts.deps import CurrentUser
 from coffer.agent import service
-from coffer.agent.llm import LLMClient, get_llm_client
+from coffer.agent.llm import LLMClient, get_llm_client, provider_name
 from coffer.agent.schemas import (
     AgentRunListItem,
     AgentRunOut,
@@ -101,10 +101,11 @@ def status(
     user: CurrentUser,
     llm: Annotated[LLMClient | None, Depends(get_llm_client)],
 ) -> AgentStatusOut:
+    provider = provider_name(llm)
     if llm is None:
-        return AgentStatusOut(provider="none", model=None, available=False)
+        return AgentStatusOut(provider=provider, model=None, available=False)
     try:
         st = llm.status()
     except Exception:
-        return AgentStatusOut(provider="ollama", model=None, available=False)
-    return AgentStatusOut(provider="ollama", model=st.model, available=st.available)
+        return AgentStatusOut(provider=provider, model=None, available=False)
+    return AgentStatusOut(provider=provider, model=st.model, available=st.available)

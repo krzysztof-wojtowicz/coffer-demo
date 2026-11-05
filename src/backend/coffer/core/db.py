@@ -6,13 +6,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from coffer.core.config import get_settings
+from coffer.core.db_url import engine_options
 
 
 class Base(DeclarativeBase):
     pass
 
 
-engine = create_engine(get_settings().database_url, pool_pre_ping=True)
+_DATABASE_URL = get_settings().database_url
+engine = create_engine(_DATABASE_URL, **engine_options(_DATABASE_URL))
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 

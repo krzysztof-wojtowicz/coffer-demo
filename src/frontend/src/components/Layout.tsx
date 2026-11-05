@@ -8,6 +8,7 @@ const links = [
   { to: '/', label: pl.nav.summary, end: true },
   { to: '/transactions', label: pl.nav.transactions, end: false },
   { to: '/import', label: pl.nav.import, end: false },
+  { to: '/portfolio', label: pl.nav.portfolio, end: false },
   { to: '/assistant', label: pl.nav.assistant, end: false },
   { to: '/profile', label: pl.nav.profile, end: false },
 ]

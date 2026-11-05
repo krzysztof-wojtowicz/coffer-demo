@@ -63,15 +63,61 @@ Zmienne środowiskowe `COFFER_*` (z procesu albo z pliku `.env` w katalogu głó
 | `COFFER_ALLOWED_ORIGINS` | `["http://localhost:5173","http://localhost:8000"]` | dozwolone originy dla żądań zmieniających dane (lista JSON) |
 | `COFFER_SESSION_TTL_DAYS` | `14` | ważność sesji w dniach |
 | `COFFER_COOKIE_SECURE` | `false` | `true`, gdy aplikacja działa przez HTTPS |
-| `COFFER_LLM_PROVIDER` | `ollama` | dostawca LLM: `ollama` albo `none` |
+| `COFFER_LLM_PROVIDER` | `ollama` | dostawca LLM: `ollama`, `openai`, `gemini` albo `none` |
 | `COFFER_OLLAMA_URL` | `http://localhost:11434` | adres serwera Ollama |
 | `COFFER_OLLAMA_MODEL` | `qwen3:8b` | nazwa modelu |
+| `COFFER_OPENAI_API_KEY` | (pusty) | klucz API OpenAI (dla `openai`) |
+| `COFFER_OPENAI_MODEL` | `gpt-4o-mini` | model OpenAI |
+| `COFFER_OPENAI_BASE_URL` | `https://api.openai.com/v1` | adres API zgodnego z OpenAI |
+| `COFFER_GEMINI_API_KEY` | (pusty) | klucz API Google Gemini (dla `gemini`) |
+| `COFFER_GEMINI_MODEL` | `gemini-3.8-flash` | model Gemini |
 | `COFFER_LLM_TIMEOUT_S` | `90` | limit czasu żądania do modelu (s) |
 | `COFFER_AGENT_DAILY_LIMIT` | `50` | maks. przebiegów agenta na użytkownika na dobę |
 | `COFFER_AGENT_MAX_ATTEMPTS` | `2` | próby wywołania modelu (1 + 1 poprawka po błędzie walidacji) |
 
 - **Wyłączenie AI:** `COFFER_LLM_PROVIDER=none` w `.env` (restart `make dev-api`). Reszta aplikacji działa bez zmian.
 - **Zmiana modelu:** `ollama pull <model>` i `COFFER_OLLAMA_MODEL=<model>`.
+
+### Alternatywny asystent AI: Gemini / OpenAI / Claude
+
+Domyślnie asystent korzysta z lokalnej Ollamy. Zamiast niej można użyć modelu w chmurze: Google Gemini, Anthropic Claude albo OpenAI (lub dowolnego API zgodnego z OpenAI, np. LM Studio, vLLM, OpenRouter).
+
+**Jak przełączyć.** W `.env` ustaw dostawcę i klucz, potem zrestartuj `make dev-api`:
+
+```env
+# Gemini
+COFFER_LLM_PROVIDER=gemini
+COFFER_GEMINI_API_KEY=<klucz z Google AI Studio>
+COFFER_GEMINI_MODEL=gemini-3.8-flash
+
+# albo OpenAI / API zgodne z OpenAI
+COFFER_LLM_PROVIDER=openai
+COFFER_OPENAI_API_KEY=<klucz>
+COFFER_OPENAI_MODEL=gpt-4o-mini
+COFFER_OPENAI_BASE_URL=https://api.openai.com/v1
+
+# albo Anthropic Claude
+COFFER_LLM_PROVIDER=anthropic
+COFFER_ANTHROPIC_API_KEY=<klucz z console.anthropic.com>
+COFFER_ANTHROPIC_MODEL=claude-sonnet-5-5
+```
+
+**Klucz do Claude.** Załóż konto na [console.anthropic.com](https://console.anthropic.com), w *Settings → Billing* doładuj kredyty (API jest płatne z góry; bez kredytów każde wywołanie kończy się błędem i asystent pokazuje „asystent niedostępny”), potem w *Settings → API Keys* kliknij *Create Key* i wklej klucz (`sk-ant-...`) do `COFFER_ANTHROPIC_API_KEY`. Model można zmienić w `COFFER_ANTHROPIC_MODEL` (np. tańszy `claude-haiku-5-5` albo mocniejszy `claude-opus-5-5`).
+
+Bez klucza status asystenta to „Model niedostępny”, a reszta aplikacji działa normalnie. Klucze są czytane tylko z konfiguracji: nie trafiają do logów, komunikatów błędów ani odpowiedzi API (pola mają `repr=False`, Gemini dostaje klucz w nagłówku `x-goog-api-key`, a nie w URL, Claude w nagłówku `x-api-key`).
+
+**Implementacja** (`src/backend/coffer/agent/llm.py`, tylko `httpx`, bez SDK dostawców):
+- Wszyscy dostawcy implementują ten sam `Protocol` `LLMClient`: `status()` i `complete(system, messages, response_schema)` zwracające `LLMResponse` (treść, model, tokeny wejścia/wyjścia). Reszta agenta nie wie, z którym dostawcą rozmawia; klienta wybiera fabryka `get_llm_client()` na podstawie `COFFER_LLM_PROVIDER` (`none` → brak klienta).
+- **Structured output** (schemat JSON szkicu sugestii):
+  - Ollama: pole `format` z całym schematem;
+  - OpenAI: Chat Completions (`POST {base_url}/chat/completions`) z `response_format: {type: "json_schema", json_schema: {name, schema, strict: false}}` (tryb nieścisły, bo schematy Pydantic nie mają `additionalProperties: false`; i tak waliduje je nasz walidator);
+  - Gemini: `generateContent` z `systemInstruction` i `generationConfig.responseMimeType = "application/json"` + `responseSchema`. Gemini przyjmuje tylko podzbiór JSON Schema, więc `gemini_schema()` rozwija `$ref`/`$defs`, zamienia `anyOf [T, null]` i `type: [T, null]` na `nullable: true` oraz usuwa nieobsługiwane słowa kluczowe (`additionalProperties`, `title`, `default` itd.). Role `assistant` mapowane są na `model`.
+  - Claude: Messages API (`POST {base_url}/v1/messages`, nagłówki `x-api-key` i `anthropic-version: 2026-10-21`), prompt systemowy w osobnym polu `system`, `max_tokens` 16000. Schemat idzie w `output_config.format = {type: "json_schema", schema}` (structured outputs; wymuszone narzędzie przez `tool_choice` nie działa na najnowszych modelach). API wymaga `additionalProperties: false` w każdym obiekcie i nie przyjmuje ograniczeń liczbowych/długości, więc `anthropic_schema()` dopisuje to pierwsze i usuwa drugie. Z odpowiedzi brane są tylko bloki `text`; `stop_reason` `refusal` lub `max_tokens` → `LLMUnavailable`. Dla modeli, które to wspierają (np. `claude-sonnet-5-5`), włączony jest serwerowy fallback przy odmowie (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`).
+- **Tokeny:** OpenAI `usage.prompt_tokens`/`completion_tokens`, Gemini `usageMetadata.promptTokenCount`/`candidatesTokenCount`, Claude `usage.input_tokens`/`output_tokens`; zapisywane w śladzie przebiegu.
+- **Obsługa błędów:** błąd sieci, timeout (`COFFER_LLM_TIMEOUT_S`), status HTTP ≠ 200 (np. 401 zły klucz, 429 limit) i niepoprawna/pusta odpowiedź zamieniane są na `LLMUnavailable`. `status()` dostawców chmurowych nie wykonuje płatnych wywołań: sprawdza tylko, czy skonfigurowano klucz.
+- **Fallback:** przy `LLMUnavailable` workflow od razu kończy przebieg komunikatem „asystent niedostępny” (komunikat błędu nie zawiera klucza ani treści odpowiedzi), a przy nadwyżce <= 0 odpowiedź powstaje bez modelu. Rdzeń (konta, transakcje, analityka) nigdy nie zależy od LLM.
+
+**Co trafia do modelu.** Tak samo jak przy Ollamie: tylko agregaty (przychody, wydatki, kategorie z udziałami, nadwyżka, profil inwestycyjny) i prompt systemowy. Nie trafiają e-mail, opisy transakcji ani identyfikatory. Uwaga: przy Gemini/OpenAI/Claude te agregaty opuszczają komputer i są przetwarzane przez zewnętrznego dostawcę zgodnie z jego regulaminem.
 
 ## 5. Najczęstsze problemy
 
@@ -103,7 +149,7 @@ przeglądarka ──► Vite (:5173, proxy /api) ──► FastAPI (:8000) ─�
 
 **Deduplikacja importu.** Transakcja to duplikat, gdy istnieje już taka sama trójka: data + kwota + opis ze znormalizowanymi spacjami. Porównanie jest na multizbiorze: dwie identyczne transakcje w pliku przy jednej w bazie dają jedną nową i jednego duplikata.
 
-**Prywatność.** Do modelu trafiają tylko agregaty (przychody, wydatki, kategorie z udziałami, nadwyżka, profil inwestycyjny). Nie trafiają: e-mail, opisy transakcji, identyfikatory. Model działa lokalnie, dane nie opuszczają komputera.
+**Prywatność.** Do modelu trafiają tylko agregaty (przychody, wydatki, kategorie z udziałami, nadwyżka, profil inwestycyjny). Nie trafiają: e-mail, opisy transakcji, identyfikatory. Przy Ollamie model działa lokalnie i dane nie opuszczają komputera; przy Gemini/OpenAI agregaty są wysyłane do dostawcy.
 
 ## 7. Struktura kodu
 

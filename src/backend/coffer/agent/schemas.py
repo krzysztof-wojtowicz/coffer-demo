@@ -43,7 +43,7 @@ class SurplusSuggestionOut(BaseModel):
 
 
 class AgentStatusOut(BaseModel):
-    provider: Literal["ollama", "none"]
+    provider: Literal["ollama", "openai", "gemini", "anthropic", "none"]
     model: str | None
     available: bool
 

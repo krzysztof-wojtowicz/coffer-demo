@@ -1,0 +1,36 @@
+name: Deploy
+
+# Runs only after CI finished successfully for a push to main.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backend-render:
+    name: Backend → Render
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+    steps:
+      - name: Skip (no RENDER_DEPLOY_HOOK_URL secret)
+        if: env.RENDER_DEPLOY_HOOK_URL == ''
+        run: echo "::notice::Brak sekretu RENDER_DEPLOY_HOOK_URL, pomijam deploy backendu."
+
+      - name: Trigger Render deploy hook
+        if: env.RENDER_DEPLOY_HOOK_URL != ''
+        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL" -o /dev/null

@@ -20,6 +20,18 @@ src/frontend/openapi.json
 *.log
 
 # Per-developer settings
-.claude/settings.local.json
 .idea/
 .vscode/
+
+# Claude Code (agents, skills, local settings)
+.claude/
+.neon
+
+# Neon CLI: local state and agent skills installed by `neon init`
+.agents/
+skills-lock.json
+
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/

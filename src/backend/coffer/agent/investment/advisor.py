@@ -1,0 +1,400 @@
+"""Investment advisor: tool calling over market data with a deterministic fallback.
+
+Tool calling is done through structured output so that it works with any `LLMClient`:
+each step the model returns either
+`{"action": "call_tool", "tool": ..., "args": {...}}` or `{"action": "final", "answer": {...}}`.
+Only aggregates reach the model: asset-class shares, symbols and the risk profile.
+"""
+
+import json
+import logging
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from decimal import Decimal
+from typing import Any
+
+from coffer.agent.investment.schemas import AdviceOut, HoldingIn, TipOut, TopPickOut
+from coffer.agent.llm import LLMClient, LLMMessage
+from coffer.analytics.portfolio import HoldingInput, portfolio_summary
+from coffer.market import service as market
+from coffer.market.tools import MARKET_TOOLS, ToolError, call_tool
+
+log = logging.getLogger(__name__)
+
+MAX_STEPS = 4
+PICKS = 3
+TIPS = 3
+
+CLASS_ALIASES = {
+    "stock": "stock",
+    "stocks": "stock",
+    "akcje": "stock",
+    "etf": "etf",
+    "bond": "bond",
+    "bonds": "bond",
+    "obligacje": "bond",
+    "cash": "cash",
+    "deposit": "cash",
+    "lokata": "cash",
+    "gotowka": "cash",
+    "gotówka": "cash",
+    "real_estate": "real_estate",
+    "reit": "real_estate",
+    "nieruchomosci": "real_estate",
+    "nieruchomości": "real_estate",
+    "commodity": "commodity",
+    "commodities": "commodity",
+    "gold": "commodity",
+    "zloto": "commodity",
+    "złoto": "commodity",
+    "crypto": "crypto",
+}
+
+MAX_RISK = {"low": 2, "medium": 3, "high": 5}
+TARGET_RISK = {"low": Decimal("1.5"), "medium": Decimal("3"), "high": Decimal("4")}
+RISK_PL = {"low": "niski", "medium": "umiarkowany", "high": "wysoki"}
+CLASS_PL = {
+    "stock": "akcje",
+    "etf": "ETF",
+    "bond": "obligacje",
+    "real_estate": "nieruchomości",
+    "commodity": "surowce",
+    "crypto": "kryptowaluty",
+    "cash": "gotówka/lokaty",
+}
+
+
+@dataclass(frozen=True)
+class RiskProfile:
+    risk: str = "medium"
+    horizon: str = "medium"
+    preferred_classes: tuple[str, ...] = ()
+    from_user: bool = False
+
+    @property
+    def max_risk(self) -> int:
+        cap = MAX_RISK.get(self.risk, 3)
+        return min(cap, 2) if self.horizon == "short" else cap
+
+
+@dataclass(frozen=True)
+class PortfolioContext:
+    """Aggregated, anonymous view of the holdings."""
+
+    class_shares: dict[str, Decimal | None]
+    symbols: tuple[str, ...]
+
+
+@dataclass
+class _Trace:
+    tool_calls: list[str] = field(default_factory=list)
+    seen_urls: set[str] = field(default_factory=set)
+
+
+def normalize_class(value: str) -> str:
+    return CLASS_ALIASES.get(value.strip().lower(), "other")
+
+
+def to_risk_profile(risk: str, horizon: str, preferred_classes: Sequence[str]) -> RiskProfile:
+    preferred = tuple(dict.fromkeys(normalize_class(c) for c in preferred_classes))
+    return RiskProfile(
+        risk=risk if risk in MAX_RISK else "medium",
+        horizon=horizon,
+        preferred_classes=preferred,
+        from_user=True,
+    )
+
+
+def portfolio_context(holdings: Sequence[HoldingIn]) -> PortfolioContext:
+    items = [
+        HoldingInput(
+            id=i,
+            name=h.symbol or h.asset_class,
+            symbol=h.symbol,
+            asset_class=normalize_class(h.asset_class),
+            quantity=h.quantity,
+            purchase_price=Decimal("0"),
+            manual_value=h.current_value,
+        )
+        for i, h in enumerate(holdings)
+    ]
+    summary = portfolio_summary(items)
+    known_total = summary.total_value > 0
+    shares: dict[str, Decimal | None] = {
+        a.asset_class: (a.share_pct if known_total else None) for a in summary.allocation
+    }
+    symbols = tuple(dict.fromkeys(h.symbol.strip().upper() for h in holdings if h.symbol))
+    return PortfolioContext(class_shares=shares, symbols=symbols)
+
+
+def yahoo_url(symbol: str | None) -> str | None:
+    return f"https://finance.yahoo.com/quote/{symbol}" if symbol else None
+
+
+# --- deterministic fallback -------------------------------------------------------------
+
+
+def _score(inst: market.Instrument, profile: RiskProfile, ctx: PortfolioContext) -> Decimal:
+    score = -abs(Decimal(inst.risk_level) - TARGET_RISK.get(profile.risk, Decimal(3))) * 2
+    if inst.asset_class in profile.preferred_classes:
+        score += 2
+    if inst.asset_class not in ctx.class_shares:
+        score += 3
+    else:
+        share = ctx.class_shares[inst.asset_class]
+        score -= (share / 25) if share is not None else 1
+    if inst.symbol and inst.symbol in ctx.symbols:
+        score -= 3
+    return score
+
+
+def _fallback_rationale(
+    inst: market.Instrument, profile: RiskProfile, ctx: PortfolioContext
+) -> str:
+    parts = [inst.description]
+    cls = CLASS_PL[inst.asset_class]
+    if inst.asset_class not in ctx.class_shares:
+        parts.append(f"Twój portfel nie zawiera jeszcze klasy „{cls}”, więc to dywersyfikacja.")
+    else:
+        share = ctx.class_shares[inst.asset_class]
+        if share is not None:
+            parts.append(f"Klasa „{cls}” stanowi obecnie {share}% portfela.")
+    if inst.asset_class in profile.preferred_classes:
+        parts.append("To jedna z preferowanych przez Ciebie klas aktywów.")
+    parts.append(
+        f"Ryzyko {inst.risk_level}/5 pasuje do profilu: {RISK_PL.get(profile.risk, 'umiarkowany')}."
+    )
+    return " ".join(parts)
+
+
+def fallback_picks(profile: RiskProfile, ctx: PortfolioContext) -> list[TopPickOut]:
+    universe = market.get_instrument_universe()
+    allowed = [i for i in universe if i.risk_level <= profile.max_risk] or universe
+    ranked = sorted(allowed, key=lambda i: _score(i, profile, ctx), reverse=True)
+    chosen: list[market.Instrument] = []
+    for inst in ranked:  # first pass: distinct asset classes
+        if inst.asset_class not in {c.asset_class for c in chosen}:
+            chosen.append(inst)
+        if len(chosen) == PICKS:
+            break
+    for inst in ranked:  # second pass: fill up if not enough classes
+        if len(chosen) == PICKS:
+            break
+        if inst not in chosen:
+            chosen.append(inst)
+    return [
+        TopPickOut(
+            name=i.name,
+            asset_class=i.asset_class,
+            symbol=i.symbol,
+            rationale=_fallback_rationale(i, profile, ctx),
+            risk_level=i.risk_level,
+            source_url=yahoo_url(i.symbol),
+        )
+        for i in chosen
+    ]
+
+
+# --- LLM tool-calling loop --------------------------------------------------------------
+
+_TOOL_NAMES = [t.name for t in MARKET_TOOLS]
+
+RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "action": {"type": "string", "enum": ["call_tool", "final"]},
+        "tool": {"type": "string", "enum": _TOOL_NAMES},
+        "args": {
+            "type": "object",
+            "properties": {
+                "symbols": {"type": "array", "items": {"type": "string"}},
+                "limit": {"type": "integer"},
+            },
+        },
+        "answer": {
+            "type": "object",
+            "properties": {
+                "top_picks": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "asset_class": {"type": "string", "enum": list(market.ASSET_CLASSES)},
+                            "symbol": {"type": "string"},
+                            "rationale": {"type": "string"},
+                            "risk_level": {"type": "integer"},
+                            "source_url": {"type": "string"},
+                        },
+                        "required": ["name", "asset_class", "rationale", "risk_level"],
+                    },
+                }
+            },
+            "required": ["top_picks"],
+        },
+    },
+    "required": ["action"],
+}
+
+
+def _system_prompt(profile: RiskProfile) -> str:
+    tools = "\n".join(
+        f"- {t.name}: {t.description} Argumenty (JSON Schema): "
+        f"{json.dumps(t.parameters, ensure_ascii=False)}"
+        for t in MARKET_TOOLS
+    )
+    return (
+        "Jesteś doradcą inwestycyjnym aplikacji Coffer. Odpowiadasz wyłącznie JSON-em.\n"
+        "Masz dostęp do narzędzi z danymi rynkowymi:\n"
+        f"{tools}\n\n"
+        'Aby wywołać narzędzie, zwróć {"action":"call_tool","tool":"<nazwa>","args":{...}}. '
+        "Wynik dostaniesz w kolejnej wiadomości.\n"
+        'Gdy masz wystarczające dane, zwróć {"action":"final","answer":{"top_picks":[...]}} '
+        f"z dokładnie {PICKS} propozycjami (name, asset_class, symbol, rationale, risk_level 1-5, "
+        "source_url). Wybieraj instrumenty z get_instrument_universe, dywersyfikuj względem "
+        "obecnego portfela i nie przekraczaj maksymalnego poziomu ryzyka "
+        f"{profile.max_risk}/5. Uzasadnienia pisz po polsku, zwięźle, bez obietnic zysku. "
+        f"Masz maksymalnie {MAX_STEPS} kroki."
+    )
+
+
+def _context_message(profile: RiskProfile, ctx: PortfolioContext) -> str:
+    data = {
+        "profil_ryzyka": {
+            "ryzyko": profile.risk,
+            "horyzont": profile.horizon,
+            "preferowane_klasy": list(profile.preferred_classes),
+            "maks_poziom_ryzyka": profile.max_risk,
+            "profil_domyslny": not profile.from_user,
+        },
+        "portfel": {
+            "udzialy_klas_pct": {
+                k: (str(v) if v is not None else None) for k, v in ctx.class_shares.items()
+            },
+            "symbole": list(ctx.symbols),
+        },
+    }
+    return "Kontekst użytkownika:\n" + json.dumps(data, ensure_ascii=False)
+
+
+def _collect_urls(output: Any, trace: _Trace) -> None:
+    if isinstance(output, dict):
+        for k, v in output.items():
+            if k == "url" and isinstance(v, str):
+                trace.seen_urls.add(v)
+            else:
+                _collect_urls(v, trace)
+    elif isinstance(output, list):
+        for v in output:
+            _collect_urls(v, trace)
+
+
+def _validate_answer(answer: Any, profile: RiskProfile, trace: _Trace) -> list[TopPickOut] | None:
+    if not isinstance(answer, dict):
+        return None
+    raw = answer.get("top_picks")
+    if not isinstance(raw, list) or len(raw) < PICKS:
+        return None
+    by_symbol = {i.symbol: i for i in market.get_instrument_universe() if i.symbol}
+    picks: list[TopPickOut] = []
+    for item in raw[:PICKS]:
+        if not isinstance(item, dict):
+            return None
+        name = str(item.get("name") or "").strip()
+        rationale = str(item.get("rationale") or "").strip()
+        symbol = str(item.get("symbol") or "").strip().upper() or None
+        asset_class = item.get("asset_class")
+        risk = item.get("risk_level")
+        known = by_symbol.get(symbol) if symbol else None
+        if known is not None:  # trust our universe over the model
+            asset_class, risk = known.asset_class, known.risk_level
+        if (
+            not name
+            or not rationale
+            or asset_class not in market.ASSET_CLASSES
+            or not isinstance(risk, int)
+            or isinstance(risk, bool)
+            or not 1 <= risk <= 5
+            or risk > profile.max_risk
+        ):
+            return None
+        url = str(item.get("source_url") or "").strip() or None
+        if url not in trace.seen_urls:
+            url = yahoo_url(symbol)
+        picks.append(
+            TopPickOut(
+                name=name[:200],
+                asset_class=asset_class,
+                symbol=symbol,
+                rationale=rationale[:1000],
+                risk_level=risk,
+                source_url=url,
+            )
+        )
+    return picks
+
+
+def run_tool_loop(
+    llm: LLMClient, profile: RiskProfile, ctx: PortfolioContext
+) -> list[TopPickOut] | None:
+    """Return validated picks from the model, or None when the loop fails."""
+    system = _system_prompt(profile)
+    messages = [LLMMessage("user", _context_message(profile, ctx))]
+    trace = _Trace()
+    for step in range(MAX_STEPS):
+        resp = llm.complete(system=system, messages=messages, response_schema=RESPONSE_SCHEMA)
+        try:
+            data = json.loads(resp.content)
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        action = data.get("action")
+        if action == "final":
+            return _validate_answer(data.get("answer"), profile, trace)
+        if action != "call_tool":
+            return None
+        tool = str(data.get("tool") or "")
+        raw_args = data.get("args")
+        args: dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
+        try:
+            output: Any = call_tool(tool, args)
+            trace.tool_calls.append(tool)
+            _collect_urls(output, trace)
+        except ToolError as exc:
+            output = {"error": str(exc)}
+        last = step == MAX_STEPS - 2
+        hint = '\nTo ostatni krok: zwróć {"action":"final", ...}.' if last else ""
+        messages.append(LLMMessage("assistant", resp.content))
+        messages.append(
+            LLMMessage(
+                "user",
+                f"Wynik narzędzia {tool}:\n{json.dumps(output, ensure_ascii=False)}{hint}",
+            )
+        )
+    return None
+
+
+def _tips() -> list[TipOut]:
+    return [
+        TipOut(title=t.title, summary=t.summary, source=t.source, url=t.url)
+        for t in market.get_market_tips(TIPS)
+    ]
+
+
+def advise(
+    holdings: Sequence[HoldingIn], risk_profile: RiskProfile, llm: LLMClient | None
+) -> AdviceOut:
+    """Top picks for the user's risk profile (RiskProfile() = default moderate profile)."""
+    ctx = portfolio_context(holdings)
+    picks: list[TopPickOut] | None = None
+    if llm is not None:
+        try:
+            picks = run_tool_loop(llm, risk_profile, ctx)
+        except Exception:
+            log.warning("Investment advisor LLM loop failed", exc_info=True)
+            picks = None
+    llm_used = picks is not None
+    if picks is None:
+        picks = fallback_picks(risk_profile, ctx)
+    return AdviceOut(top_picks=picks, tips=_tips(), llm_used=llm_used)
