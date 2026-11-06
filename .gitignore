@@ -23,8 +23,14 @@ src/frontend/openapi.json
 .idea/
 .vscode/
 
-# Claude Code (agents, skills, local settings)
-.claude/
+# Claude Code: share the team (agents, roles, our skills); keep local stuff out
+.claude/*
+!.claude/agents/
+!.claude/roles/
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/druzyna/
+!.claude/skills/run-task/
 .neon
 
 # Neon CLI: local state and agent skills installed by `neon init`
