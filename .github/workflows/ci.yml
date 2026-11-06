@@ -113,6 +113,8 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: src/backend/uv.lock
+          # The backend job saves the same cache key; saving twice only warns.
+          save-cache: false
 
       - uses: actions/setup-node@v7
         with:

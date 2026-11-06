@@ -35,3 +35,5 @@ skills-lock.json
 .coverage
 coverage.xml
 htmlcov/
+
+.vercel-recovery-codes.txt
