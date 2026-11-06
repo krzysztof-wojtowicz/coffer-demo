@@ -9,7 +9,7 @@ Jak projekt jest przygotowany do równoległej pracy wielu agentów i ludzi.
 | `CLAUDE.md` | Krótki, wspólny kontekst: struktura, komendy, twarde zasady. Ładuje się automatycznie każdemu agentowi. | wszyscy |
 | `docs/tasks/E*-*.md` | **Karta zadania**: cel, lista plików do przeczytania, pliki na własność per rola, kontrakt, kryteria akceptacji. Jedyne źródło kontekstu dla agenta, który startuje bez wiedzy o projekcie. | implementer, tester |
 | `docs/tasks/README.md` | Tablica statusu i fal. Edytuje tylko orkiestrator. | orkiestrator, ludzie |
-| `.claude/agents/*.md` | **Drużyna**: 15 nazwanych agentów (postacie z Władcy Pierścieni). Każdy ma osobowość, domyślną rolę, model i narzędzia. | Claude Code |
+| `.claude/agents/*.md` | **Drużyna**: 16 nazwanych agentów (postacie z Władcy Pierścieni). Każdy ma osobowość, domyślną rolę, model i narzędzia. | Claude Code |
 | `.claude/roles/*.md` | Role do przydziału na zadanie (`Rola: <nazwa>` w prompcie) i `_zasady.md` wspólne dla wszystkich. | agenci |
 | `.claude/skills/druzyna/` | Orkiestracja Drużyny: skład, przydział po imionach, nadpisywanie ról i modeli, limit 3 agentów naraz, przekazywanie uwag, wznawianie. | sesja główna |
 | `.claude/skills/run-task/` | Realizacja kart z `docs/tasks/`: wybór kart, implementer + tester równolegle, integracja, rundy poprawek. | sesja główna |
@@ -36,6 +36,7 @@ W sesji Claude Code w katalogu repo: „zrealizuj falę 1 z `docs/tasks`” albo
 - „Aragorn i Samwise robią limity doradcy” (domyślne role: backend + tester),
 - „Gimli robi testy migracji” (zmiana roli na zadanie),
 - „niech Galadriela przejrzy auth, a Merry sprawdzi, gdzie liczymy sumy”,
+- „Bard, znajdź i napraw luki w imporcie” (luka → test-exploit → poprawka → zielony test),
 - „wszyscy na Haiku” (nadpisanie modelu).
 
 | Agent | Domyślna rola | Model |
@@ -50,6 +51,7 @@ W sesji Claude Code w katalogu repo: „zrealizuj falę 1 z `docs/tasks`” albo
 | eowyn | AI/LLM | sonnet |
 | samwise | tester | sonnet |
 | boromir | odporność, red team lokalnie | sonnet |
+| bard | łowca luk: znajdź, udowodnij testem, napraw | opus |
 | frodo | strażnik wdrożenia | sonnet |
 | faramir | CI/CD, DevOps | sonnet |
 | bilbo | dokumentacja | sonnet |
