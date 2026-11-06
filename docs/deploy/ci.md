@@ -57,6 +57,8 @@ GitHub → **Settings** → **Rules** → **Rulesets** → **New ruleset** → *
    - `OpenAPI types in sync`
 6. **Create**. Od teraz przycisk *Merge* w PR jest zablokowany, dopóki wszystkie trzy checki nie są zielone (dotyczy też PR Dependabota).
 
+Sprawdzenie (odczyt, 2026-11-06): `gh api repos/krzysztof-wojtowicz/coffer-demo/rulesets` zwraca `[]`, a branch protection → 404. Ochrona **nie jest włączona**, dlatego PR #12 i #13 weszły do `main` przy czerwonym CI.
+
 Bez uprawnień admina tej sekcji nie da się ustawić (osoba z rolą *Write* nie widzi zakładki Rules).
 
 ## Badge do README
@@ -65,4 +67,4 @@ Bez uprawnień admina tej sekcji nie da się ustawić (osoba z rolą *Write* nie
 ```
 
 ## Lokalnie przed pushem
-`make check` (lint, testy backendu, front) oraz `make openapi`, jeśli zmieniało się API.
+`make check` (lint, testy backendu, front). `make check-web-clean` odtwarza job frontendu z CI (czyste `npm ci` + te same kroki) oraz `make openapi`, jeśli zmieniało się API.

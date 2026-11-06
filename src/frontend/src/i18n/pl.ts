@@ -10,6 +10,12 @@ export const pl = {
     account: 'Konto',
     logout: 'Wyloguj',
   },
+  theme: {
+    label: 'Motyw',
+    light: 'Jasny',
+    dark: 'Ciemny',
+    system: 'Systemowy',
+  },
   import: {
     title: 'Import',
     bank: 'Bank',
