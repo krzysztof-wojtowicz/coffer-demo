@@ -14,7 +14,7 @@ dependencies = [
     "httpx",
     "python-multipart",
     "yfinance",
-    "mcp>=1.2,<2",
+    "mcp>=1.2,<3",
 ]
 
 [dependency-groups]
