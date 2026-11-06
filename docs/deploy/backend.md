@@ -6,7 +6,7 @@ Konfiguracja jest w repo: `render.yaml` (Blueprint), `src/backend/Dockerfile`, `
 Architektura:
 
 ```
-przeglądarka ──► Vercel (frontend, rewrite /api/*) ──► https://coffer-api.onrender.com ──► Neon (Postgres)
+przeglądarka ──► Vercel (frontend, rewrite /api/*) ──► https://coffer-api-p9ku.onrender.com ──► Neon (Postgres)
 ```
 
 Przeglądarka widzi jedną domenę (Vercel), więc ciasteczko sesji `SameSite=Lax` działa bez CORS.
@@ -43,7 +43,7 @@ Aplikacja nie ma osobnego sekretu sesji (tokeny sesji są losowe i trzymane w ba
 3. **New → Blueprint**, wybierz repo i gałąź `main`. Render znajdzie `render.yaml` i pokaże serwis `coffer-api`.
 4. Uzupełnij pola oznaczone jako sekrety (`sync: false`): `COFFER_DATABASE_URL` (od osoby od Neon), `COFFER_ALLOWED_ORIGINS` (domena z Vercel), `COFFER_GEMINI_API_KEY` (lub `COFFER_OPENAI_API_KEY`). Kliknij **Apply**.
 5. Render zbuduje obraz i uruchomi serwis. Pierwszy build trwa kilka minut.
-6. Sprawdź: `curl https://coffer-api.onrender.com/api/health` → `{"status":"ok"}`.
+6. Sprawdź: `curl https://coffer-api-p9ku.onrender.com/api/health` → `{"status":"ok"}`.
    Jeśli nazwa `coffer-api` była zajęta, Render doda sufiks (np. `coffer-api-x1y2.onrender.com`): przekaż nowy URL osobie od frontendu (rewrite w Vercel).
 7. Dane demo (opcjonalnie): lokalnie `COFFER_DATABASE_URL=<url z Neon> make seed`.
 
