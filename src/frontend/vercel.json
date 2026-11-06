@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://coffer-api.onrender.com/api/:path*"
+      "destination": "https://coffer-api-p9ku.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",

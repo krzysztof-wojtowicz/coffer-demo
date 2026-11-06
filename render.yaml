@@ -2,7 +2,7 @@
 # Docs: docs/deploy/backend.md. Database: Neon (external), frontend: Vercel (rewrites /api/* here).
 services:
   - type: web
-    name: coffer-api            # -> https://coffer-api.onrender.com
+    name: coffer-api            # -> https://coffer-api-p9ku.onrender.com
     runtime: docker
     plan: free
     region: frankfurt

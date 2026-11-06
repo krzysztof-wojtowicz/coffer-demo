@@ -1,7 +1,7 @@
 # Wdrożenie frontendu (Vercel, plan Hobby)
 
 Frontend (`src/frontend`, React + Vite) to statyczny build w `dist/`. Hostujemy go za darmo na Vercel.
-Backend FastAPI działa osobno na Render: `https://coffer-api.onrender.com` (patrz instrukcja backendu).
+Backend FastAPI działa osobno na Render: `https://coffer-api-p9ku.onrender.com` (patrz instrukcja backendu).
 
 ## Jak to działa
 
@@ -9,7 +9,7 @@ Aplikacja woła API ścieżkami względnymi (`/api/...`), a sesja to ciasteczko 
 bez atrybutu `Domain`. Dlatego przeglądarka musi widzieć API pod **tą samą domeną** co frontend.
 Załatwia to `src/frontend/vercel.json`:
 
-- `rewrites`: `/api/:path*` → `https://coffer-api.onrender.com/api/:path*` (Vercel działa jak reverse proxy;
+- `rewrites`: `/api/:path*` → `https://coffer-api-p9ku.onrender.com/api/:path*` (Vercel działa jak reverse proxy;
   w pasku adresu zostaje domena Vercel), a każda inna ścieżka → `/index.html` (fallback SPA dla React Router).
   Pliki statyczne (`/assets/...`, `favicon.svg`) Vercel serwuje przed rewrite'ami.
 - Nagłówki `Cookie` (żądanie) i `Set-Cookie` (odpowiedź) przechodzą przez zewnętrzny rewrite bez zmian.
@@ -35,11 +35,11 @@ Ograniczenia (identyczne na Hobby i Pro):
   o ile backend wysyła coś przynajmniej co 120 s.
 - **Usypianie Render Free.** Pierwsze żądanie po ~15 min bezczynności budzi serwis (zwykle 30–60 s).
   Mieści się w limicie 120 s, ale pierwsze logowanie jest wolne. Obejście: przed prezentacją otworzyć
-  `https://coffer-api.onrender.com/api/health` albo ustawić darmowy ping (np. UptimeRobot co 10 min).
+  `https://coffer-api-p9ku.onrender.com/api/health` albo ustawić darmowy ping (np. UptimeRobot co 10 min).
 - **Długie przerwy między zdarzeniami SSE.** Jeśli pojedyncze wywołanie LLM trwałoby >120 s bez żadnego
   zdarzenia, proxy zerwie połączenie. Obejście (zmiana po stronie backendu, poza zakresem frontu): wysyłać
   co ~15 s komentarz SSE `: ping\n\n` (keep-alive). Ostateczność: wywoływać stream bezpośrednio pod
-  `https://coffer-api.onrender.com`, co wymaga CORS z `credentials` i ciasteczka `SameSite=None; Secure`,
+  `https://coffer-api-p9ku.onrender.com`, co wymaga CORS z `credentials` i ciasteczka `SameSite=None; Secure`,
   więc nie polecamy.
 
 ## Krok po kroku
@@ -94,7 +94,7 @@ i wypchnij. Vercel wdroży nową wersję sam. Lokalnego dev to nie dotyczy (tam 
 ## Alternatywy
 
 - **Netlify**: Base directory `src/frontend`, build `npx vite build`, publish `dist`, a w `public/_redirects`
-  wpisz `/api/* https://coffer-api.onrender.com/api/:splat 200` oraz `/* /index.html 200`.
+  wpisz `/api/* https://coffer-api-p9ku.onrender.com/api/:splat 200` oraz `/* /index.html 200`.
   Proxy Netlify też przekazuje ciasteczka, ale ma krótszy limit czasu (~26 s), co gorzej znosi budzenie Render.
 - **Cloudflare Pages**: SPA fallback działa sam (brak `404.html`), ale `_redirects` nie proxuje do zewnętrznych
   domen. Do `/api/*` potrzebna jest mała Pages Function (`functions/api/[[path]].ts` robiąca `fetch` do Render),
