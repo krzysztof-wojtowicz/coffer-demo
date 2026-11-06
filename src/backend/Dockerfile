@@ -32,4 +32,6 @@ ENV PATH="/opt/venv/bin:$PATH" \
 EXPOSE 8000
 
 # Render injects PORT; TLS ends at Render's proxy, so trust X-Forwarded-* headers.
+# Known risk: '*' takes the LEFTMOST (client-spoofable) X-Forwarded-For entry; narrow it once the
+# Render XFF layout is verified (release-checklist §6, tests/core/test_vuln_proxy_spoof.py).
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn coffer.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]

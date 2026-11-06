@@ -255,10 +255,21 @@ def _fetch_quote(symbol: str) -> Quote:
     )
 
 
+# Yahoo tickers (AAPL, PKO.WA, BTC-USD, ^GSPC, USDPLN=X). yfinance puts the symbol into the
+# request URL path, so anything else (/, ?, #, spaces, long input) is rejected.
+_SYMBOL_RE = re.compile(r"[A-Z0-9^][A-Z0-9.=^-]{0,19}")
+
+
+def normalize_symbol(symbol: str) -> str | None:
+    """Upper-cased Yahoo ticker, or None when it is not a plausible ticker."""
+    sym = symbol.strip().upper()
+    return sym if _SYMBOL_RE.fullmatch(sym) else None
+
+
 def _normalize_symbols(symbols: list[str]) -> list[str]:
     out: list[str] = []
     for s in symbols:
-        sym = s.strip().upper()
+        sym = normalize_symbol(s)
         if sym and sym not in out:
             out.append(sym)
     return out
@@ -315,7 +326,7 @@ def get_fx_rate(from_ccy: str, to_ccy: str) -> Decimal | None:
     never raises. Successful lookups (and unknown pairs) are cached for CACHE_TTL_S.
     """
     src, dst = from_ccy.strip().upper(), to_ccy.strip().upper()
-    if not src or not dst:
+    if not src.isalpha() or not dst.isalpha():  # also keeps the pair a safe ticker
         return None
     if src == dst:
         return Decimal("1")
@@ -375,6 +386,8 @@ def _parse_news_item(item: dict[str, Any]) -> MarketTip | None:
             url = link["url"]
             break
     url = url or content.get("link")
+    if not (isinstance(url, str) and url.startswith(("https://", "http://"))):
+        url = None  # rendered as a link in the UI: no javascript:/data: schemes
     published = _parse_datetime(content.get("pubDate") or content.get("providerPublishTime"))
     return MarketTip(
         title=title, summary=summary, source=str(source), url=url, published_at=published

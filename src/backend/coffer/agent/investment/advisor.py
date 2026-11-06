@@ -147,7 +147,9 @@ def portfolio_context(holdings: Sequence[HoldingIn]) -> PortfolioContext:
     shares: dict[str, Decimal | None] = {
         a.asset_class: (a.share_pct if known_total else None) for a in summary.allocation
     }
-    symbols = tuple(dict.fromkeys(h.symbol.strip().upper() for h in holdings if h.symbol))
+    # Only well-formed tickers reach the prompt: free text in `symbol` would be prompt injection.
+    valid = (market.normalize_symbol(h.symbol) for h in holdings if h.symbol)
+    symbols = tuple(dict.fromkeys(s for s in valid if s))
     return PortfolioContext(class_shares=shares, symbols=symbols)
 
 
@@ -326,7 +328,7 @@ def _validate_answer(answer: Any, profile: RiskProfile, trace: _Trace) -> list[T
             return None
         name = str(item.get("name") or "").strip()
         rationale = str(item.get("rationale") or "").strip()
-        symbol = str(item.get("symbol") or "").strip().upper() or None
+        symbol = market.normalize_symbol(str(item.get("symbol") or ""))
         asset_class = item.get("asset_class")
         risk = item.get("risk_level")
         known = by_symbol.get(symbol) if symbol else None

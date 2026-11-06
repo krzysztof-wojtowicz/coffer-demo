@@ -6,6 +6,7 @@ needs no cleanup job. Trade-offs: counters reset on restart/redeploy, and runnin
 workers or instances would split them (then move this to a `login_attempts` table).
 """
 
+import heapq
 import math
 import threading
 import time
@@ -56,8 +57,7 @@ class SlidingWindowLimiter:
                     waits.append(max(1, math.ceil(hits[0] + window - now)))
             if waits:
                 return max(waits)
-            if len(self._hits) >= _MAX_KEYS:
-                self._hits.clear()  # memory bound under a flood of distinct keys
+            self._make_room()
             for key, _, _ in rules:
                 self._hits.setdefault(key, deque()).append(now)
             return None
@@ -74,8 +74,7 @@ class SlidingWindowLimiter:
     def hit(self, key: str) -> None:
         now = self._clock()
         with self._lock:
-            if len(self._hits) >= _MAX_KEYS:
-                self._hits.clear()  # memory bound under a flood of distinct keys
+            self._make_room()
             self._hits.setdefault(key, deque()).append(now)
 
     def reset(self, key: str | None = None) -> None:
@@ -84,6 +83,17 @@ class SlidingWindowLimiter:
                 self._hits.clear()
             else:
                 self._hits.pop(key, None)
+
+    def _make_room(self) -> None:
+        """Memory bound under a flood of distinct keys (call under the lock): drop the half of
+        the keys with the fewest hits, so fresh flood keys go first and a lockout survives.
+        shortcut: a flood of keys each at the limit can still evict a lockout; move the limiter
+        to a DB table if that becomes realistic."""
+        if len(self._hits) < _MAX_KEYS:
+            return
+        hits = self._hits
+        for key in heapq.nsmallest(len(hits) // 2, hits, key=lambda k: len(hits[k])):
+            del hits[key]
 
     def _prune(self, key: str, cutoff: float) -> deque[float] | None:
         hits = self._hits.get(key)

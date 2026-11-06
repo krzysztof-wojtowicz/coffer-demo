@@ -37,6 +37,13 @@ class TransactionCreate(BaseModel):
             raise ValueError("Maksymalnie 2 miejsca po przecinku")
         return value
 
+    @field_validator("description")
+    @classmethod
+    def _check_description(cls, value: str) -> str:
+        if "\x00" in value:  # PostgreSQL text cannot store NUL; would be a 500
+            raise ValueError("Niedozwolony znak w opisie")
+        return value
+
 
 class TransactionOut(BaseModel):
     id: int

@@ -15,7 +15,7 @@ Each currency without a rate is listed in `PortfolioSummary.fx_missing`.
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, localcontext
 from typing import Literal
 
 from coffer.analytics.shares import category_shares
@@ -130,8 +130,19 @@ def value_holding(h: HoldingInput, fx_to_pln: Mapping[str, Decimal] | None = Non
     return _Valued(cost, cost, "cost", converted, frozenset(missing))
 
 
+# Valid inputs reach ~1e24 per holding; the default 28-digit context overflows on sums.
+_PRECISION = 60
+
+
 def portfolio_summary(
     items: Sequence[HoldingInput], fx_to_pln: Mapping[str, Decimal] | None = None
+) -> PortfolioSummary:
+    with localcontext(prec=_PRECISION):
+        return _portfolio_summary(items, fx_to_pln)
+
+
+def _portfolio_summary(
+    items: Sequence[HoldingInput], fx_to_pln: Mapping[str, Decimal] | None
 ) -> PortfolioSummary:
     valued = [(h, value_holding(h, fx_to_pln)) for h in items]
     included = [(h, v) for h, v in valued if v.converted]
