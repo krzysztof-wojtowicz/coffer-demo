@@ -1,5 +1,7 @@
 # Coffer Financial Assistant
 
+[![CI](https://github.com/krzysztof-wojtowicz/coffer-demo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/krzysztof-wojtowicz/coffer-demo/actions/workflows/ci.yml)
+
 ## 1. Coffer w skrócie
 
 **Coffer** to aplikacja do zarządzania finansami osobistymi z lokalnym asystentem AI. Użytkownik importuje lub dodaje transakcje, widzi analizę miesiąca (przychody, wydatki, nadwyżka) i dostaje sugestię wykorzystania nadwyżki. Liczy rdzeń aplikacji, a model językowy (Ollama, działa lokalnie) tylko interpretuje gotowe agregaty. Projekt powstaje na Politechnice Warszawskiej w ramach przedmiotów _Inżynieria Oprogramowania 1_ (specyfikacja) i _Tworzenie Agentów AI w środowisku .NET_ (integracja z agentem).
@@ -215,6 +217,9 @@ Projekt jest przygotowany do pracy z agentami Claude Code. Każde zadanie ma kar
 - [Słownik](docs/glossary.md)
 - [Przypadki użycia](docs/use-cases/README.md)
 - [Plan techniczny](docs/plan.md)
+- [Architektura systemu (diagramy)](docs/architecture.md)
+- [Wdrożenie: baza, backend, frontend, CI](docs/deploy/)
+- [Serwer MCP danych rynkowych](docs/mcp-market.md)
 - [Format CSV](docs/csv-format.md)
 - [Praca z agentami](docs/agents.md)
 
