@@ -1,6 +1,6 @@
 ---
 name: druzyna
-description: Orkiestracja Drużyny Coffer: 15 nazwanych agentów (postacie z Władcy Pierścieni) z domyślnymi rolami, którym można przydzielić dowolną rolę na zadanie. Używaj, gdy użytkownik przydziela pracę po imionach („Aragorn i Samwise robią X”, „niech Galadriela sprawdzi Y”) albo prosi o zespół agentów do zadania.
+description: Orkiestracja Drużyny Coffer: 16 nazwanych agentów (postacie z Władcy Pierścieni) z domyślnymi rolami, którym można przydzielić dowolną rolę na zadanie. Używaj, gdy użytkownik przydziela pracę po imionach („Aragorn i Samwise robią X”, „niech Galadriela sprawdzi Y”) albo prosi o zespół agentów do zadania.
 ---
 
 # Drużyna Coffer: orkiestracja
@@ -21,6 +21,7 @@ Jesteś orkiestratorem. Przydzielasz zadania agentom, rozsyłasz uwagi między n
 | eowyn | ai-llm | sonnet | pełne |
 | samwise | tester | sonnet | pełne |
 | boromir | odpornosc (red team lokalnie) | sonnet | pełne |
+| bard | lowca-luk (znajdź lukę, udowodnij testem, napraw) | opus | pełne |
 | frodo | wdrozenie (release, produkcja tylko odczyt) | sonnet | pełne |
 | faramir | devops (CI/CD) | sonnet | pełne |
 | bilbo | dokumentacja | sonnet | pełne |

@@ -26,4 +26,4 @@ Aplikacja do finansów osobistych z asystentem AI (projekt studencki, 4 osoby). 
 - Moduł: `coffer/<moduł>/{api.py, service.py, models.py, schemas.py}`; router cienki, logika w `service.py`.
 
 ## Role agentów
-Drużyna 15 nazwanych agentów w `.claude/agents/` (gandalf, elrond, galadriel, treebeard, aragorn, legolas, gimli, eowyn, samwise, boromir, frodo, faramir, bilbo, merry, pippin). Każdy ma domyślną rolę, ale zadanie może nadać inną (`Rola: <nazwa>` z `.claude/roles/`). Zasady wspólne: `.claude/roles/_zasady.md`. Orkiestracja: `.claude/skills/druzyna/SKILL.md`; realizacja kart: `.claude/skills/run-task/SKILL.md`.
+Drużyna 16 nazwanych agentów w `.claude/agents/` (gandalf, elrond, galadriel, bard, treebeard, aragorn, legolas, gimli, eowyn, samwise, boromir, frodo, faramir, bilbo, merry, pippin). Każdy ma domyślną rolę, ale zadanie może nadać inną (`Rola: <nazwa>` z `.claude/roles/`). Zasady wspólne: `.claude/roles/_zasady.md`. Orkiestracja: `.claude/skills/druzyna/SKILL.md`; realizacja kart: `.claude/skills/run-task/SKILL.md`.
