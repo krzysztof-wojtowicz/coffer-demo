@@ -36,10 +36,10 @@ const ALLOCATION: Record<ProfileIn['risk'], [Bucket, number][]> = {
   ],
 }
 const BUCKET_COLOR: Record<Bucket, string> = {
-  safe: 'bg-muted',
+  safe: 'bg-text',
   bonds: 'bg-info',
   equity: 'bg-accent',
-  alternative: 'bg-warning',
+  alternative: 'bg-positive',
 }
 
 const formatDate = (iso: string) =>
@@ -196,7 +196,7 @@ function ProfileSummary({
           </Link>
         }
       >
-        <div className="flex h-3 overflow-hidden rounded-full" aria-hidden="true">
+        <div className="flex h-3 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
           {allocation.map(([b, pct]) => (
             <div key={b} className={BUCKET_COLOR[b]} style={{ width: `${pct}%` }} />
           ))}

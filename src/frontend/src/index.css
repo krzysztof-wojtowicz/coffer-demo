@@ -1,26 +1,56 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0b0f14;
-  --color-surface: #121821;
-  --color-surface-2: #1a2230;
-  --color-border: #253041;
-  --color-text: #e6e9ef;
-  --color-muted: #94a0b4;
-  --color-accent: #22c55e;
-  --color-accent-strong: #16a34a;
-  --color-accent-soft: rgb(34 197 94 / 0.14);
-  --color-positive: #4ade80;
-  --color-negative: #f87171;
-  --color-warning: #fbbf24;
-  --color-info: #60a5fa;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --color-bg: #15171c;
+  --color-surface: #1c1f26;
+  --color-surface-2: #262a33;
+  --color-border: #343944;
+  --color-input-border: #7f8594;
+  --color-text: #ece8df;
+  --color-muted: #a5a094;
+  --color-accent: #c9a24d;
+  --color-accent-strong: #a8842f;
+  --color-accent-soft: rgb(201 162 77 / 0.14);
+  --color-positive: #4cb88a;
+  --color-negative: #ef7f7f;
+  --color-warning: #e0a040;
+  --color-info: #8aa8dc;
 }
 
 html {
   color-scheme: dark;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #faf7f0;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1ece0;
+  --color-border: #ddd5c3;
+  --color-input-border: #8c8372;
+  --color-text: #1d1a14;
+  --color-muted: #5f584b;
+  --color-accent: #7d5f12;
+  --color-accent-strong: #654c0c;
+  --color-accent-soft: rgb(125 95 18 / 0.06);
+  --color-positive: #19704c;
+  --color-negative: #a3262e;
+  --color-warning: #8a5300;
+  --color-info: #2d4f8f;
+}
+
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
+}
+
+table,
+td,
+th {
+  font-variant-numeric: tabular-nums;
 }
