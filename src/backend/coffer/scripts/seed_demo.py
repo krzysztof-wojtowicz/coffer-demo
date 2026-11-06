@@ -21,7 +21,7 @@ from coffer.core.db import SessionLocal
 from coffer.transactions.models import Category, Transaction
 
 DEMO_EMAIL = "demo@coffer.local"
-DEMO_PASSWORD = "demo12345"
+DEMO_PASSWORD = "coffer-demo-2026"
 SEED = 42
 
 GROCERY_SHOPS = [

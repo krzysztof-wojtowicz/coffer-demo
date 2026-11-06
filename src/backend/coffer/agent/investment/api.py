@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from coffer.accounts.deps import CurrentUser
-from coffer.agent.investment.advisor import RiskProfile, advise, to_risk_profile
+from coffer.agent.investment.advisor import RiskProfile, advise_for_user, to_risk_profile
 from coffer.agent.investment.schemas import AdviceOut, AdviceRequest
 from coffer.agent.llm import LLMClient, get_llm_client
 from coffer.core.db import DbSession
@@ -25,4 +25,4 @@ def advice(
         if profile is not None
         else RiskProfile()
     )
-    return advise(body.holdings, risk_profile, llm)
+    return advise_for_user(db, user.id, body.holdings, risk_profile, llm)

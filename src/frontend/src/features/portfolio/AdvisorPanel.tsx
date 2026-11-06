@@ -80,7 +80,15 @@ export function AdvisorPanel({ holdings }: { holdings: AdviceHoldingIn[] }) {
               </ul>
             </section>
           )}
-          {!data.llm_used && <p className="text-xs text-muted">{t.noLlm}</p>}
+          {!data.llm_used && (
+            <p className="text-xs text-muted" data-testid="advisor-ai-status">
+              {data.ai_status === 'timeout'
+                ? t.timeout
+                : data.ai_status === 'limited'
+                  ? t.limited
+                  : t.noLlm}
+            </p>
+          )}
           <p className="text-xs text-muted" data-testid="advisor-disclaimer">
             {data.disclaimer}
           </p>

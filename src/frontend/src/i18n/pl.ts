@@ -7,6 +7,7 @@ export const pl = {
     assistant: 'Asystent',
     profile: 'Profil',
     portfolio: 'Portfel',
+    account: 'Konto',
     logout: 'Wyloguj',
   },
   import: {
@@ -73,6 +74,28 @@ export const pl = {
     toLogin: 'Masz już konto? Zaloguj się',
     invalidCredentials: 'Nieprawidłowy e-mail lub hasło',
     emailExists: 'Konto z tym adresem e-mail już istnieje',
+    rulesTitle: 'Hasło musi spełniać zasady:',
+    strength: 'Siła hasła',
+    strengthLabels: ['Bardzo słabe', 'Słabe', 'Średnie', 'Dobre', 'Silne'],
+    consent:
+      'Rozumiem, że moje dane finansowe będą przechowywane w aplikacji Coffer.',
+    consentRequired: 'Bez akceptacji przechowywania danych nie możemy założyć konta.',
+    tooManyAttempts: 'Zbyt wiele prób. Spróbuj ponownie później.',
+    accountTitle: 'Bezpieczeństwo konta',
+    changePasswordTitle: 'Zmiana hasła',
+    currentPassword: 'Obecne hasło',
+    newPassword: 'Nowe hasło',
+    changePasswordAction: 'Zmień hasło',
+    passwordChanged: 'Hasło zmienione. Pozostałe sesje zostały wylogowane.',
+    sameAsCurrent: 'Nowe hasło musi różnić się od obecnego.',
+    sessionsTitle: 'Sesje',
+    sessionsHint: 'Wylogowuje Cię na wszystkich urządzeniach, także na tym.',
+    logoutAllAction: 'Wyloguj ze wszystkich urządzeń',
+    deleteTitle: 'Usunięcie konta',
+    deleteWarning:
+      'Operacja jest nieodwracalna: usuniemy konto i wszystkie dane (transakcje, portfel, profil inwestycyjny, sugestie).',
+    deleteConfirmLabel: 'Potwierdź hasłem',
+    deleteAction: 'Usuń konto na zawsze',
   },
   summary: {
     title: 'Podsumowanie miesiąca',
@@ -99,10 +122,19 @@ export const pl = {
     dataExpenses: 'Wydatki',
     dataSurplus: 'Nadwyżka',
     dataByCategory: 'Wydatki per kategoria',
-    dataPrivacy:
-      'Nie wysyłamy opisów transakcji, e-maila ani innych danych osobowych. Model działa lokalnie na tym komputerze.',
+    dataPrivacy: (provider: string | null | undefined) => {
+      const base = 'Nie wysyłamy opisów transakcji, e-maila ani innych danych osobowych.'
+      if (!provider || provider === 'none') return base
+      if (provider === 'ollama') return `${base} Model działa lokalnie (Ollama).`
+      const names: Record<string, string> = {
+        gemini: 'Google Gemini',
+        openai: 'OpenAI',
+        anthropic: 'Anthropic Claude',
+      }
+      return `${base} Model działa w chmurze (${names[provider] ?? provider}); wysyłamy tylko zagregowane dane.`
+    },
     loading: 'Asystent analizuje dane…',
-    loadingHint: 'Model lokalny odpowiada zwykle w 10–30 s',
+    loadingHint: 'Model odpowiada zwykle w 10–30 s',
     seconds: (n: number) => `${n} s`,
     cancel: 'Anuluj',
     rationale: 'Dlaczego:',
@@ -314,6 +346,10 @@ export const pl = {
       risk: 'Ryzyko',
       source: 'Źródło',
       noLlm: 'Rekomendacje przygotowane bez modelu językowego (reguły).',
+      timeout:
+        'Model AI nie odpowiedział na czas, więc rekomendacje przygotowano regułami. Spróbuj ponownie za chwilę.',
+      limited:
+        'Osiągnięto dzienny limit zapytań do AI, więc rekomendacje przygotowano regułami. Spróbuj jutro.',
       error: 'Nie udało się pobrać rekomendacji. Spróbuj ponownie później.',
       notAvailable: 'Doradca AI jest jeszcze niedostępny.',
     },

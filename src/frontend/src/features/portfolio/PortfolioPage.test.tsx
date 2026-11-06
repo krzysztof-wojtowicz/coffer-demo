@@ -74,6 +74,7 @@ const advice = {
   ],
   tips: [{ title: 'Rebalansuj raz w roku', summary: 'Utrzymuj docelową alokację.', source: 'Bankier', url: 'https://example.com/t' }],
   llm_used: true,
+  ai_status: 'ok',
   disclaimer: 'To nie jest porada inwestycyjna.',
 }
 
@@ -197,6 +198,20 @@ describe('PortfolioPage', () => {
       { symbol: 'AAPL', asset_class: 'stock', quantity: '10', current_value: '1200.00' },
       { symbol: 'NESN.SW', asset_class: 'stock', quantity: '10', current_value: null },
     ])
+  })
+
+  it.each([
+    ['timeout', 'Model AI nie odpowiedział na czas'],
+    ['limited', 'Osiągnięto dzienny limit zapytań do AI'],
+    ['unavailable', 'Rekomendacje przygotowane bez modelu językowego (reguły).'],
+  ])('doradca AI: ai_status %s daje polski komunikat i wynik regułowy', async (status, message) => {
+    adviceResponse = () => json({ ...advice, llm_used: false, ai_status: status })
+    const user = renderPage()
+    await screen.findByText('Apple')
+    await user.click(screen.getByRole('button', { name: 'Pobierz rekomendacje' }))
+    const note = await screen.findByTestId('advisor-ai-status')
+    expect(note.textContent).toContain(message)
+    expect(screen.getByText('iShares MSCI World')).toBeTruthy()
   })
 
   it('doradca AI: brak endpointu daje polski komunikat', async () => {

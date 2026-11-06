@@ -14,7 +14,7 @@
 - **implementer:** `src/backend/coffer/scripts/seed_demo.py`, `README.md` (sekcja „Uruchomienie demo”)
 
 ## Kontrakt
-- `python -m coffer.scripts.seed_demo`: idempotentny; jeśli `demo@coffer.local` istnieje, usuwa jego transakcje i tworzy je ponownie. Hasło `demo12345`.
+- `python -m coffer.scripts.seed_demo`: idempotentny; jeśli `demo@coffer.local` istnieje, usuwa jego transakcje i tworzy je ponownie. Hasło `coffer-demo-2026` (zgodne z polityką haseł z 0005).
 - Transakcje: 3 pełne miesiące wstecz od bieżącego + bieżący do dziś. Co miesiąc: wynagrodzenie ~8 500 zł (Wynagrodzenie), czynsz (Mieszkanie), rachunki, 10–20 zakupów spożywczych, transport, rozrywka, jeden przelew własny i jedna wpłata na inwestycje (kategorie spoza budżetu). Nadwyżka dodatnia w co najmniej 2 miesiącach. Kwoty `Decimal`, generator z ustalonym `random.seed(42)`.
 - Opisy wymyślone, w stylu bankowym, bez prawdziwych danych osobowych.
 - README: wymagania (Docker Desktop, uv, Node, Ollama + `ollama pull qwen3:8b`), kolejność: `make setup`, `make db-up`, `make migrate`, `make seed`, `make dev-api`, `make dev-web`, adres `http://localhost:5173`, dane logowania demo; jak wyłączyć AI (`COFFER_LLM_PROVIDER=none`).

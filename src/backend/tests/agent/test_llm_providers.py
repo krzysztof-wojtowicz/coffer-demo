@@ -512,7 +512,7 @@ def test_factory_gemini_without_key(settings):
     settings(llm_provider="gemini")
     client = get_llm_client()
     assert isinstance(client, GeminiClient)
-    assert client.status() == LLMStatus(False, "gemini-3.8-flash")
+    assert client.status() == LLMStatus(False, "gemini-3.5-flash-lite")
 
 
 def test_factory_anthropic(settings, mock_transport):

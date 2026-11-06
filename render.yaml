@@ -16,14 +16,29 @@ services:
       # Neon connection string; scheme MUST be postgresql+psycopg://...?sslmode=require
       - key: COFFER_DATABASE_URL
         sync: false
-      # Origin of the Vercel frontend (JSON list), e.g. ["https://coffer.vercel.app"]
+      # Origin of the Vercel frontend (JSON or comma list), e.g. ["https://cofferai.vercel.app"]
       - key: COFFER_ALLOWED_ORIGINS
         sync: false
+      # Optional: Vercel preview origins, e.g. https://cofferai-[a-z0-9-]+-<team>\.vercel\.app
+      - key: COFFER_ALLOWED_ORIGIN_REGEX
+        sync: false
+      # Not needed while the browser goes through the Vercel rewrite (same origin)
+      - key: COFFER_CORS_ENABLED
+        value: "false"
       - key: COFFER_COOKIE_SECURE
         value: "true"
+      # lax keeps CSRF protection; none only for direct cross-site calls (docs/deploy/backend.md)
+      - key: COFFER_COOKIE_SAMESITE
+        value: lax
       - key: COFFER_SESSION_TTL_DAYS
         value: "14"
-      # LLM: gemini | openai | anthropic | none (ollama is not available on free hosting)
+      # 0 dopóki nie zweryfikowano liczby proxy Vercel→Render, zob. docs/deploy/release-checklist.md §6
+      - key: COFFER_TRUSTED_PROXY_HOPS
+        value: "0"
+      # Max parallel Argon2 hashes (memory on 512 MB Render)
+      - key: COFFER_PASSWORD_HASH_CONCURRENCY
+        value: "2"
+      # LLM: gemini | openai | anthropic | ollama (remote only, see COFFER_OLLAMA_*) | none
       - key: COFFER_LLM_PROVIDER
         value: gemini
       - key: COFFER_ANTHROPIC_API_KEY
@@ -33,14 +48,29 @@ services:
       - key: COFFER_GEMINI_API_KEY
         sync: false
       - key: COFFER_GEMINI_MODEL
-        value: gemini-3.8-flash
+        value: gemini-3.5-flash-lite
       - key: COFFER_OPENAI_API_KEY
         sync: false
       - key: COFFER_OPENAI_MODEL
         value: gpt-4o-mini
       - key: COFFER_OPENAI_BASE_URL
         value: https://api.openai.com/v1
+      # Fallback chain after the primary, tried on 503/429/timeouts (docs/deploy/backend.md
+      # "AI/LLM na produkcji"). Anthropic entries are skipped quickly without a key.
+      - key: COFFER_LLM_FALLBACKS
+        value: gemini:gemini-3.8-flash
+      # Remote/hosted Ollama only (e.g. https://ollama.com with an API key); provider=ollama
+      - key: COFFER_OLLAMA_URL
+        sync: false
+      - key: COFFER_OLLAMA_MODEL
+        sync: false
+      - key: COFFER_OLLAMA_API_KEY
+        sync: false
+      # Budget per model call incl. retries; keep well below the 120 s Vercel proxy limit
       - key: COFFER_LLM_TIMEOUT_S
+        value: "40"
+      # Whole investment-advisor run (all steps); must be < 110 (Vercel proxy limit 120 s)
+      - key: COFFER_ADVISOR_TIMEOUT_S
         value: "60"
       # Paid API in production: keep the per-user daily limit low
       - key: COFFER_AGENT_DAILY_LIMIT

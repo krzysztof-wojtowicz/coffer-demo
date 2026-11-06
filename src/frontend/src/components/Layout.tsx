@@ -11,6 +11,7 @@ const links = [
   { to: '/portfolio', label: pl.nav.portfolio, end: false },
   { to: '/assistant', label: pl.nav.assistant, end: false },
   { to: '/profile', label: pl.nav.profile, end: false },
+  { to: '/account', label: pl.nav.account, end: false },
 ]
 
 export function Layout({ email }: { email: string }) {

@@ -3,6 +3,7 @@ import { Layout } from './components/Layout'
 import { AssistantPage } from './features/assistant/AssistantPage'
 import { RunDetailPage } from './features/assistant/RunDetailPage'
 import { ProfilePage } from './features/profile/ProfilePage'
+import { AccountPage } from './features/auth/AccountPage'
 import { AuthPage } from './features/auth/AuthPage'
 import { useMe } from './features/auth/queries'
 import { SummaryPage } from './features/budget/SummaryPage'
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/portfolio" element={<PortfolioPage />} />
         <Route path="/assistant" element={<AssistantPage />} />
         <Route path="/assistant/runs/:id" element={<RunDetailPage />} />
+        <Route path="/account" element={<AccountPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

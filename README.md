@@ -1,216 +1,104 @@
-# Coffer Financial Assistant
+# Coffer
 
 [![CI](https://github.com/krzysztof-wojtowicz/coffer-demo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/krzysztof-wojtowicz/coffer-demo/actions/workflows/ci.yml)
 
-## 1. Coffer w skrócie
+Coffer to aplikacja do finansów osobistych: zbiera Twoje transakcje i inwestycje w jednym miejscu, liczy, ile zostaje Ci co miesiąc, i z pomocą asystenta AI podpowiada, co z tą nadwyżką zrobić.
 
-**Coffer** to aplikacja do zarządzania finansami osobistymi z lokalnym asystentem AI. Użytkownik importuje lub dodaje transakcje, widzi analizę miesiąca (przychody, wydatki, nadwyżka) i dostaje sugestię wykorzystania nadwyżki. Liczy rdzeń aplikacji, a model językowy (Ollama, działa lokalnie) tylko interpretuje gotowe agregaty. Projekt powstaje na Politechnice Warszawskiej w ramach przedmiotów _Inżynieria Oprogramowania 1_ (specyfikacja) i _Tworzenie Agentów AI w środowisku .NET_ (integracja z agentem).
+**[Otwórz aplikację](https://cofferai.vercel.app)**
 
-| Działa | Jeszcze nie ma |
-|---|---|
-| konto użytkownika (rejestracja, logowanie) | portfel inwestycyjny |
-| transakcje (dodawanie, lista, usuwanie) | kursy NBP |
-| import CSV z deduplikacją | edycja transakcji |
-| analiza miesiąca (kategorie, nadwyżka) | wyszukiwanie informacji o spółce |
-| profil inwestycyjny | |
-| asystent AI: sugestia nadwyżki, historia, ślad przebiegu | |
+<!-- TODO: zrzuty ekranu -->
 
-## 2. Wymagania
+## Co potrafi Coffer
 
-| Narzędzie | Wersja | Po co | macOS (Homebrew) |
-|---|---|---|---|
-| Git | dowolna | klonowanie repo | `brew install git` |
-| Docker Desktop | aktualny | Postgres 16 w kontenerze | `brew install --cask docker` (uruchom aplikację) |
-| uv | aktualny | sam instaluje Pythona 3.12 i zależności backendu | `brew install uv` |
-| Node.js + npm | >= 20 | frontend (React, Vite) | `brew install node` |
-| Ollama | aktualny | lokalny model AI (opcjonalnie) | `brew install --cask ollama` |
+**Transakcje i import z banku**
+- Dodajesz transakcje ręcznie (data, kwota, opis, kategoria) albo importujesz plik CSV z wyciągu.
+- Przed importem widzisz podgląd: które wiersze są nowe, które to duplikaty już zapisanych transakcji, a które mają błędy. Sam decydujesz, co zaimportować.
+- Transakcje z importu dostają kategorię automatycznie; te, których nie udało się przypisać, są oznaczone „do sprawdzenia”.
 
-Model: `ollama pull qwen3:8b` (ok. 5 GB, zalecane min. 16 GB RAM). Mniejsza alternatywa: `ollama pull qwen3:4b` i `COFFER_OLLAMA_MODEL=qwen3:4b` w `.env`.
+**Podsumowanie miesiąca**
+- Dla wybranego miesiąca: przychody, wydatki, saldo i nadwyżka.
+- Wydatki według kategorii z udziałem procentowym.
 
-Linux / Windows: zainstaluj te same narzędzia własnym menedżerem pakietów (Docker Engine albo Docker Desktop, [uv](https://docs.astral.sh/uv/), Node.js, [Ollama](https://ollama.com)). Na Windows pracuj w WSL2 (z włączoną integracją Dockera), potrzebne jest też `make`.
+**Asystent AI: co zrobić z nadwyżką**
+- Jednym kliknięciem prosisz asystenta o propozycję wykorzystania nadwyżki z danego miesiąca. Dostajesz krótką sugestię z uzasadnieniem i listą ryzyk.
+- Przed wysłaniem widzisz dokładnie, jakie dane trafiają do modelu.
+- Historia sugestii zostaje zapisana; jeśli w miesiącu nie ma nadwyżki, asystent mówi to wprost, bez angażowania modelu.
 
-Wolne porty: **5432** (Postgres), **8000** (API), **5173** (frontend), **11434** (Ollama).
+**Profil inwestycyjny**
+- Trzy pytania: horyzont inwestycyjny, tolerancja ryzyka i preferowane klasy aktywów.
+- Na tej podstawie Coffer pokazuje Twój profil (ostrożny, umiarkowany, dynamiczny) z orientacyjną alokacją, a asystent i doradca dopasowują do niego propozycje.
 
-## 3. Pierwsze uruchomienie krok po kroku
+**Portfel**
+- Pozycje inwestycyjne: akcje, ETF, obligacje, surowce, kryptowaluty, nieruchomości, gotówka i lokaty. Dodajesz, edytujesz i usuwasz je w dowolnej walucie.
+- Pozycje z symbolem giełdowym (np. `AAPL`, `CDR.WA`, `BTC-USD`) są wyceniane po bieżących notowaniach, a kwoty w walutach obcych przeliczane na PLN po aktualnym kursie. Aktywa bez notowań (np. mieszkanie) wyceniasz ręcznie.
+- Wartość portfela, koszt zakupu, zysk lub strata oraz alokacja według klas aktywów.
+- **Doradca AI**: na podstawie struktury portfela i profilu proponuje „Top 3 dla Ciebie teraz” (instrumenty z poziomem ryzyka i uzasadnieniem) oraz porady z linkami do źródeł.
 
-Wszystkie polecenia z katalogu głównego repozytorium.
+**Konto**
+- Rejestracja e-mailem i hasłem, logowanie, wylogowanie. Każdy widzi wyłącznie własne dane.
+- Strona *Konto*: zmiana hasła, wylogowanie ze wszystkich urządzeń, trwałe usunięcie konta razem ze wszystkimi danymi.
 
-| Krok | Komenda | Co robi |
-|---|---|---|
-| 1 | `git clone <adres-repozytorium> coffer && cd coffer` | pobiera kod |
-| 2 | `cp .env.example .env` | (opcjonalnie) plik konfiguracji; bez niego działają wartości domyślne |
-| 3 | `make setup` | instaluje zależności backendu (`uv sync`) i frontendu (`npm install`) |
-| 4 | `make db-up` | uruchamia Postgresa w Dockerze i czeka na gotowość |
-| 5 | `make migrate` | tworzy schemat bazy i kategorie systemowe (Alembic) |
-| 6 | `make seed` | tworzy konto demo i transakcje z 3 ostatnich miesięcy (można powtarzać: transakcje demo są tworzone od nowa) |
-| 7 | `make dev-api` | API na `http://localhost:8000` (terminal 1) |
-| 8 | `make dev-web` | frontend na `http://localhost:5173` (terminal 2) |
+## Jak zacząć
 
-Otwórz [http://localhost:5173](http://localhost:5173) i zaloguj się kontem demo:
+1. **Załóż konto** na [stronie aplikacji](https://cofferai.vercel.app): wystarczy e-mail i hasło (min. 12 znaków, nie może być popularnym hasłem ani Twoim e-mailem).
+2. **Dodaj transakcje.** Wpisz je ręcznie w zakładce *Transakcje* albo zaimportuj plik CSV w zakładce *Import* ([obsługiwany format](docs/csv-format.md)).
+3. **Sprawdź podsumowanie** miesiąca na stronie głównej.
+4. **Uzupełnij profil inwestycyjny** w zakładce *Profil*. Bez niego sugestie są mniej dopasowane.
+5. **Dodaj portfel** w zakładce *Portfel*: pozycje, ilości, ceny zakupu.
+6. **Poproś o rekomendacje**: w *Podsumowaniu* o pomysł na nadwyżkę, w *Portfelu* o propozycje doradcy AI.
 
-- e-mail: `demo@coffer.local`
-- hasło: `demo12345`
+## Prywatność i bezpieczeństwo
 
-**Jak sprawdzić, że działa**
-- `curl localhost:8000/api/health` zwraca status `ok`.
-- W panelu asystenta widać status modelu: „`<model>` · dostępny”, „Model niedostępny” albo „AI wyłączone”.
+- **Do modelu AI trafiają tylko agregaty.** Asystent nadwyżki dostaje sumy miesiąca (przychody, wydatki, nadwyżka, wydatki per kategoria) i profil inwestycyjny. Doradca portfela dostaje udziały procentowe klas aktywów, symbole instrumentów i profil, bez kwot. Nigdy nie wysyłamy e-maila, opisów transakcji ani identyfikatorów.
+- **Liczy aplikacja, nie model.** Wszystkie sumy i wyceny wylicza kod Coffera; model tylko je opisuje i proponuje pomysły. Gdy model jest niedostępny, reszta aplikacji działa normalnie.
+- **Model w chmurze.** Wersja publiczna korzysta z zewnętrznego dostawcy modelu (Google Gemini), więc powyższe agregaty są przetwarzane przez niego zgodnie z jego regulaminem.
+- **Hasła** są przechowywane wyłącznie jako skrót Argon2.
+- **Sesja** jest trzymana w ciasteczku `HttpOnly` (niedostępnym dla skryptów strony); żądania zmieniające dane z obcych domen są odrzucane.
+- **Dane w UE:** baza danych (Neon) i serwer aplikacji (Render) działają we Frankfurcie.
 
-## 4. Konfiguracja
+## Zastrzeżenie
 
-Zmienne środowiskowe `COFFER_*` (z procesu albo z pliku `.env` w katalogu głównym). Wszystkie są opcjonalne.
+Sugestie asystenta i rekomendacje doradcy mają charakter informacyjny i edukacyjny. **Nie są poradą inwestycyjną**; inwestowanie wiąże się z ryzykiem utraty kapitału, a decyzję podejmujesz samodzielnie. Notowania i kursy walut pochodzą z Yahoo Finance i mogą być opóźnione lub chwilowo niedostępne.
 
-| Zmienna | Domyślnie | Opis |
-|---|---|---|
-| `COFFER_DATABASE_URL` | `postgresql+psycopg://coffer:coffer@localhost:5432/coffer` | adres bazy (SQLAlchemy + psycopg 3) |
-| `COFFER_ALLOWED_ORIGINS` | `["http://localhost:5173","http://localhost:8000"]` | dozwolone originy dla żądań zmieniających dane (lista JSON) |
-| `COFFER_SESSION_TTL_DAYS` | `14` | ważność sesji w dniach |
-| `COFFER_COOKIE_SECURE` | `false` | `true`, gdy aplikacja działa przez HTTPS |
-| `COFFER_LLM_PROVIDER` | `ollama` | dostawca LLM: `ollama`, `openai`, `gemini` albo `none` |
-| `COFFER_OLLAMA_URL` | `http://localhost:11434` | adres serwera Ollama |
-| `COFFER_OLLAMA_MODEL` | `qwen3:8b` | nazwa modelu |
-| `COFFER_OPENAI_API_KEY` | (pusty) | klucz API OpenAI (dla `openai`) |
-| `COFFER_OPENAI_MODEL` | `gpt-4o-mini` | model OpenAI |
-| `COFFER_OPENAI_BASE_URL` | `https://api.openai.com/v1` | adres API zgodnego z OpenAI |
-| `COFFER_GEMINI_API_KEY` | (pusty) | klucz API Google Gemini (dla `gemini`) |
-| `COFFER_GEMINI_MODEL` | `gemini-3.8-flash` | model Gemini |
-| `COFFER_LLM_TIMEOUT_S` | `90` | limit czasu żądania do modelu (s) |
-| `COFFER_AGENT_DAILY_LIMIT` | `50` | maks. przebiegów agenta na użytkownika na dobę |
-| `COFFER_AGENT_MAX_ATTEMPTS` | `2` | próby wywołania modelu (1 + 1 poprawka po błędzie walidacji) |
+## Ograniczenia
 
-- **Wyłączenie AI:** `COFFER_LLM_PROVIDER=none` w `.env` (restart `make dev-api`). Reszta aplikacji działa bez zmian.
-- **Zmiana modelu:** `ollama pull <model>` i `COFFER_OLLAMA_MODEL=<model>`.
+- **Pierwsze wejście bywa wolne.** Serwer działa na darmowym planie i usypia po ok. 15 minutach bez ruchu; pierwsze żądanie po przerwie może trwać ok. 50 s.
+- **Limit asystenta:** 50 zapytań o sugestię nadwyżki na użytkownika na dobę.
+- **Import CSV** obsługuje na razie jeden format pliku (opisany w [docs/csv-format.md](docs/csv-format.md)), a nie wyciągi konkretnych banków.
+- **Kursy walut i notowania** pochodzą tylko z Yahoo Finance. Gdy są niedostępne, pozycje wyceniane są z wyceny ręcznej lub ceny zakupu, a pozycji, których nie da się przeliczyć na PLN, nie wliczamy do sumy.
+- Transakcji nie można edytować (można je usunąć i dodać ponownie).
 
-### Alternatywny asystent AI: Gemini / OpenAI / Claude
+## FAQ
 
-Domyślnie asystent korzysta z lokalnej Ollamy. Zamiast niej można użyć modelu w chmurze: Google Gemini, Anthropic Claude albo OpenAI (lub dowolnego API zgodnego z OpenAI, np. LM Studio, vLLM, OpenRouter).
+**Czy Coffer łączy się z moim bankiem?**
+Nie. Transakcje dodajesz ręcznie albo importujesz z pliku CSV. Coffer nie prosi o dane logowania do banku.
 
-**Jak przełączyć.** W `.env` ustaw dostawcę i klucz, potem zrestartuj `make dev-api`:
+**Czy model AI widzi moje transakcje?**
+Nie. Widzi tylko sumy miesiąca i wydatki per kategoria (asystent) albo procentową strukturę portfela i symbole (doradca). Na stronie asystenta możesz podejrzeć dokładnie, co zostanie wysłane.
 
-```env
-# Gemini
-COFFER_LLM_PROVIDER=gemini
-COFFER_GEMINI_API_KEY=<klucz z Google AI Studio>
-COFFER_GEMINI_MODEL=gemini-3.8-flash
+**Czy zaimportowanie tego samego pliku dwa razy zdubluje transakcje?**
+Nie. Podgląd importu oznacza transakcje, które już są w Coffer (ta sama data, kwota i opis), jako duplikaty i domyślnie ich nie importuje.
 
-# albo OpenAI / API zgodne z OpenAI
-COFFER_LLM_PROVIDER=openai
-COFFER_OPENAI_API_KEY=<klucz>
-COFFER_OPENAI_MODEL=gpt-4o-mini
-COFFER_OPENAI_BASE_URL=https://api.openai.com/v1
+**Dlaczego asystent mówi, że jest niedostępny?**
+Model AI chwilowo nie odpowiada albo wyczerpałeś dzienny limit zapytań. Podsumowanie, transakcje i portfel działają dalej; spróbuj ponownie później.
 
-# albo Anthropic Claude
-COFFER_LLM_PROVIDER=anthropic
-COFFER_ANTHROPIC_API_KEY=<klucz z console.anthropic.com>
-COFFER_ANTHROPIC_MODEL=claude-sonnet-5-5
-```
+**Dlaczego wartość pozycji pokazuje „cena zakupu” zamiast „notowanie”?**
+Nie udało się pobrać bieżącego notowania (brak symbolu, nieznany symbol lub chwilowa niedostępność Yahoo Finance). Wtedy pozycja jest wyceniana ręcznie albo po cenie zakupu.
 
-**Klucz do Claude.** Załóż konto na [console.anthropic.com](https://console.anthropic.com), w *Settings → Billing* doładuj kredyty (API jest płatne z góry; bez kredytów każde wywołanie kończy się błędem i asystent pokazuje „asystent niedostępny”), potem w *Settings → API Keys* kliknij *Create Key* i wklej klucz (`sk-ant-...`) do `COFFER_ANTHROPIC_API_KEY`. Model można zmienić w `COFFER_ANTHROPIC_MODEL` (np. tańszy `claude-haiku-5-5` albo mocniejszy `claude-opus-5-5`).
+**Dlaczego aplikacja długo się ładuje?**
+Darmowy serwer usypia przy braku ruchu. Pierwsze wejście po przerwie trwa do ok. minuty, kolejne działają już szybko.
 
-Bez klucza status asystenta to „Model niedostępny”, a reszta aplikacji działa normalnie. Klucze są czytane tylko z konfiguracji: nie trafiają do logów, komunikatów błędów ani odpowiedzi API (pola mają `repr=False`, Gemini dostaje klucz w nagłówku `x-goog-api-key`, a nie w URL, Claude w nagłówku `x-api-key`).
+## Dla deweloperów
 
-**Implementacja** (`src/backend/coffer/agent/llm.py`, tylko `httpx`, bez SDK dostawców):
-- Wszyscy dostawcy implementują ten sam `Protocol` `LLMClient`: `status()` i `complete(system, messages, response_schema)` zwracające `LLMResponse` (treść, model, tokeny wejścia/wyjścia). Reszta agenta nie wie, z którym dostawcą rozmawia; klienta wybiera fabryka `get_llm_client()` na podstawie `COFFER_LLM_PROVIDER` (`none` → brak klienta).
-- **Structured output** (schemat JSON szkicu sugestii):
-  - Ollama: pole `format` z całym schematem;
-  - OpenAI: Chat Completions (`POST {base_url}/chat/completions`) z `response_format: {type: "json_schema", json_schema: {name, schema, strict: false}}` (tryb nieścisły, bo schematy Pydantic nie mają `additionalProperties: false`; i tak waliduje je nasz walidator);
-  - Gemini: `generateContent` z `systemInstruction` i `generationConfig.responseMimeType = "application/json"` + `responseSchema`. Gemini przyjmuje tylko podzbiór JSON Schema, więc `gemini_schema()` rozwija `$ref`/`$defs`, zamienia `anyOf [T, null]` i `type: [T, null]` na `nullable: true` oraz usuwa nieobsługiwane słowa kluczowe (`additionalProperties`, `title`, `default` itd.). Role `assistant` mapowane są na `model`.
-  - Claude: Messages API (`POST {base_url}/v1/messages`, nagłówki `x-api-key` i `anthropic-version: 2026-10-21`), prompt systemowy w osobnym polu `system`, `max_tokens` 16000. Schemat idzie w `output_config.format = {type: "json_schema", schema}` (structured outputs; wymuszone narzędzie przez `tool_choice` nie działa na najnowszych modelach). API wymaga `additionalProperties: false` w każdym obiekcie i nie przyjmuje ograniczeń liczbowych/długości, więc `anthropic_schema()` dopisuje to pierwsze i usuwa drugie. Z odpowiedzi brane są tylko bloki `text`; `stop_reason` `refusal` lub `max_tokens` → `LLMUnavailable`. Dla modeli, które to wspierają (np. `claude-sonnet-5-5`), włączony jest serwerowy fallback przy odmowie (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`).
-- **Tokeny:** OpenAI `usage.prompt_tokens`/`completion_tokens`, Gemini `usageMetadata.promptTokenCount`/`candidatesTokenCount`, Claude `usage.input_tokens`/`output_tokens`; zapisywane w śladzie przebiegu.
-- **Obsługa błędów:** błąd sieci, timeout (`COFFER_LLM_TIMEOUT_S`), status HTTP ≠ 200 (np. 401 zły klucz, 429 limit) i niepoprawna/pusta odpowiedź zamieniane są na `LLMUnavailable`. `status()` dostawców chmurowych nie wykonuje płatnych wywołań: sprawdza tylko, czy skonfigurowano klucz.
-- **Fallback:** przy `LLMUnavailable` workflow od razu kończy przebieg komunikatem „asystent niedostępny” (komunikat błędu nie zawiera klucza ani treści odpowiedzi), a przy nadwyżce <= 0 odpowiedź powstaje bez modelu. Rdzeń (konta, transakcje, analityka) nigdy nie zależy od LLM.
+Coffer to monorepo: backend w Pythonie (FastAPI, PostgreSQL), frontend w React + TypeScript, asystent AI z wymiennym dostawcą modelu (Ollama lokalnie, Gemini, OpenAI lub Claude). Wersja publiczna działa na Vercel (frontend), Render (API) i Neon (baza).
 
-**Co trafia do modelu.** Tak samo jak przy Ollamie: tylko agregaty (przychody, wydatki, kategorie z udziałami, nadwyżka, profil inwestycyjny) i prompt systemowy. Nie trafiają e-mail, opisy transakcji ani identyfikatory. Uwaga: przy Gemini/OpenAI/Claude te agregaty opuszczają komputer i są przetwarzane przez zewnętrznego dostawcę zgodnie z jego regulaminem.
+- [Uruchomienie, konfiguracja i hosting](docs/hosting.md): instalacja lokalna, zmienne środowiskowe, dostawcy LLM, testy, struktura kodu
+- [Architektura systemu](docs/architecture.md)
+- [Wdrożenie produkcyjne: Neon, Render, Vercel, CI](docs/deploy/)
+- [Serwer MCP danych rynkowych](docs/mcp-market.md)
+- [Kontekst dla agentów AI (CLAUDE.md)](CLAUDE.md)
 
-## 5. Najczęstsze problemy
-
-| Objaw | Rozwiązanie |
-|---|---|
-| `make db-up` kończy się błędem, Docker nie działa | uruchom Docker Desktop, poczekaj na ikonę „running”, powtórz |
-| „port is already allocated” / „address already in use” | zwolnij port (5432, 8000, 5173) albo zatrzymaj inny Postgres/serwer; `lsof -i :5432` pokaże proces |
-| status „Model niedostępny” | uruchom Ollamę (`ollama serve` albo aplikację), sprawdź `ollama list`, w razie braku `ollama pull qwen3:8b`; sprawdź `COFFER_OLLAMA_URL` i nazwę modelu |
-| odpowiedź modelu trwa długo | pierwsze wywołanie ładuje model do pamięci; na słabszym sprzęcie użyj `qwen3:4b` lub zwiększ `COFFER_LLM_TIMEOUT_S` |
-| chcę zacząć od czystej bazy | `make db-down`, usuń wolumen (`docker volume ls`, potem `docker volume rm <projekt>_coffer-db`; albo od razu `docker compose down -v`), następnie `make db-up`, `make migrate`, `make seed` |
-
-## 6. Jak to działa
-
-```text
-przeglądarka ──► Vite (:5173, proxy /api) ──► FastAPI (:8000) ──┬─► PostgreSQL (:5432)
-                                                                 └─► Ollama (:11434, lokalny LLM)
-```
-
-**Rdzeń liczy, agent interpretuje.** Sumy, nadwyżki i udziały liczy wyłącznie `coffer.analytics` (czyste funkcje, `Decimal`). Model nigdy nie liczy: dostaje gotowe agregaty i opisuje je słowami. Brak modelu nie psuje rdzenia.
-
-**Sugestia nadwyżki (szczegóły: [`docs/plan.md`](docs/plan.md), sekcja 4):**
-1. Kod woła narzędzia: analiza miesiąca i profil inwestycyjny (`user_id` pochodzi z sesji).
-2. Gdy nadwyżka <= 0, odpowiedź powstaje bez modelu.
-3. Model dostaje tylko agregaty (prompt `agent/prompts/surplus_v2.md`) i zwraca ustrukturyzowany szkic (podsumowanie, uzasadnienie, ryzyka).
-4. Walidator sprawdza, czy uzasadnienie istnieje, a liczby pochodzą z wyników narzędzi.
-5. Przy błędzie następuje jedna poprawka z informacją o błędzie; potem komunikat „asystent niedostępny”.
-6. Sugestia i ślad przebiegu (prompty, narzędzia, wynik) są zapisywane w bazie.
-7. Postęp i wynik płyną do przeglądarki przez SSE (`POST /api/agent/surplus/stream`).
-
-**Deduplikacja importu.** Transakcja to duplikat, gdy istnieje już taka sama trójka: data + kwota + opis ze znormalizowanymi spacjami. Porównanie jest na multizbiorze: dwie identyczne transakcje w pliku przy jednej w bazie dają jedną nową i jednego duplikata.
-
-**Prywatność.** Do modelu trafiają tylko agregaty (przychody, wydatki, kategorie z udziałami, nadwyżka, profil inwestycyjny). Nie trafiają: e-mail, opisy transakcji, identyfikatory. Przy Ollamie model działa lokalnie i dane nie opuszczają komputera; przy Gemini/OpenAI agregaty są wysyłane do dostawcy.
-
-## 7. Struktura kodu
-
-```text
-coffer/
-├── docs/             specyfikacja, plan, karty zadań
-├── data/fixtures/    wymyślone dane testowe (np. csv/testbank-2026-10.csv)
-├── docker/           init bazy Postgres (baza testowa)
-├── .claude/          role agentów, procedura run-task, ustawienia
-├── compose.yaml      Postgres 16
-├── Makefile          komendy projektu
-└── src/
-    ├── backend/      Python 3.12, FastAPI, SQLAlchemy, Alembic
-    │   ├── alembic/  migracje bazy
-    │   ├── tests/    testy (podkatalog na moduł)
-    │   └── coffer/
-    │       ├── main.py        aplikacja FastAPI, /api/health
-    │       ├── core/          konfiguracja, baza, pieniądze (quantize), miesiące, sprawdzanie origin
-    │       ├── accounts/      rejestracja, logowanie, sesje, zależność CurrentUser
-    │       ├── transactions/  transakcje i kategorie
-    │       ├── imports/       import CSV: parser, banki, kategoryzacja, deduplikacja
-    │       ├── budget/        widok miesiąca (łączy transakcje z analityką)
-    │       ├── analytics/     czyste funkcje liczące sumy i udziały
-    │       ├── profile/       profil inwestycyjny
-    │       ├── agent/         asystent AI
-    │       │   ├── tools/       rejestr i narzędzia odczytu danych
-    │       │   ├── workflows/   przebieg sugestii nadwyżki
-    │       │   └── prompts/     wersjonowane prompty (surplus_v1, surplus_v2)
-    │       └── scripts/       dump_openapi, seed_demo
-    └── frontend/     React, TypeScript, Vite
-        └── src/
-            ├── features/    auth, transactions, import, budget, profile, assistant
-            ├── components/  wspólne komponenty; ui/ to prymitywy interfejsu
-            ├── api/         klient HTTP i typy wygenerowane z OpenAPI
-            ├── lib/         pomocnicze: pieniądze, miesiące, błędy, react-query
-            └── i18n/        teksty interfejsu po polsku (pl.ts)
-```
-
-Pliki w `agent/`: `llm.py` (klient Ollama), `validator.py`, `anonymize.py`, `drafts.py`, `sse.py`, `api.py`, `service.py`.
-
-**Zasady modułów:** moduł `coffer/<moduł>/` ma `api.py` (cienki router), `service.py`, `models.py`, `schemas.py`. Inne moduły korzystają z niego tylko przez `service.py` (analityka: publiczne dataclassy). Rdzeń nigdy nie importuje `coffer.agent`; pilnuje tego `import-linter` w `make lint`.
-
-## 8. Testy i jakość
-
-| Komenda | Co robi |
-|---|---|
-| `make check` | całość: lint, testy backendu, sprawdzenie frontu |
-| `make lint` | ruff, pyright, import-linter |
-| `make test-backend ARGS="tests/accounts"` | testy backendu (całość bez `ARGS`) |
-| `make check-web` | tsc, vitest i build frontendu |
-| `make openapi` | zrzut OpenAPI i typy TypeScript |
-
-Testy backendu są w `src/backend/tests/<moduł>`, testy frontu obok kodu (`*.test.ts(x)`). Testy używają osobnej bazy (domyślnie `coffer_test`); żeby równoległe uruchomienia nie kasowały sobie danych, ustaw `COFFER_TEST_DB=coffer_test_<moduł>`.
-
-## 9. Praca z agentami AI
-
-Projekt jest przygotowany do pracy z agentami Claude Code. Każde zadanie ma kartę w `docs/tasks/` z kontraktem, listą plików i kryteriami akceptacji. Role (`implementer`, `tester`, `reviewer`, `spec-writer`) mają rozłączne pliki, a tester pisze testy niezależnie od implementacji. Krótki kontekst dla agentów jest w `CLAUDE.md`. Szczegóły: [`docs/agents.md`](docs/agents.md) i [`docs/tasks/`](docs/tasks/README.md).
-
-## 10. Dokumentacja
+### Dokumentacja
 
 - [Wizja](docs/vision.md)
 - [Wymagania](docs/requirements.md)
@@ -218,10 +106,16 @@ Projekt jest przygotowany do pracy z agentami Claude Code. Każde zadanie ma kar
 - [Przypadki użycia](docs/use-cases/README.md)
 - [Plan techniczny](docs/plan.md)
 - [Architektura systemu (diagramy)](docs/architecture.md)
+- [Uruchomienie, konfiguracja i hosting](docs/hosting.md)
 - [Wdrożenie: baza, backend, frontend, CI](docs/deploy/)
 - [Serwer MCP danych rynkowych](docs/mcp-market.md)
 - [Format CSV](docs/csv-format.md)
 - [Praca z agentami](docs/agents.md)
+- [Karty zadań](docs/tasks/README.md)
+
+## O projekcie
+
+Coffer powstaje na Politechnice Warszawskiej w ramach przedmiotów _Inżynieria Oprogramowania 1_ (specyfikacja) i _Tworzenie Agentów AI w środowisku .NET_ (integracja z agentem).
 
 ## Autorzy:
 

@@ -11,6 +11,16 @@ from coffer.accounts.models import User
 from coffer.transactions.models import Category, Transaction
 
 MONTH = "2025-03"
+
+
+@pytest.fixture(autouse=True)
+def no_retry_sleep(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """LLM retries back off with time.sleep; record the delays instead of waiting."""
+    delays: list[float] = []
+    monkeypatch.setattr("coffer.agent.llm._sleep", delays.append)
+    return delays
+
+
 DESCRIPTION = "Przelew Jan Kowalski PL61109010140000071219812874"
 
 

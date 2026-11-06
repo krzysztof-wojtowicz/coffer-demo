@@ -85,6 +85,31 @@ Certyfikat HTTPS Vercel wystawia sam. Nic w kodzie nie trzeba zmieniać.
 5. Uruchom asystenta: odpowiedź powinna pojawiać się stopniowo (DevTools → Network → typ `eventsource`/`fetch`).
 6. Wyloguj się: ciasteczko znika, a `/api/auth/me` zwraca 401.
 
+## Nagłówki bezpieczeństwa
+
+`src/frontend/vercel.json` dodaje do każdej odpowiedzi (reguła `/(.*)`, obok reguł cache):
+
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY` oraz `frame-ancestors 'none'` w CSP (ochrona przed clickjackingiem)
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+- `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:;
+  font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
+
+CSP jest pełna, bo build Vite nie ma skryptów ani stylów inline, nie ładuje zewnętrznych fontów/CDN,
+a wszystkie wywołania API (także SSE asystenta) idą na względne `/api/...` (ta sama domena, rewrite do Render).
+Jeśli dodasz zewnętrzny zasób (font, analityka, inny adres API), rozszerz odpowiednią dyrektywę.
+Na deploymentach podglądowych CSP blokuje pasek Vercel Toolbar (`vercel.live`); na produkcji to bez znaczenia.
+
+Sprawdzenie po wdrożeniu:
+
+```bash
+curl -sI https://cofferai.vercel.app/ | grep -iE 'x-frame|content-security|x-content|referrer|permissions'
+```
+
+Powinno wypisać pięć nagłówków. W przeglądarce: DevTools → Console nie może pokazywać błędów
+„Refused to … because it violates the Content Security Policy”.
+
 ## Inny adres backendu
 
 `vercel.json` nie czyta zmiennych środowiskowych. Jeśli backend ma inny URL, zmień `destination`
