@@ -9,8 +9,10 @@ Jak projekt jest przygotowany do równoległej pracy wielu agentów i ludzi.
 | `CLAUDE.md` | Krótki, wspólny kontekst: struktura, komendy, twarde zasady. Ładuje się automatycznie każdemu agentowi. | wszyscy |
 | `docs/tasks/E*-*.md` | **Karta zadania**: cel, lista plików do przeczytania, pliki na własność per rola, kontrakt, kryteria akceptacji. Jedyne źródło kontekstu dla agenta, który startuje bez wiedzy o projekcie. | implementer, tester |
 | `docs/tasks/README.md` | Tablica statusu i fal. Edytuje tylko orkiestrator. | orkiestrator, ludzie |
-| `.claude/agents/*.md` | Role: `implementer`, `tester`, `reviewer`, `spec-writer` (narzędzia, model, zasady). | Claude Code |
-| `.claude/skills/run-task/` | Procedura orkiestracji: wybór kart, równoległe uruchomienie, integracja, rundy poprawek. | sesja główna |
+| `.claude/agents/*.md` | **Drużyna**: 15 nazwanych agentów (postacie z Władcy Pierścieni). Każdy ma osobowość, domyślną rolę, model i narzędzia. | Claude Code |
+| `.claude/roles/*.md` | Role do przydziału na zadanie (`Rola: <nazwa>` w prompcie) i `_zasady.md` wspólne dla wszystkich. | agenci |
+| `.claude/skills/druzyna/` | Orkiestracja Drużyny: skład, przydział po imionach, nadpisywanie ról i modeli, limit 3 agentów naraz, przekazywanie uwag, wznawianie. | sesja główna |
+| `.claude/skills/run-task/` | Realizacja kart z `docs/tasks/`: wybór kart, implementer + tester równolegle, integracja, rundy poprawek. | sesja główna |
 
 ## Zasady, które pozwalają pracować równolegle
 1. **Rozłączne pliki:** karty jednej fali nie dzielą plików. Wspólne fundamenty (modele, fikstury, konfiguracja) powstają wcześniej, w fali 0.
@@ -24,11 +26,35 @@ Jak projekt jest przygotowany do równoległej pracy wielu agentów i ludzi.
 - Karta wskazuje konkretne pliki do przeczytania; agent nie przegląda repo ani całego `plan.md`.
 - Raporty agentów maks. ~15 linii, bez kodu. Orkiestrator nie czyta kodu, gdy testy i lint przechodzą.
 - Poprawki przez kontynuację istniejącego agenta (zachowuje kontekst), nie przez nowego.
-- Modele: `sonnet` dla implementacji i testów, `haiku` dla prostych zadań (dane demo, dokumentacja).
-- Recenzja (`reviewer`) raz na falę, nie na każdą kartę.
+- Modele: `opus` dla architektury, recenzji i bezpieczeństwa, `sonnet` dla implementacji i testów, `haiku` dla zwiadu i drobnych poprawek (domyślne w definicjach agentów, nadpisywalne na zadanie).
+- Recenzja (`elrond`) raz na falę, nie na każdą kartę.
+- Maks. 3 agentów naraz: więcej szybko wyczerpuje limit użycia API.
 
 ## Jak uruchomić
-W sesji Claude Code w katalogu repo: „zrealizuj falę 1 z `docs/tasks`” albo `/run-task E1-03`. Nowe zadanie: skopiuj `docs/tasks/_template.md`, uzupełnij kontrakt i dodaj wiersz do `docs/tasks/README.md`.
+W sesji Claude Code w katalogu repo: „zrealizuj falę 1 z `docs/tasks`” albo `/run-task E1-03`. Pracę można też przydzielać po imionach:
+
+- „Aragorn i Samwise robią limity doradcy” (domyślne role: backend + tester),
+- „Gimli robi testy migracji” (zmiana roli na zadanie),
+- „niech Galadriela przejrzy auth, a Merry sprawdzi, gdzie liczymy sumy”,
+- „wszyscy na Haiku” (nadpisanie modelu).
+
+| Agent | Domyślna rola | Model |
+|---|---|---|
+| gandalf | architekt, triage | opus |
+| elrond | recenzent (tylko odczyt) | opus |
+| galadriel | bezpieczeństwo (tylko odczyt) | opus |
+| treebeard | projektant modelu danych | opus |
+| aragorn | implementer backendu | sonnet |
+| legolas | implementer frontendu | sonnet |
+| gimli | migracje | sonnet |
+| eowyn | AI/LLM | sonnet |
+| samwise | tester | sonnet |
+| boromir | odporność, red team lokalnie | sonnet |
+| frodo | strażnik wdrożenia | sonnet |
+| faramir | CI/CD, DevOps | sonnet |
+| bilbo | dokumentacja | sonnet |
+| merry | zwiadowca (tylko odczyt) | haiku |
+| pippin | drobne poprawki | haiku | Nowe zadanie: skopiuj `docs/tasks/_template.md`, uzupełnij kontrakt i dodaj wiersz do `docs/tasks/README.md`.
 
 Dla 4 osób: każda osoba prowadzi własną sesję-orkiestratora na swoich kartach, na osobnej gałęzi (albo `git worktree`), z PR do `main`.
 
