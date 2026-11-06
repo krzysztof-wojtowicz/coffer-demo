@@ -6,6 +6,7 @@ from coffer.accounts.api import router as accounts_router
 from coffer.agent.api import router as agent_router
 from coffer.agent.investment.api import router as investment_router
 from coffer.budget.api import router as budget_router
+from coffer.core.body_limit import BodySizeLimitMiddleware
 from coffer.core.config import Settings, get_settings
 from coffer.core.origin import install_origin_policy
 from coffer.imports.api import router as imports_router
@@ -17,9 +18,11 @@ from coffer.transactions.api import router as transactions_router
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Coffer API")
-    # Middleware order (outermost first): CORS (if enabled) -> Origin check -> routes.
+    # Middleware order (outermost first): CORS (if enabled) -> Origin check -> body limit -> routes.
     # CORS must be outermost so preflight OPTIONS never reaches the Origin check or auth.
-    install_origin_policy(app, settings or get_settings())
+    settings = settings or get_settings()
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)
+    install_origin_policy(app, settings)
     app.include_router(accounts_router)
     app.add_exception_handler(RequestValidationError, redacted_validation_handler)
     app.include_router(transactions_router)

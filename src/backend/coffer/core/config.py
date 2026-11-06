@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     trusted_proxy_hops: int = Field(default=0, ge=0)
     # Max concurrent Argon2 hash/verify calls (memory bound; legacy hashes use 64 MiB each).
     password_hash_concurrency: int = Field(default=2, ge=1)
+    # Max request body (413 above it); a bit over the 1 MB import cap plus multipart overhead.
+    max_request_bytes: int = Field(default=2 * 1024 * 1024, gt=0)
     llm_provider: Literal["ollama", "openai", "gemini", "anthropic", "none"] = "ollama"
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3:8b"

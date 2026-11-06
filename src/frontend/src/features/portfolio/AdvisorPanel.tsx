@@ -7,8 +7,17 @@ import { AdviceError, useInvestmentAdvice, type AdviceHoldingIn } from './querie
 
 const t = pl.portfolio.advisor
 
+// Defense in depth: URLs come from news feeds / LLM, so only http(s) may become a link.
+function isHttpUrl(url: string): boolean {
+  try {
+    return ['http:', 'https:'].includes(new URL(url).protocol)
+  } catch {
+    return false
+  }
+}
+
 function SourceLink({ url, label }: { url: string | null | undefined; label: string }) {
-  if (!url) return <span>{label}</span>
+  if (!url || !isHttpUrl(url)) return <span>{label}</span>
   return (
     <a href={url} target="_blank" rel="noreferrer noopener" className="text-accent underline">
       {label}

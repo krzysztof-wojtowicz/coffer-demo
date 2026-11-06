@@ -142,7 +142,7 @@ def create_preview(
         id=str(uuid.uuid4()),
         user_id=user_id,
         bank=bank_id,
-        filename=filename[:255],
+        filename=filename.replace("\x00", "")[:255],
         rows=rows,
         created_at=now,
         expires_at=now + DRAFT_TTL,
@@ -155,6 +155,10 @@ def create_preview(
 def _get_draft(
     db: Session, user_id: int, draft_id: str, *, for_update: bool = False
 ) -> ImportDraft:
+    try:
+        uuid.UUID(draft_id)
+    except ValueError:  # e.g. NUL bytes would otherwise crash the query with a 500
+        raise DraftNotFoundError from None
     query = select(ImportDraft).where(
         ImportDraft.id == draft_id,
         ImportDraft.user_id == user_id,

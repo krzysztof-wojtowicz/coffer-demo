@@ -48,7 +48,8 @@ def parse(content: bytes, bank: BankConfig) -> list[ParsedRow]:
         text = content.decode(bank.encoding)
     except UnicodeDecodeError:
         raise ImportEncodingError("Nie udało się odczytać pliku (kodowanie)") from None
-    text = text.removeprefix("﻿")
+    # NUL cannot be stored in PostgreSQL text/JSONB; drop it instead of failing with a 500.
+    text = text.removeprefix("﻿").replace("\x00", "")
     records = [r for r in csv.reader(io.StringIO(text), delimiter=bank.delimiter) if any(r)]
     if len(records) < bank.skip_rows or not records:
         raise ImportFormatError(

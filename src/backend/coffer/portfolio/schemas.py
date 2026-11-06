@@ -52,6 +52,13 @@ def fmt_quantity(value: Decimal) -> str:
 class _HoldingValidators(BaseModel):
     """Validators shared by create and update; fields are declared in subclasses."""
 
+    @field_validator("name", "symbol", "note", mode="before", check_fields=False)
+    @classmethod
+    def _no_nul(cls, v: object) -> object:
+        if isinstance(v, str) and "\x00" in v:  # PostgreSQL text cannot store NUL; would be a 500
+            raise ValueError("Niedozwolony znak w tekście")
+        return v
+
     @field_validator("symbol", check_fields=False)
     @classmethod
     def _symbol(cls, v: str | None) -> str | None:
