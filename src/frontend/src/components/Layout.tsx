@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useLogout } from '../features/auth/queries'
 import { pl } from '../i18n/pl'
 import { cn } from '../lib/cn'
+import { ThemeToggle } from './ThemeToggle'
 import { Button } from './ui/Button'
 
 const links = [
@@ -18,9 +19,9 @@ export function Layout({ email }: { email: string }) {
   const logout = useLogout()
   return (
     <div className="min-h-screen bg-bg text-text">
-      <header className="border-b border-border bg-surface text-text">
+      <header className="border-b border-accent/40 bg-surface text-text shadow-sm">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <strong className="text-lg tracking-tight">{pl.appName}</strong>
+          <strong className="text-lg tracking-tight text-accent">{pl.appName}</strong>
           <nav className="flex flex-wrap gap-1">
             {links.map((l) => (
               <NavLink
@@ -39,6 +40,7 @@ export function Layout({ email }: { email: string }) {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-3">
+            <ThemeToggle />
             <span className="text-sm text-muted">{email}</span>
             <Button variant="secondary" size="sm" onClick={() => logout.mutate()}>
               {pl.nav.logout}

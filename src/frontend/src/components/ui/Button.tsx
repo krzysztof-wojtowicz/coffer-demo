@@ -12,7 +12,7 @@ const variants = {
   primary: 'bg-accent text-bg hover:bg-accent-strong',
   secondary: 'border border-border bg-surface-2 text-text hover:bg-border',
   ghost: 'text-text hover:bg-surface-2',
-  danger: 'bg-negative text-bg hover:bg-red-400',
+  danger: 'bg-negative text-bg hover:bg-negative/90',
 }
 const sizes = { sm: 'px-2 py-1 text-sm', md: 'px-3.5 py-2 text-sm' }
 
