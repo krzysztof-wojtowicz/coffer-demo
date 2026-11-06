@@ -4,10 +4,13 @@ from collections.abc import Iterator
 import pytest
 import requests
 import yfinance
+from sqlalchemy import select
 
 from coffer.agent.investment.schemas import DISCLAIMER
 from coffer.agent.llm import LLMUnavailable, get_llm_client
+from coffer.agent.models import AgentRun
 from coffer.agent.testing import FakeLLM
+from coffer.core.config import get_settings
 from coffer.main import app
 from coffer.market import service as market
 from coffer.profile.models import InvestmentProfile
@@ -225,3 +228,103 @@ def test_large_current_value_accepted(auth_client, use_llm):
         ]
     }
     assert auth_client.post(URL, json=body).status_code == 200
+
+
+# --- agent_runs trace and shared daily limit (data-model decision (f)) ---------------
+
+
+def _runs(db, user_id: int) -> list[AgentRun]:
+    db.expire_all()
+    return list(
+        db.scalars(select(AgentRun).where(AgentRun.user_id == user_id).order_by(AgentRun.id))
+    )
+
+
+def test_advice_run_is_recorded(auth_client, use_llm, db, user):
+    use_llm(FakeLLM([call("get_quotes", {"symbols": ["AAPL"]}), final(LLM_PICKS)]))
+    body = auth_client.post(URL, json=HOLDINGS).json()
+    assert body["llm_used"] is True and body["ai_status"] == "ok"
+    (run,) = _runs(db, user.id)
+    assert (run.task, run.status, run.attempts, run.model) == ("advisor", "ok", 2, "fake")
+    assert run.prompt_version == "advisor_v1"
+    assert [c["name"] for c in run.tool_calls] == ["get_quotes"]
+    assert len(run.raw_outputs) == 2
+
+
+def test_advice_unavailable_is_recorded(auth_client, use_llm, db, user):
+    use_llm(FakeLLM([LLMUnavailable("Gemini status 503")]))
+    body = auth_client.post(URL, json=HOLDINGS).json()
+    assert body["llm_used"] is False and body["ai_status"] == "unavailable"
+    (run,) = _runs(db, user.id)
+    assert (run.status, run.attempts, run.error) == ("unavailable", 1, "Gemini status 503")
+
+
+def test_advice_without_llm_records_nothing(auth_client, use_llm, db, user):
+    use_llm(None)
+    assert auth_client.post(URL, json=HOLDINGS).json()["ai_status"] == "unavailable"
+    assert _runs(db, user.id) == []
+
+
+def test_advice_daily_limit_shared_with_surplus(auth_client, use_llm, db, user, monkeypatch):
+    """N runs (any task) used up -> request N+1 gets rule-based picks, no model call."""
+    monkeypatch.setattr(get_settings(), "agent_daily_limit", 2)
+    db.add(
+        AgentRun(
+            user_id=user.id, task="surplus", prompt_version="surplus_v2", status="ok", attempts=1
+        )
+    )
+    db.commit()
+    use_llm(FakeLLM([final(LLM_PICKS)]))
+    assert auth_client.post(URL, json=HOLDINGS).json()["ai_status"] == "ok"  # run 2 of 2
+
+    llm = use_llm(FakeLLM([final(LLM_PICKS)]))
+    r = auth_client.post(URL, json=HOLDINGS)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["llm_used"] is False and body["ai_status"] == "limited"
+    assert len(body["top_picks"]) == 3
+    assert llm.calls == []
+    runs = _runs(db, user.id)
+    assert runs[-1].status == "limited" and runs[-1].attempts == 0
+
+
+# --- advisor time budget (COFFER_ADVISOR_TIMEOUT_S) ------------------------------------
+
+
+class SlowLLM(FakeLLM):
+    """Each call 'takes' `seconds` on an injected clock: no real waiting."""
+
+    def __init__(self, responses, now: list[float], seconds: float):
+        super().__init__(responses)
+        self.now, self.seconds = now, seconds
+
+    def complete(self, **kwargs):
+        self.now[0] += self.seconds
+        return super().complete(**kwargs)
+
+
+@pytest.fixture
+def fake_clock(monkeypatch) -> list[float]:
+    now = [1000.0]
+    monkeypatch.setattr("coffer.agent.llm._clock", lambda: now[0])
+    return now
+
+
+def test_advice_timeout_returns_rules(auth_client, use_llm, db, user, monkeypatch, fake_clock):
+    monkeypatch.setattr(get_settings(), "advisor_timeout_s", 60)
+    steps = [call("get_instrument_universe"), call("get_quotes", {"symbols": ["VT"]})]
+    llm = use_llm(SlowLLM([*steps, final(LLM_PICKS)], fake_clock, seconds=40))
+    r = auth_client.post(URL, json=HOLDINGS)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["llm_used"] is False and body["ai_status"] == "timeout"
+    assert len(body["top_picks"]) == 3
+    assert len(llm.calls) == 2  # third step not started: 80 s > 60 s budget
+    (run,) = _runs(db, user.id)
+    assert (run.status, run.attempts) == ("timeout", 2)
+
+
+def test_advice_within_budget_ok(auth_client, use_llm, monkeypatch, fake_clock):
+    monkeypatch.setattr(get_settings(), "advisor_timeout_s", 60)
+    use_llm(SlowLLM([call("get_instrument_universe"), final(LLM_PICKS)], fake_clock, seconds=20))
+    assert auth_client.post(URL, json=HOLDINGS).json()["ai_status"] == "ok"

@@ -127,7 +127,7 @@ describe("AssistantPanel", () => {
     await waitFor(() => expect(text()).toContain("AI wyłączone"));
   });
 
-  it("sekcja danych zawiera kwoty z summary i zapewnienie o prywatności", () => {
+  it("sekcja danych zawiera kwoty z summary i zapewnienie o prywatności", async () => {
     renderPanel();
     const details = document.querySelector("details")!;
     expect(details.textContent).toContain("Jakie dane trafiają do modelu?");
@@ -135,7 +135,29 @@ describe("AssistantPanel", () => {
       expect(details.textContent).toContain(v);
     }
     expect(details.textContent).toContain("Nie wysyłamy opisów transakcji, e-maila ani innych danych osobowych.");
-    expect(details.textContent).toContain("Model działa lokalnie na tym komputerze.");
+    await waitFor(() => expect(details.textContent).toContain("Model działa lokalnie (Ollama)."));
+  });
+
+  it("prywatność: dostawca chmurowy z /api/agent/status", async () => {
+    route(() => json({}), { provider: "gemini", model: "gemini-3.8-flash", available: true });
+    renderPanel();
+    const details = document.querySelector("details")!;
+    await waitFor(() =>
+      expect(details.textContent).toContain(
+        "Model działa w chmurze (Google Gemini); wysyłamy tylko zagregowane dane.",
+      ),
+    );
+    expect(details.textContent).not.toContain("lokalnie");
+  });
+
+  it("prywatność: bez znanego dostawcy brak deklaracji o miejscu działania modelu", async () => {
+    route(() => json({}), {}); // nieczytelny status -> brak dostawcy
+    renderPanel();
+    const details = document.querySelector("details")!;
+    await new Promise((r) => setTimeout(r, 20));
+    expect(details.textContent).toContain("Nie wysyłamy opisów transakcji");
+    expect(details.textContent).not.toContain("lokalnie");
+    expect(details.textContent).not.toContain("w chmurze");
   });
 
   it("surplus 0.00: przycisk wyłączony, wyjaśnienie, brak wywołania API", async () => {

@@ -1,11 +1,19 @@
 import hashlib
+import logging
+import random
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, ClassVar, Literal, Protocol
+from email.utils import parsedate_to_datetime
+from typing import Any, ClassVar, Literal, Protocol, cast
 
 import httpx
 
-from coffer.core.config import get_settings
+from coffer.core.config import Settings, get_settings
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -29,6 +37,10 @@ class LLMUnavailable(Exception):
     pass
 
 
+class LLMTimeout(LLMUnavailable):
+    """The caller's overall time budget (llm_deadline) ran out before or during a call."""
+
+
 @dataclass(frozen=True)
 class LLMStatus:
     available: bool
@@ -48,16 +60,25 @@ class LLMClient(Protocol):
 
 
 class OllamaClient:
+    """Ollama /api/chat: local server, or a remote/hosted one (e.g. Ollama Cloud) with a key."""
+
     provider: ClassVar[LLMProvider] = "ollama"
 
-    def __init__(self, base_url: str, model: str, timeout_s: float):
+    def __init__(self, base_url: str, model: str, timeout_s: float, api_key: str = ""):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout_s = timeout_s
+        self._api_key = api_key
+
+    def __repr__(self) -> str:
+        return f"OllamaClient(model={self.model!r}, base_url={self.base_url!r})"
+
+    def _headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
 
     def status(self) -> LLMStatus:
         try:
-            resp = httpx.get(f"{self.base_url}/api/tags", timeout=2.0)
+            resp = httpx.get(f"{self.base_url}/api/tags", headers=self._headers(), timeout=2.0)
             if resp.status_code != 200:
                 return LLMStatus(False, self.model)
             names = {m.get("name") for m in resp.json().get("models", [])}
@@ -84,12 +105,14 @@ class OllamaClient:
             "think": False,
             "options": {"temperature": 0.2},
         }
-        try:
-            resp = httpx.post(f"{self.base_url}/api/chat", json=body, timeout=self.timeout_s)
-        except httpx.HTTPError as exc:
-            raise LLMUnavailable(str(exc)) from exc
-        if resp.status_code != 200:
-            raise LLMUnavailable(f"Ollama status {resp.status_code}")
+        resp = _request(
+            "POST",
+            f"{self.base_url}/api/chat",
+            provider="Ollama",
+            timeout_s=self.timeout_s,
+            headers=self._headers(),
+            body=body,
+        )
         try:
             data = resp.json()
             content = data["message"]["content"]
@@ -103,19 +126,116 @@ class OllamaClient:
         )
 
 
+# --- transport with retries ---------------------------------------------------------------
+
+# Transient statuses worth retrying; any other non-200 (400, 401, 403, 404, ...) fails at once.
+RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+MAX_RETRIES = 2
+BACKOFF_BASE_S = 1.0
+BACKOFF_CAP_S = 8.0
+# A retry is only started when at least this much of the time budget would be left for it.
+MIN_ATTEMPT_S = 5.0
+CONNECT_TIMEOUT_S = 10.0
+# Indirection so tests can run retries without real waiting.
+_sleep = time.sleep
+_clock = time.monotonic
+
+# Absolute deadline (in _clock time) shared by every call made inside `llm_deadline(...)`,
+# e.g. the whole multi-step advisor run; each request gets min(own timeout, time left).
+_DEADLINE: ContextVar[float | None] = ContextVar("llm_deadline", default=None)
+
+
+@contextmanager
+def llm_deadline(budget_s: float) -> Iterator[float]:
+    """Cap all LLM requests (retries and fallbacks included) made in this block to budget_s."""
+    deadline = _clock() + budget_s
+    token = _DEADLINE.set(deadline)
+    try:
+        yield deadline
+    finally:
+        _DEADLINE.reset(token)
+
+
+def remaining_s() -> float | None:
+    """Seconds left under the active llm_deadline (None when there is none)."""
+    deadline = _DEADLINE.get()
+    return None if deadline is None else deadline - _clock()
+
+
+def _retry_after_s(resp: httpx.Response) -> float | None:
+    """Retry-After in seconds (delta-seconds or HTTP-date); None when absent or invalid."""
+    value = resp.headers.get("retry-after")
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError, IndexError):
+        return None
+    return max(0.0, when.timestamp() - time.time())
+
+
+def _backoff_s(retry: int) -> float:
+    """Exponential backoff with jitter: base * 2^retry, capped, scaled by [0.5, 1)."""
+    return min(BACKOFF_CAP_S, BACKOFF_BASE_S * 2**retry) * random.uniform(0.5, 1.0)
+
+
+def _request(
+    method: str,
+    url: str,
+    *,
+    provider: str,
+    timeout_s: float,
+    headers: dict[str, str] | None = None,
+    body: dict[str, Any] | None = None,
+) -> httpx.Response:
+    """Send a request with retries; return the 200 response or raise LLMUnavailable.
+
+    Retries 429/5xx and network errors/timeouts (MAX_RETRIES times, exponential backoff with
+    jitter, Retry-After respected). All attempts and waits share one budget of `timeout_s`:
+    a retry that would not fit is skipped, so the caller never waits longer than that.
+    Error messages never include headers (API keys) or the response body.
+    """
+    deadline = _clock() + timeout_s
+    outer = _DEADLINE.get()
+    if outer is not None:
+        if outer - _clock() <= 0:
+            raise LLMTimeout(f"{provider}: przekroczono łączny limit czasu")
+        deadline = min(deadline, outer)
+    retry = 0
+    while True:
+        remaining = max(0.1, deadline - _clock())
+        timeout = httpx.Timeout(remaining, connect=min(CONNECT_TIMEOUT_S, remaining))
+        retry_after: float | None = None
+        try:
+            resp = httpx.request(method, url, json=body, headers=headers, timeout=timeout)
+        except httpx.HTTPError as exc:
+            error = LLMUnavailable(f"{provider}: błąd połączenia ({type(exc).__name__})")
+        else:
+            if resp.status_code == 200:
+                return resp
+            error = LLMUnavailable(f"{provider} status {resp.status_code}")
+            if resp.status_code not in RETRY_STATUSES:
+                raise error
+            retry_after = _retry_after_s(resp)
+        if retry >= MAX_RETRIES:
+            raise error
+        delay = retry_after if retry_after is not None else _backoff_s(retry)
+        if _clock() + delay + MIN_ATTEMPT_S > deadline:
+            raise error
+        retry += 1
+        log.info("%s: retry %d/%d in %.1f s (%s)", provider, retry, MAX_RETRIES, delay, error)
+        _sleep(delay)
+
+
 def _post_json(
     url: str, *, body: dict[str, Any], headers: dict[str, str], timeout_s: float, provider: str
 ) -> dict[str, Any]:
-    """POST a JSON body; map network/HTTP/parse errors to LLMUnavailable.
-
-    Error messages never include headers (API keys) or the response body.
-    """
-    try:
-        resp = httpx.post(url, json=body, headers=headers, timeout=timeout_s)
-    except httpx.HTTPError as exc:
-        raise LLMUnavailable(f"{provider}: błąd połączenia ({type(exc).__name__})") from exc
-    if resp.status_code != 200:
-        raise LLMUnavailable(f"{provider} status {resp.status_code}")
+    """POST a JSON body with retries; map network/HTTP/parse errors to LLMUnavailable."""
+    resp = _request("POST", url, provider=provider, timeout_s=timeout_s, headers=headers, body=body)
     try:
         data = resp.json()
     except ValueError as exc:
@@ -496,6 +616,69 @@ class AnthropicClient:
         )
 
 
+class FallbackLLM:
+    """Chain of clients tried in order; the next one is used when a call raises LLMUnavailable.
+
+    `status()` reports the first available client, which also becomes the reported
+    `provider`/`model` (the "active" model shown by /api/agent/status).
+    """
+
+    def __init__(self, clients: list[LLMClient]):
+        if not clients:
+            raise ValueError("FallbackLLM needs at least one client")
+        self.clients = clients
+        self._active: LLMClient = clients[0]
+
+    def __repr__(self) -> str:
+        return f"FallbackLLM({self.clients!r})"
+
+    @property
+    def provider(self) -> LLMProvider:
+        name = provider_name(self._active)
+        return "ollama" if name == "none" else name
+
+    def status(self) -> LLMStatus:
+        first: LLMStatus | None = None
+        for client in self.clients:
+            st = client.status()
+            first = first or st
+            if st.available:
+                self._active = client
+                return st
+        self._active = self.clients[0]
+        assert first is not None
+        return first
+
+    def complete(
+        self,
+        *,
+        system: str,
+        messages: list[LLMMessage],
+        response_schema: dict[str, Any] | None = None,
+    ) -> LLMResponse:
+        error: LLMUnavailable | None = None
+        for client in self.clients:
+            try:
+                resp = client.complete(
+                    system=system, messages=messages, response_schema=response_schema
+                )
+            except LLMTimeout:
+                raise  # the caller's overall budget is gone: no point trying the next model
+            except LLMUnavailable as exc:
+                log.warning(
+                    "LLM %s/%s unavailable (%s), trying next in chain",
+                    provider_name(client),
+                    getattr(client, "model", "?"),
+                    exc,
+                )
+                error = exc
+                continue
+            self._active = client
+            return resp
+        assert error is not None
+        raise error
+
+
 def provider_name(client: LLMClient | None) -> LLMProvider | Literal["none"]:
     """Provider identifier of a client (``none`` when no client is configured).
 
@@ -506,28 +689,43 @@ def provider_name(client: LLMClient | None) -> LLMProvider | Literal["none"]:
     return getattr(client, "provider", "ollama")
 
 
-def get_llm_client() -> LLMClient | None:
-    settings = get_settings()
-    match settings.llm_provider:
-        case "none":
-            return None
+def _primary_model(settings: Settings, provider: LLMProvider) -> str:
+    return {
+        "ollama": settings.ollama_model,
+        "openai": settings.openai_model,
+        "gemini": settings.gemini_model,
+        "anthropic": settings.anthropic_model,
+    }[provider]
+
+
+def _make_client(settings: Settings, provider: LLMProvider, model: str) -> LLMClient:
+    timeout = settings.llm_timeout_s
+    match provider:
         case "openai":
-            return OpenAIClient(
-                settings.openai_api_key,
-                settings.openai_model,
-                settings.openai_base_url,
-                settings.llm_timeout_s,
-            )
+            return OpenAIClient(settings.openai_api_key, model, settings.openai_base_url, timeout)
         case "gemini":
-            return GeminiClient(
-                settings.gemini_api_key, settings.gemini_model, settings.llm_timeout_s
-            )
+            return GeminiClient(settings.gemini_api_key, model, timeout)
         case "anthropic":
             return AnthropicClient(
-                settings.anthropic_api_key,
-                settings.anthropic_model,
-                settings.anthropic_base_url,
-                settings.llm_timeout_s,
+                settings.anthropic_api_key, model, settings.anthropic_base_url, timeout
             )
         case "ollama":
-            return OllamaClient(settings.ollama_url, settings.ollama_model, settings.llm_timeout_s)
+            return OllamaClient(
+                settings.ollama_url, model, timeout, getattr(settings, "ollama_api_key", "")
+            )
+
+
+def get_llm_client() -> LLMClient | None:
+    """Client for COFFER_LLM_PROVIDER, wrapped in FallbackLLM when COFFER_LLM_FALLBACKS is set."""
+    settings = get_settings()
+    if settings.llm_provider == "none":
+        return None
+    primary = (settings.llm_provider, _primary_model(settings, settings.llm_provider))
+    chain: list[tuple[LLMProvider, str]] = [primary]
+    for entry in getattr(settings, "llm_fallbacks", None) or []:
+        provider, _, model = entry.partition(":")
+        item = (cast(LLMProvider, provider), model.strip())
+        if item not in chain:
+            chain.append(item)
+    clients = [_make_client(settings, p, m) for p, m in chain]
+    return clients[0] if len(clients) == 1 else FallbackLLM(clients)

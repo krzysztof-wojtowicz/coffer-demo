@@ -8,20 +8,34 @@ Only aggregates reach the model: asset-class shares, symbols and the risk profil
 
 import json
 import logging
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy.orm import Session
+
+from coffer.agent import service as agent_service
 from coffer.agent.investment.schemas import AdviceOut, HoldingIn, TipOut, TopPickOut
-from coffer.agent.llm import LLMClient, LLMMessage
+from coffer.agent.llm import (
+    LLMClient,
+    LLMMessage,
+    LLMTimeout,
+    LLMUnavailable,
+    llm_deadline,
+    remaining_s,
+)
 from coffer.analytics.portfolio import HoldingInput, portfolio_summary
+from coffer.core.config import get_settings
 from coffer.market import service as market
 from coffer.market.tools import MARKET_TOOLS, ToolError, call_tool
 
 log = logging.getLogger(__name__)
 
 MAX_STEPS = 4
+TASK = "advisor"  # agent_runs.task; matches the planned CHECK list in docs/data-model.md 2.8
+PROMPT_VERSION = "advisor_v1"
 PICKS = 3
 TIPS = 3
 
@@ -87,8 +101,18 @@ class PortfolioContext:
 
 @dataclass
 class _Trace:
-    tool_calls: list[str] = field(default_factory=list)
+    """What one advisor run sent and received; persisted as an `agent_runs` row."""
+
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
     seen_urls: set[str] = field(default_factory=set)
+    messages: list[dict[str, str]] = field(default_factory=list)
+    raw_outputs: list[str] = field(default_factory=list)
+    attempts: int = 0
+    model: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    status: str = "unavailable"  # ok | invalid | unavailable | limited | timeout
+    error: str | None = None
 
 
 def normalize_class(value: str) -> str:
@@ -335,14 +359,27 @@ def _validate_answer(answer: Any, profile: RiskProfile, trace: _Trace) -> list[T
 
 
 def run_tool_loop(
-    llm: LLMClient, profile: RiskProfile, ctx: PortfolioContext
+    llm: LLMClient, profile: RiskProfile, ctx: PortfolioContext, trace: _Trace | None = None
 ) -> list[TopPickOut] | None:
     """Return validated picks from the model, or None when the loop fails."""
     system = _system_prompt(profile)
     messages = [LLMMessage("user", _context_message(profile, ctx))]
-    trace = _Trace()
+    trace = trace if trace is not None else _Trace()
+    trace.messages.append({"role": "system", "content": system})
+    trace.messages.append({"role": "user", "content": messages[0].content})
     for step in range(MAX_STEPS):
+        left = remaining_s()
+        if left is not None and left <= 0:
+            raise LLMTimeout("Przekroczono limit czasu doradcy")
+        trace.attempts += 1
         resp = llm.complete(system=system, messages=messages, response_schema=RESPONSE_SCHEMA)
+        trace.model = resp.model
+        if resp.input_tokens is not None:
+            trace.input_tokens = (trace.input_tokens or 0) + resp.input_tokens
+        if resp.output_tokens is not None:
+            trace.output_tokens = (trace.output_tokens or 0) + resp.output_tokens
+        trace.raw_outputs.append(resp.content)
+        trace.messages.append({"role": "assistant", "content": resp.content})
         try:
             data = json.loads(resp.content)
         except (TypeError, ValueError):
@@ -357,21 +394,26 @@ def run_tool_loop(
         tool = str(data.get("tool") or "")
         raw_args = data.get("args")
         args: dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
+        started = time.perf_counter()
         try:
             output: Any = call_tool(tool, args)
-            trace.tool_calls.append(tool)
             _collect_urls(output, trace)
         except ToolError as exc:
             output = {"error": str(exc)}
+        trace.tool_calls.append(
+            {
+                "name": tool,
+                "arguments": args,
+                "output": output if isinstance(output, dict) else {"result": output},
+                "duration_ms": int((time.perf_counter() - started) * 1000),
+            }
+        )
         last = step == MAX_STEPS - 2
         hint = '\nTo ostatni krok: zwróć {"action":"final", ...}.' if last else ""
         messages.append(LLMMessage("assistant", resp.content))
-        messages.append(
-            LLMMessage(
-                "user",
-                f"Wynik narzędzia {tool}:\n{json.dumps(output, ensure_ascii=False)}{hint}",
-            )
-        )
+        result_msg = f"Wynik narzędzia {tool}:\n{json.dumps(output, ensure_ascii=False)}{hint}"
+        messages.append(LLMMessage("user", result_msg))
+        trace.messages.append({"role": "user", "content": result_msg})
     return None
 
 
@@ -383,18 +425,88 @@ def _tips() -> list[TipOut]:
 
 
 def advise(
-    holdings: Sequence[HoldingIn], risk_profile: RiskProfile, llm: LLMClient | None
+    holdings: Sequence[HoldingIn],
+    risk_profile: RiskProfile,
+    llm: LLMClient | None,
+    trace: _Trace | None = None,
 ) -> AdviceOut:
     """Top picks for the user's risk profile (RiskProfile() = default moderate profile)."""
     ctx = portfolio_context(holdings)
+    trace = trace if trace is not None else _Trace()
     picks: list[TopPickOut] | None = None
     if llm is not None:
         try:
-            picks = run_tool_loop(llm, risk_profile, ctx)
-        except Exception:
+            # One budget for every step and model call: the request must finish well before
+            # the 120 s Vercel proxy limit (each call gets min(its timeout, time left)).
+            with llm_deadline(get_settings().advisor_timeout_s):
+                try:
+                    picks = run_tool_loop(llm, risk_profile, ctx, trace)
+                except LLMUnavailable as exc:
+                    left = remaining_s()
+                    if isinstance(exc, LLMTimeout) or (left is not None and left <= 0):
+                        raise LLMTimeout(str(exc)) from exc
+                    raise
+            trace.status = "ok" if picks is not None else "invalid"
+        except LLMTimeout as exc:
+            trace.status, trace.error = "timeout", str(exc)
+        except LLMUnavailable as exc:
+            trace.status, trace.error = "unavailable", str(exc)
+        except Exception as exc:
             log.warning("Investment advisor LLM loop failed", exc_info=True)
-            picks = None
+            trace.status, trace.error = "invalid", type(exc).__name__
     llm_used = picks is not None
     if picks is None:
         picks = fallback_picks(risk_profile, ctx)
-    return AdviceOut(top_picks=picks, tips=_tips(), llm_used=llm_used)
+    return AdviceOut(
+        top_picks=picks,
+        tips=_tips(),
+        llm_used=llm_used,
+        ai_status="ok" if llm_used else ("timeout" if trace.status == "timeout" else "unavailable"),
+    )
+
+
+def advise_for_user(
+    db: Session,
+    user_id: int,
+    holdings: Sequence[HoldingIn],
+    risk_profile: RiskProfile,
+    llm: LLMClient | None,
+) -> AdviceOut:
+    """`advise` with the shared daily LLM limit and an `agent_runs` trace (decision (f)).
+
+    Over the limit the model is not called and the deterministic picks are returned
+    (llm_used=False, ai_status="limited"): the advisor stays useful, only the AI part is off.
+    Without a configured LLM nothing is recorded (no model call, no cost).
+    """
+    if llm is None:
+        return advise(holdings, risk_profile, None)
+    started = time.perf_counter()
+    trace = _Trace()
+    # TODO(0007_agent_usage): COUNT-then-call races (two parallel requests can both pass);
+    # replace with the atomic reserve_run on llm_usage_daily, docs/data-model.md 2.8 (f).
+    if agent_service.count_runs_today(db, user_id) >= get_settings().agent_daily_limit:
+        out = advise(holdings, risk_profile, None)
+        out.ai_status = "limited"
+        trace.status = "limited"
+    else:
+        # The model loop can take tens of seconds; give the connection back to the pool (N08).
+        db.commit()
+        db.close()
+        out = advise(holdings, risk_profile, llm, trace)
+    agent_service.record_run(
+        db,
+        user_id=user_id,
+        task=TASK,
+        prompt_version=PROMPT_VERSION,
+        model=trace.model,
+        status=trace.status,
+        tool_calls=trace.tool_calls,
+        messages=trace.messages,
+        raw_outputs=trace.raw_outputs,
+        error=trace.error,
+        attempts=trace.attempts,
+        input_tokens=trace.input_tokens,
+        output_tokens=trace.output_tokens,
+        duration_ms=int((time.perf_counter() - started) * 1000),
+    )
+    return out

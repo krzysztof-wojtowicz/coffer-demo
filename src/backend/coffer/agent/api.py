@@ -101,11 +101,14 @@ def status(
     user: CurrentUser,
     llm: Annotated[LLMClient | None, Depends(get_llm_client)],
 ) -> AgentStatusOut:
-    provider = provider_name(llm)
+    # Never probed at startup: the first status request after a Render cold start pays for the
+    # (cached, ~2 s timeout) probe instead of the boot.
     if llm is None:
-        return AgentStatusOut(provider=provider, model=None, available=False)
+        return AgentStatusOut(provider="none", model=None, available=False)
     try:
         st = llm.status()
     except Exception:
-        return AgentStatusOut(provider=provider, model=None, available=False)
-    return AgentStatusOut(provider=provider, model=st.model, available=st.available)
+        return AgentStatusOut(provider=provider_name(llm), model=None, available=False)
+    # Read after status(): a fallback chain reports the provider of its active (first available)
+    # model.
+    return AgentStatusOut(provider=provider_name(llm), model=st.model, available=st.available)

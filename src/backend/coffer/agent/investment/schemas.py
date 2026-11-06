@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -39,4 +40,8 @@ class AdviceOut(BaseModel):
     top_picks: list[TopPickOut]
     tips: list[TipOut]
     llm_used: bool
+    # ok: picks from the model; unavailable: no model / model failed; limited: daily AI limit
+    # reached (COFFER_AGENT_DAILY_LIMIT); timeout: COFFER_ADVISOR_TIMEOUT_S ran out.
+    # In all non-ok cases the picks are rule-based.
+    ai_status: Literal["ok", "unavailable", "limited", "timeout"] = "unavailable"
     disclaimer: str = DISCLAIMER

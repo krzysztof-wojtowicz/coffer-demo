@@ -22,7 +22,7 @@ function StatusBadge({ status }: { status: AgentStatus | null }) {
   return <Badge tone="warning">{pl.assistant.statusUnavailable}</Badge>
 }
 
-function DataDisclosure({ summary }: { summary: Summary }) {
+function DataDisclosure({ summary, provider }: { summary: Summary; provider?: string }) {
   const a = pl.assistant
   return (
     <details className="mt-3 text-sm">
@@ -51,7 +51,7 @@ function DataDisclosure({ summary }: { summary: Summary }) {
           </ul>
         </li>
       </ul>
-      <p className="mt-2 text-muted">{a.dataPrivacy}</p>
+      <p className="mt-2 text-muted">{a.dataPrivacy(provider)}</p>
     </details>
   )
 }
@@ -212,7 +212,7 @@ export function AssistantPanel({ month, summary }: { month: string; summary: Sum
       <div className="space-y-3">
         <p className="text-text">{a.description}</p>
         <StatusBadge status={agent} />
-        <DataDisclosure summary={summary} />
+        <DataDisclosure summary={summary} provider={agent?.provider} />
         <div>
           <Button onClick={run} disabled={showNoSurplus}>
             {a.ask}

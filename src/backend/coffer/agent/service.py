@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -32,6 +33,46 @@ def count_runs_today(db: Session, user_id: int) -> int:
         AgentRun.created_at >= day_start,
     )
     return db.scalar(stmt) or 0
+
+
+def record_run(
+    db: Session,
+    *,
+    user_id: int,
+    task: str,
+    prompt_version: str,
+    status: str,
+    model: str | None = None,
+    tool_calls: list[dict[str, Any]] | None = None,
+    messages: list[dict[str, Any]] | None = None,
+    raw_outputs: list[str] | None = None,
+    validation_errors: list[str] | None = None,
+    error: str | None = None,
+    attempts: int = 0,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    duration_ms: int | None = None,
+) -> AgentRun:
+    """Persist and commit one agent run trace (N09); attempts > 0 counts toward the daily limit."""
+    run = AgentRun(
+        user_id=user_id,
+        task=task,
+        prompt_version=prompt_version,
+        model=model,
+        status=status,
+        tool_calls=tool_calls or [],
+        messages=messages or [],
+        raw_outputs=raw_outputs or [],
+        validation_errors=validation_errors or [],
+        error=error,
+        attempts=attempts,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        duration_ms=duration_ms,
+    )
+    db.add(run)
+    db.commit()
+    return run
 
 
 def list_suggestions(db: Session, user_id: int, limit: int) -> list[Suggestion]:

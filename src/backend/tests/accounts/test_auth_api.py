@@ -9,7 +9,7 @@ from coffer.accounts.models import AuthSession, User
 from coffer.accounts.tokens import SESSION_COOKIE, hash_token
 from coffer.core.config import get_settings
 
-PASSWORD = "haslo12345"
+PASSWORD = "Kot-w-butach-42"
 
 
 def _creds(email: str = "jan@example.com", password: str = PASSWORD) -> dict:
@@ -119,17 +119,18 @@ def test_register_invalid_password_422(client: TestClient, password: str) -> Non
     assert r.status_code == 422
 
 
-@pytest.mark.parametrize("password", ["12345678", "x" * 128])
+@pytest.mark.parametrize("password", ["Kot-w-butach", ("Abcde12345" * 13)[:128]])
 def test_register_password_length_boundaries(client: TestClient, password: str) -> None:
     r = client.post("/api/auth/register", json=_creds(password=password))
     assert r.status_code == 201
 
 
 def test_register_email_length_boundary(client: TestClient) -> None:
-    ok = "a" * (254 - len("@example.com")) + "@example.com"
+    domain = "@" + ".".join(["d" * 60] * 3) + ".eeeeee"
+    ok = "a" * 64 + domain
     assert len(ok) == 254
     assert client.post("/api/auth/register", json=_creds(email=ok)).status_code == 201
-    too_long = "a" + ok
+    too_long = ok + "e"
     r = TestClient(client.app).post("/api/auth/register", json=_creds(email=too_long))
     assert r.status_code == 422
 
@@ -168,7 +169,7 @@ def test_login_email_normalized(client: TestClient, make_user) -> None:
 
 def test_login_wrong_and_unknown_same_message(client: TestClient, make_user) -> None:
     make_user(email="jan@example.com", password=PASSWORD)
-    wrong = client.post("/api/auth/login", json=_creds(password="zlehaslo123"))
+    wrong = client.post("/api/auth/login", json=_creds(password="zlehaslo12345"))
     unknown = client.post("/api/auth/login", json=_creds(email="nikt@example.com"))
     assert wrong.status_code == unknown.status_code == 401
     assert wrong.json() == unknown.json() == {"detail": "Nieprawidłowy e-mail lub hasło"}
@@ -176,8 +177,8 @@ def test_login_wrong_and_unknown_same_message(client: TestClient, make_user) -> 
 
 
 def test_login_password_is_case_sensitive(client: TestClient, make_user) -> None:
-    make_user(email="jan@example.com", password="Haslo12345")
-    r = client.post("/api/auth/login", json=_creds(password="haslo12345"))
+    make_user(email="jan@example.com", password="Kot-W-Butach-42")
+    r = client.post("/api/auth/login", json=_creds(password="kot-w-butach-42"))
     assert r.status_code == 401
 
 
