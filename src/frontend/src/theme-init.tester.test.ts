@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
+import html from "../index.html?raw";
+import initJs from "../public/theme-init.js?raw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 function installStorage() {
@@ -17,23 +17,16 @@ function installStorage() {
   return fake;
 }
 
-const frontendDir = path.resolve(__dirname, "..");
-const html = readFileSync(path.join(frontendDir, "index.html"), "utf8");
 const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].map((m) => ({
   attrs: m[1],
   body: m[2],
 }));
 
-function initScriptPath(): string | null {
+// Returns the init script source when index.html references it (only public/theme-init.js is known).
+function initScriptSource(): string | null {
   const s = scripts.find((x) => /src=/.test(x.attrs) && !/type=["']module["']/.test(x.attrs));
   const src = s?.attrs.match(/src=["']([^"']+)["']/)?.[1];
-  if (!src) return null;
-  const rel = src.replace(/^\//, "");
-  for (const base of ["public", "."]) {
-    const p = path.join(frontendDir, base, rel);
-    if (existsSync(p)) return p;
-  }
-  return path.join(frontendDir, "public", rel);
+  return src === "/theme-init.js" ? initJs : null;
 }
 
 function mockSystem(dark: boolean) {
@@ -46,8 +39,7 @@ function mockSystem(dark: boolean) {
 }
 
 function runInit() {
-  const p = initScriptPath()!;
-  new Function(readFileSync(p, "utf8"))();
+  new Function(initScriptSource()!)();
 }
 
 let store: ReturnType<typeof installStorage>;
@@ -66,7 +58,7 @@ describe("index.html CSP compliance", () => {
   it("loads a classic (non-module) external init script in <head> before the app", () => {
     const head = html.split("</head>")[0];
     expect(/<script\b(?![^>]*type=["']module["'])[^>]*\bsrc=/i.test(head)).toBe(true);
-    expect(initScriptPath() && existsSync(initScriptPath()!)).toBeTruthy();
+    expect(initScriptSource()).toBeTruthy();
   });
 });
 

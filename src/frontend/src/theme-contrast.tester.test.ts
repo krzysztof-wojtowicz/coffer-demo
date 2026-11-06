@@ -1,8 +1,9 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
+import css from "./index.css?raw";
+import badgeSrc from "./components/ui/Badge.tsx?raw";
+import toggleSrc from "./components/ThemeToggle.tsx?raw";
+import profileSrc from "./features/profile/ProfilePage.tsx?raw";
 import { describe, expect, it } from "vitest";
 
-const css = readFileSync(path.join(__dirname, "index.css"), "utf8");
 
 function block(startRe: RegExp): string {
   const m = startRe.exec(css);
@@ -108,7 +109,6 @@ describe.each(THEMES)("WCAG contrast (%s)", (name, t) => {
 
 // ---- extended guards ----------------------------------------------------
 
-const read = (rel: string) => readFileSync(path.join(__dirname, rel), "utf8");
 
 /** Resolve a tailwind "token[/alpha]" to a css color string with alpha. */
 function withAlpha(t: Record<string, string>, tok: string): string {
@@ -119,12 +119,12 @@ function withAlpha(t: Record<string, string>, tok: string): string {
 }
 
 function toneClasses(): [string, string, string][] {
-  const src = read("components/ui/Badge.tsx");
+  const src = badgeSrc;
   const body = /const tones = \{([\s\S]*?)\n\}/.exec(src)![1];
   return [...body.matchAll(/(\w+):\s*'bg-([\w/-]+)\s+text-([\w-]+)'/g)].map((m) => [m[1], m[2], m[3]]);
 }
 
-const selectionText = /checked \? '[^']*text-([\w-]+)'/.exec(read("components/ThemeToggle.tsx"))?.[1] ?? "accent";
+const selectionText = /checked \? '[^']*text-([\w-]+)'/.exec(toggleSrc)?.[1] ?? "accent";
 
 const FLOORS = ["surface", "surface-2"];
 
@@ -176,7 +176,7 @@ function hue([r, g, b]: RGBA): number | null {
 describe.each(THEMES)("allocation bucket colors (%s)", (name, t) => {
   // Decision: two segments are distinguishable if luminance ratio >= 1.5:1
   // OR hue differs by >= 30 degrees (chromatic pair). Applied to every pair.
-  const src = read("features/profile/ProfilePage.tsx");
+  const src = profileSrc;
   const buckets = [...(/BUCKET_COLOR[^{]*\{([\s\S]*?)\}/.exec(src)?.[1] ?? "").matchAll(/(\w+):\s*'bg-([\w-]+)'/g)].map(
     (m) => [m[1], m[2]] as [string, string],
   );
