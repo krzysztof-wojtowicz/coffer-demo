@@ -1,6 +1,8 @@
 name: Deploy
 
 # Runs only after CI finished successfully for a push to main.
+# GitHub starts this workflow after EVERY CI run on main (also failed/cancelled);
+# those runs show up as "skipped" by the `if` below. That is expected.
 on:
   workflow_run:
     workflows: [CI]
@@ -26,6 +28,8 @@ jobs:
     timeout-minutes: 5
     env:
       RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+      # Deploy exactly the commit CI tested, not whatever main points at now.
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - name: Skip (no RENDER_DEPLOY_HOOK_URL secret)
         if: env.RENDER_DEPLOY_HOOK_URL == ''
@@ -33,4 +37,6 @@ jobs:
 
       - name: Trigger Render deploy hook
         if: env.RENDER_DEPLOY_HOOK_URL != ''
-        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL" -o /dev/null
+        run: |
+          echo "Deploying $DEPLOY_SHA"
+          curl -fsS -X POST "${RENDER_DEPLOY_HOOK_URL}&ref=${DEPLOY_SHA}" -o /dev/null

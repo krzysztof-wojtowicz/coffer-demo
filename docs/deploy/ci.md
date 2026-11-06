@@ -18,7 +18,8 @@ LLM i rynek: CI nie ma żadnych sekretów LLM i ustawia `COFFER_LLM_PROVIDER=non
 ### `deploy.yml` (Deploy)
 Odpala się przez `workflow_run`, gdy workflow **CI** zakończy się sukcesem dla **pusha na `main`** (PR-y nie deployują). Można go też uruchomić ręcznie (Actions → Deploy → Run workflow).
 
-- **Backend (Render):** `curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"`. Gdy sekretu nie ma, krok jest pomijany z komunikatem (workflow jest zielony).
+- **Backend (Render):** `curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL&ref=<sha>"`, czyli Render buduje dokładnie ten commit, który przeszedł CI (a nie nowszy, który mógł w międzyczasie trafić na `main`). Gdy sekretu nie ma, krok jest pomijany z komunikatem „Brak sekretu…” (workflow jest zielony).
+- **Przebiegi „skipped”:** GitHub uruchamia Deploy po *każdym* zakończonym CI na `main`, także po czerwonym lub anulowanym. Wtedy job jest pomijany (szary). Kilka przebiegów Deploy przy jednym commicie to nie podwójny deploy, tylko kilka przebiegów CI (np. anulowanych przez kolejne merge). Kolumna commit przy `workflow_run` pokazuje aktualny `main`, nie commit z CI.
 - **Frontend (Vercel):** nic nie robimy w Actions. Vercel po podpięciu repo sam buduje każdy push (`main` → produkcja, PR → preview). Root Directory w Vercel: `src/frontend`.
 
 Ważne: jeśli backend deployuje się przez hook po CI, **wyłącz Auto-Deploy w Render** (Service → Settings → Build & Deploy → Auto-Deploy: `No`; w `render.yaml` byłoby to `autoDeploy: false`). Inaczej Render zbuduje każdy push dwa razy, także taki, którego CI nie przepuściło.
@@ -38,12 +39,25 @@ Raz w tygodniu (poniedziałek) PR-y z aktualizacjami dla `uv` (`src/backend`), `
 2. GitHub → repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
 3. Name: `RENDER_DEPLOY_HOOK_URL`, Secret: wklejony URL → **Add secret**.
 
-## Branch protection (wymagane CI)
-GitHub → **Settings** → **Branches** → **Add branch ruleset** (lub *Add classic branch protection rule*) dla `main`:
-- *Require a pull request before merging* (opcjonalnie 1 approval),
-- *Require status checks to pass* → dodaj: `Backend (lint + tests)`, `Frontend (tsc + vitest + build)`, `OpenAPI types in sync` (pojawią się na liście po pierwszym przebiegu CI),
-- *Require branches to be up to date before merging*,
-- *Block force pushes*.
+### Polityka Dependabota
+- Nie merguj PR Dependabota z czerwonym CI. Gdy `main` było czerwone, najpierw napraw `main`, potem w PR napisz komentarz `@dependabot rebase`, poczekaj na zielone CI.
+- Aktualizacje **major** (np. `mcp` 1→2, TypeScript 5→7) potrafią zepsuć kod. `mcp` i `typescript` mają w `dependabot.yml` wyłączone podbicia major; przy innych major czytaj changelog.
+- Mergowanie kilku PR jeden po drugim anuluje CI poprzednich (`cancel-in-progress`); ostatni przebieg na `main` jest tym, który się liczy.
+- Automatycznego merge'a Dependabota (auto-merge) świadomie **nie** ma: bez wymaganych checków na `main` `gh pr merge --auto` zmergowałby PR od razu, bez czekania na CI. Można go rozważyć dopiero po włączeniu ochrony `main` i tylko dla patch/minor.
+
+## Ochrona `main` (do zrobienia przez admina repo)
+GitHub → **Settings** → **Rules** → **Rulesets** → **New ruleset** → **New branch ruleset**:
+1. Name: `main`, Enforcement status: **Active**.
+2. Target branches → **Add target** → **Include default branch**.
+3. Zaznacz **Restrict deletions** i **Block force pushes**.
+4. Zaznacz **Require a pull request before merging** (Required approvals: 0 lub 1).
+5. Zaznacz **Require status checks to pass** → **Require branches to be up to date before merging** → **Add checks** i dodaj dokładnie (wpisz nazwę, wybierz źródło *GitHub Actions*):
+   - `Backend (lint + tests)`
+   - `Frontend (tsc + vitest + build)`
+   - `OpenAPI types in sync`
+6. **Create**. Od teraz przycisk *Merge* w PR jest zablokowany, dopóki wszystkie trzy checki nie są zielone (dotyczy też PR Dependabota).
+
+Bez uprawnień admina tej sekcji nie da się ustawić (osoba z rolą *Write* nie widzi zakładki Rules).
 
 ## Badge do README
 ```markdown

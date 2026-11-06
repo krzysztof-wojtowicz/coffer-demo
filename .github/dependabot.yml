@@ -9,6 +9,10 @@ updates:
     groups:
       python-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      # mcp 2.x removed FastMCP used by coffer.market.mcp_server
+      - dependency-name: mcp
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: npm
     directory: /src/frontend
