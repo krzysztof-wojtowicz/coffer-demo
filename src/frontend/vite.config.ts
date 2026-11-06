@@ -10,5 +10,6 @@ export default defineConfig({
       '/api': 'http://localhost:8000',
     },
   },
-  test: { environment: 'jsdom' },
+  // index.css is read raw by theme-contrast.tester.test.ts; vitest would otherwise blank CSS modules.
+  test: { environment: 'jsdom', css: { include: [/index\.css/] } },
 })

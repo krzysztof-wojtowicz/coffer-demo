@@ -1,7 +1,7 @@
 BACKEND = cd src/backend && uv run
 FRONTEND = cd src/frontend
 
-.PHONY: setup db-up db-down migrate dev-api dev-web test-backend lint check-web check openapi seed mcp-market migrate-remote seed-remote
+.PHONY: setup db-up db-down migrate dev-api dev-web test-backend lint check-web check-web-clean check openapi seed mcp-market migrate-remote seed-remote
 
 setup:
 	cd src/backend && uv sync
@@ -46,6 +46,11 @@ lint:
 
 check-web:
 	$(FRONTEND) && npx tsc --noEmit -p tsconfig.app.json && npx vitest run && npx vite build
+
+# Same as the CI job: clean install from the lockfile, then the same steps as check-web.
+check-web-clean:
+	$(FRONTEND) && rm -rf node_modules && npm ci
+	$(MAKE) check-web
 
 check: lint test-backend check-web
 
