@@ -19,6 +19,11 @@ updates:
     groups:
       npm-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      # openapi-typescript requires typescript@^5.x (peer dep); TS 7 breaks `npm ci` (ERESOLVE).
+      # Remove once openapi-typescript supports TS 7.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
