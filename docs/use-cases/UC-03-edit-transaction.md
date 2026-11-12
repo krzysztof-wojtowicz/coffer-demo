@@ -40,5 +40,7 @@ Poprawienie lub usunięcie błędnej **transakcji** albo zmiana jej **kategorii*
 
 ## Uwagi i otwarte kwestie
 
+- Stan implementacji: edycja jest inline w wierszu listy (jedna transakcja naraz: data, kwota, opis, kategoria; `PATCH /api/transactions/{id}`), usunięcie przez okno potwierdzenia. Ostrzeżenie o duplikacie po edycji (4b) nie jest zaimplementowane.
+
 - Czy ręczna zmiana kategorii ma wpływać na późniejszą automatyczną kategoryzację (F07)?
 - Czy usunięcie transakcji można cofnąć?

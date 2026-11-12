@@ -1,26 +1,16 @@
 import { Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { Money } from '../../components/Money'
-import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
-import { Card } from '../../components/ui/Card'
 import { Spinner } from '../../components/ui/Spinner'
 import type { components } from '../../api/schema'
-import { RationaleList } from './parts'
+import { Notice, RationaleList } from './parts'
 import { pl } from '../../i18n/pl'
-import { fetchAgentStatus, streamSurplus, type AgentStatus } from './queries'
+import { streamSurplus, type AgentStatus } from './queries'
 import { assistantReducer, initialAssistantState } from './state'
 
 type Summary = components['schemas']['MonthSummaryOut']
-
-function StatusBadge({ status }: { status: AgentStatus | null }) {
-  if (!status) return null
-  if (status.provider === 'none') return <Badge tone="neutral">{pl.assistant.statusOff}</Badge>
-  if (status.available) {
-    return <Badge tone="success">{pl.assistant.statusAvailable(status.model ?? '')}</Badge>
-  }
-  return <Badge tone="warning">{pl.assistant.statusUnavailable}</Badge>
-}
 
 function DataDisclosure({ summary, provider }: { summary: Summary; provider?: string }) {
   const a = pl.assistant
@@ -56,21 +46,21 @@ function DataDisclosure({ summary, provider }: { summary: Summary; provider?: st
   )
 }
 
-export function AssistantPanel({ month, summary }: { month: string; summary: Summary }) {
+export function AssistantPanel({
+  month,
+  summary,
+  agent,
+}: {
+  month: string
+  summary: Summary
+  agent: AgentStatus | null
+}) {
   const [state, dispatch] = useReducer(assistantReducer, initialAssistantState)
-  const [agent, setAgent] = useState<AgentStatus | null>(null)
   const [elapsed, setElapsed] = useState(0)
+  const qc = useQueryClient()
   const abortRef = useRef<AbortController | null>(null)
   const a = pl.assistant
   const noSurplus = summary.surplus === '0.00'
-
-  useEffect(() => {
-    const ctl = new AbortController()
-    void fetchAgentStatus(ctl.signal).then((s) => {
-      if (!ctl.signal.aborted) setAgent(s)
-    })
-    return () => ctl.abort()
-  }, [])
 
   // Zmiana miesiąca (i odmontowanie) przerywa żądanie i czyści panel.
   useEffect(() => {
@@ -98,12 +88,14 @@ export function AssistantPanel({ month, summary }: { month: string; summary: Sum
       if (!ctl.signal.aborted) dispatch({ type: 'progress', message })
     })
       .then((response) => {
-        if (!ctl.signal.aborted) dispatch({ type: 'success', response })
+        if (ctl.signal.aborted) return
+        dispatch({ type: 'success', response })
+        void qc.invalidateQueries({ queryKey: ['agent'] })
       })
       .catch(() => {
         if (!ctl.signal.aborted) dispatch({ type: 'failure' })
       })
-  }, [month])
+  }, [month, qc])
 
   const cancel = () => {
     abortRef.current?.abort()
@@ -166,7 +158,7 @@ export function AssistantPanel({ month, summary }: { month: string; summary: Sum
             <span>{s.disclaimer}</span>
           </p>
           <p className="mt-3 text-xs text-muted">
-            {a.footer(s.model, secs, time)} · {s.profile_used ? a.withProfile : a.withoutProfile}
+            {a.footer(secs, time)} · {s.profile_used ? a.withProfile : a.withoutProfile}
             {state.runId != null && (
               <>
                 {' · '}
@@ -179,7 +171,7 @@ export function AssistantPanel({ month, summary }: { month: string; summary: Sum
           {!s.profile_used && (
             <p className="mt-2 text-sm">
               {a.profileNudge}.{' '}
-              <Link className="text-accent hover:underline" to="/profile">
+              <Link className="text-accent hover:underline" to="/account">
                 {a.profileLink}
               </Link>
             </p>
@@ -196,11 +188,11 @@ export function AssistantPanel({ month, summary }: { month: string; summary: Sum
       </div>
     )
   } else if (state.status === 'limited') {
-    body = <p className="rounded-md bg-warning/10 p-3 text-warning">{a.limited}</p>
+    body = <Notice>{a.limited}</Notice>
   } else if (state.status === 'unavailable') {
     body = (
       <div className="space-y-3">
-        <p className="rounded-md bg-warning/10 p-3 text-warning">{a.unavailable}</p>
+        <Notice>{a.unavailable}</Notice>
         <Button variant="secondary" size="sm" onClick={run}>
           {a.retry}
         </Button>
@@ -211,7 +203,6 @@ export function AssistantPanel({ month, summary }: { month: string; summary: Sum
     body = (
       <div className="space-y-3">
         <p className="text-text">{a.description}</p>
-        <StatusBadge status={agent} />
         <DataDisclosure summary={summary} provider={agent?.provider} />
         <div>
           <Button onClick={run} disabled={showNoSurplus}>
@@ -226,5 +217,5 @@ export function AssistantPanel({ month, summary }: { month: string; summary: Sum
     )
   }
 
-  return <Card title={a.title}>{body}</Card>
+  return body
 }

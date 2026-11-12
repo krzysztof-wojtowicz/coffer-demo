@@ -2,6 +2,7 @@ from sqlalchemy import create_engine, pool
 
 import coffer.accounts.models
 import coffer.agent.models
+import coffer.cash.models
 import coffer.imports.models
 import coffer.portfolio.models
 import coffer.profile.models

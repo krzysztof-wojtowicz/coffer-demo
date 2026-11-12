@@ -54,3 +54,25 @@ td,
 th {
   font-variant-numeric: tabular-nums;
 }
+
+@layer base {
+  button,
+  a[href],
+  [role="button"],
+  [role="option"],
+  [role="tab"],
+  [role="radio"],
+  [role="gridcell"],
+  summary,
+  label[for],
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="file"] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"],
+  input:disabled {
+    cursor: not-allowed;
+  }
+}

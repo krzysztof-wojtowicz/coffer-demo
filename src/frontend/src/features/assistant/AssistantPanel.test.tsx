@@ -3,10 +3,10 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as mod from "./AssistantPanel";
+import * as mod from "./AiPanel";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const AssistantPanel: any = (mod as any).AssistantPanel ?? (mod as any).default;
+const AssistantPanel: any = (mod as any).AiPanel ?? (mod as any).default;
 
 // Stabilny wrapper na fetch (openapi-fetch może przechwycić fetch przy tworzeniu klienta).
 type Handler = (req: Request) => Promise<Response> | Response;
@@ -91,7 +91,7 @@ function renderPanel(sum = summary(), month = "2026-10") {
   const ui = (m: string, s: unknown) => (
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <AssistantPanel month={m} summary={s} />
+        <AssistantPanel month={m} summary={s} holdings={[]} />
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -108,10 +108,10 @@ afterEach(cleanup);
 describe("AssistantPanel", () => {
   it("idle: tytuł, opis, przycisk aktywny", async () => {
     renderPanel();
-    expect(text()).toContain("Asystent AI");
+    expect(text()).toContain("Doradca AI");
     expect(text()).toContain("Asystent przeanalizuje podsumowanie miesiąca");
     expect(btn()!.disabled).toBe(false);
-    await waitFor(() => expect(text()).toContain("qwen3:8b · dostępny"));
+    await waitFor(() => expect(text()).toContain("AI dostępne"));
   });
 
   it("status: model niedostępny, przycisk nadal aktywny", async () => {
@@ -196,7 +196,7 @@ describe("AssistantPanel", () => {
     expect(text()).toContain("Dlaczego:");
     for (const r of suggestion.rationale) expect(text()).toContain(r.claim);
     expect(text()).toContain(suggestion.disclaimer);
-    expect(text()).toContain("qwen3:8b");
+    expect(text()).not.toContain("qwen3:8b");
     expect(text()).toMatch(/12[,.]3 s/);
     expect(screen.getByRole("button", { name: "Wygeneruj ponownie" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Wyczyść" })).toBeTruthy();
@@ -278,7 +278,7 @@ describe("AssistantPanel", () => {
     expect(text()).not.toContain("Ryzyka:");
   });
 
-  it("profile_used=false: zachęta i link do /profile, stopka bez profilu", async () => {
+  it("profile_used=false: zachęta i link do /account, stopka bez profilu", async () => {
     route(() => okStream({ suggestion: { ...suggestion, profile_used: false } }));
     const { user } = renderPanel();
     await user.click(btn()!);
@@ -286,7 +286,7 @@ describe("AssistantPanel", () => {
     expect(text()).toContain("Uzupełnij profil inwestycyjny, aby sugestie były lepiej dopasowane");
     expect(text()).toContain("bez profilu");
     const links = screen.getAllByRole("link");
-    expect(links.some((l) => l.getAttribute("href") === "/profile")).toBe(true);
+    expect(links.some((l) => l.getAttribute("href") === "/account")).toBe(true);
   });
 
   it("limited: komunikat o dziennym limicie", async () => {

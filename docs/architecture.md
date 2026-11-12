@@ -183,16 +183,18 @@ Strzałka oznacza „importuje / używa” (na podstawie `grep "^from coffer"` w
 
 ## 4. Frontend
 
+Trasy (`App.tsx`): `/` (Podsumowanie), `/transactions`, `/portfolio`, `/assistant` (+ `/assistant/runs/:id`), `/account`, `/login`, `/register`. Stare `/import` przekierowuje do `/transactions`, `/profile` do `/account`. Import CSV i formularz dodawania to rozwijane panele w `TransactionsPage`; filtry (miesiąc, typ, kategoria, źródło) i sortowanie (data, kwota) działają po stronie klienta na liście jednego miesiąca. `AccountPage` łączy profil inwestycyjny (`ProfileSection`) z sekcją bezpieczeństwa. Wspólne komponenty UI w `components/ui` (m.in. własny `Select`, `DatePicker`, `ConfirmDialog`, popover w portalu).
+
 ```mermaid
 flowchart LR
     subgraph pages["src/frontend/src/features (React Router, App.tsx)"]
         auth["auth<br/>AuthPage, useMe"]
-        tx["transactions<br/>TransactionsPage"]
-        bud["budget<br/>SummaryPage"]
-        imp["import<br/>ImportPage"]
-        prof["profile<br/>ProfilePage"]
-        port["portfolio<br/>PortfolioPage, AdvisorPanel"]
-        asst["assistant<br/>AssistantPage, RunDetailPage"]
+        tx["transactions<br/>TransactionsPage, TransactionRow, TransactionForm"]
+        bud["budget<br/>SummaryPage, NetWorthCard"]
+        imp["import<br/>ImportFlow (panel w TransactionsPage)"]
+        prof["profile<br/>ProfileSection (w AccountPage)"]
+        port["portfolio<br/>PortfolioPage"]
+        asst["assistant<br/>AssistantPage (AssistantPanel + AdvisorPanel), RunDetailPage"]
     end
 
     subgraph apilayer["Warstwa API (TanStack Query w queries.ts)"]
@@ -206,8 +208,8 @@ flowchart LR
 
     subgraph endpoints["Backend /api/*"]
         e_auth["/api/auth/{register,login,logout,me}"]
-        e_tx["/api/transactions, /api/categories"]
-        e_bud["/api/budget/{month}"]
+        e_tx["/api/transactions (GET, POST, PATCH, DELETE),<br/>/api/categories"]
+        e_bud["/api/budget/{month}, /api/budget/net-worth"]
         e_imp["/api/imports, /api/imports/banks,<br/>/api/imports/{draft_id}/commit"]
         e_prof["/api/profile"]
         e_port["/api/portfolio/holdings, /api/portfolio/summary"]
@@ -247,7 +249,7 @@ Każdy feature ma własne `queries.ts` (hooki TanStack Query), które wołają A
 sequenceDiagram
     autonumber
     actor U as Użytkownik
-    participant PP as PortfolioPage / AdvisorPanel
+    participant PP as AssistantPage / AdvisorPanel
     participant API as agent.investment.api
     participant PS as profile.service
     participant ADV as agent.investment.advisor

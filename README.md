@@ -11,20 +11,26 @@ Coffer to aplikacja do finansów osobistych: zbiera Twoje transakcje i inwestycj
 ## Co potrafi Coffer
 
 **Transakcje i import z banku**
-- Dodajesz transakcje ręcznie (data, kwota, opis, kategoria) albo importujesz plik CSV z wyciągu.
+- Dodajesz transakcje ręcznie (data, kwota, opis, kategoria) albo importujesz plik CSV z wyciągu. Oba formularze rozwijają się jako panele na górze zakładki *Transakcje*.
+- Lista ma filtry (miesiąc, typ, kategoria, źródło) i sortowanie (data lub kwota). Każdy wiersz pokazuje datę, kwotę, opis, kolorowy tag kategorii i źródło.
+- *Edytuj* zmienia datę, kwotę, opis i kategorię w wierszu (jedna transakcja naraz); usunięcie wymaga potwierdzenia w oknie dialogowym.
 - Przed importem widzisz podgląd: które wiersze są nowe, które to duplikaty już zapisanych transakcji, a które mają błędy. Sam decydujesz, co zaimportować.
 - Transakcje z importu dostają kategorię automatycznie; te, których nie udało się przypisać, są oznaczone „do sprawdzenia”.
 
-**Podsumowanie miesiąca**
-- Dla wybranego miesiąca: przychody, wydatki, saldo i nadwyżka.
+**Podsumowanie**
+- Karta *Majątek*: środki na kontach, wartość portfela i wartość netto. Środki na kontach to saldo początkowe, które podajesz (kwota i data), plus suma Twoich transakcji od tej daty do dziś. Bez podanego salda liczą się wszystkie transakcje od zera, więc wynik może nie zgadzać się ze stanem konta w banku. Gdy część portfela nie ma aktualnej wyceny, karta to zaznacza.
+- Dla wybranego miesiąca: kafelki przychodów, wydatków i balansu (wszystkie transakcje miesiąca). Nadwyżka (tylko kategorie budżetowe) jest podstawą propozycji doradcy AI.
 - Wydatki według kategorii z udziałem procentowym.
+- Skrócona karta portfela.
 
-**Asystent AI: co zrobić z nadwyżką**
-- Jednym kliknięciem prosisz asystenta o propozycję wykorzystania nadwyżki z danego miesiąca. Dostajesz krótką sugestię z uzasadnieniem i listą ryzyk.
+**Doradca AI** (zakładka *Doradca AI*)
+- Jeden panel z przełącznikiem: *Nadwyżka miesiąca* albo *Portfel inwestycyjny*.
+- Nadwyżka: jednym kliknięciem prosisz o propozycję wykorzystania nadwyżki z danego miesiąca. Dostajesz krótką sugestię z uzasadnieniem i listą ryzyk.
 - Przed wysłaniem widzisz dokładnie, jakie dane trafiają do modelu.
-- Historia sugestii zostaje zapisana; jeśli w miesiącu nie ma nadwyżki, asystent mówi to wprost, bez angażowania modelu.
+- Portfel inwestycyjny: „Top 3 dla Ciebie teraz” (instrumenty z poziomem ryzyka i uzasadnieniem) oraz porady z linkami do źródeł.
+- Historia sugestii i przebiegów obejmuje oba rodzaje; jeśli w miesiącu nie ma nadwyżki, asystent mówi to wprost, bez angażowania modelu.
 
-**Profil inwestycyjny**
+**Profil inwestycyjny** (na górze zakładki *Konto*)
 - Trzy pytania: horyzont inwestycyjny, tolerancja ryzyka i preferowane klasy aktywów.
 - Na tej podstawie Coffer pokazuje Twój profil (ostrożny, umiarkowany, dynamiczny) z orientacyjną alokacją, a asystent i doradca dopasowują do niego propozycje.
 
@@ -32,20 +38,20 @@ Coffer to aplikacja do finansów osobistych: zbiera Twoje transakcje i inwestycj
 - Pozycje inwestycyjne: akcje, ETF, obligacje, surowce, kryptowaluty, nieruchomości, gotówka i lokaty. Dodajesz, edytujesz i usuwasz je w dowolnej walucie.
 - Pozycje z symbolem giełdowym (np. `AAPL`, `CDR.WA`, `BTC-USD`) są wyceniane po bieżących notowaniach, a kwoty w walutach obcych przeliczane na PLN po aktualnym kursie. Aktywa bez notowań (np. mieszkanie) wyceniasz ręcznie.
 - Wartość portfela, koszt zakupu, zysk lub strata oraz alokacja według klas aktywów.
-- **Doradca AI**: na podstawie struktury portfela i profilu proponuje „Top 3 dla Ciebie teraz” (instrumenty z poziomem ryzyka i uzasadnieniem) oraz porady z linkami do źródeł.
 
 **Konto**
 - Rejestracja e-mailem i hasłem, logowanie, wylogowanie. Każdy widzi wyłącznie własne dane.
-- Strona *Konto*: zmiana hasła, wylogowanie ze wszystkich urządzeń, trwałe usunięcie konta razem ze wszystkimi danymi.
+- Strona *Konto*: u góry profil inwestycyjny, niżej sekcja *Bezpieczeństwo konta* (zmiana hasła, wylogowanie ze wszystkich urządzeń, trwałe usunięcie konta razem ze wszystkimi danymi).
+- Nawigacja ma pięć zakładek (*Podsumowanie*, *Transakcje*, *Portfel*, *Doradca AI*, *Konto*); w nagłówku są też przełącznik motywu jasny/ciemny, Twój e-mail i *Wyloguj*.
 
 ## Jak zacząć
 
 1. **Załóż konto** na [stronie aplikacji](https://cofferai.vercel.app): wystarczy e-mail i hasło (min. 12 znaków, nie może być popularnym hasłem ani Twoim e-mailem).
-2. **Dodaj transakcje.** Wpisz je ręcznie w zakładce *Transakcje* albo zaimportuj plik CSV w zakładce *Import* ([obsługiwany format](docs/csv-format.md)).
+2. **Dodaj transakcje.** Wpisz je ręcznie w zakładce *Transakcje* albo zaimportuj plik CSV w tej samej zakładce ([obsługiwany format](docs/csv-format.md)).
 3. **Sprawdź podsumowanie** miesiąca na stronie głównej.
-4. **Uzupełnij profil inwestycyjny** w zakładce *Profil*. Bez niego sugestie są mniej dopasowane.
+4. **Uzupełnij profil inwestycyjny** w zakładce *Konto*. Bez niego sugestie są mniej dopasowane.
 5. **Dodaj portfel** w zakładce *Portfel*: pozycje, ilości, ceny zakupu.
-6. **Poproś o rekomendacje**: w *Podsumowaniu* o pomysł na nadwyżkę, w *Portfelu* o propozycje doradcy AI.
+6. **Poproś o rekomendacje** w zakładce *Doradca AI*: o pomysł na nadwyżkę albo o propozycje dla portfela.
 
 ## Prywatność i bezpieczeństwo
 
@@ -66,7 +72,8 @@ Sugestie asystenta i rekomendacje doradcy mają charakter informacyjny i edukacy
 - **Limit asystenta:** 50 zapytań o sugestię nadwyżki na użytkownika na dobę.
 - **Import CSV** obsługuje na razie jeden format pliku (opisany w [docs/csv-format.md](docs/csv-format.md)), a nie wyciągi konkretnych banków.
 - **Kursy walut i notowania** pochodzą tylko z Yahoo Finance. Gdy są niedostępne, pozycje wyceniane są z wyceny ręcznej lub ceny zakupu, a pozycji, których nie da się przeliczyć na PLN, nie wliczamy do sumy.
-- Transakcji nie można edytować (można je usunąć i dodać ponownie).
+- Karta *Majątek* liczy środki od salda początkowego, które podajesz (kwota i data). Bez salda liczy od zera, więc wynik może nie być stanem z banku. Coffer nie obsługuje wielu kont ani przelewów między nimi.
+- Filtry i sortowanie listy transakcji działają po stronie przeglądarki, na transakcjach wczytanych dla jednego miesiąca.
 
 ## FAQ
 

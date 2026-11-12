@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # (production goes through the Vercel rewrite, i.e. same origin).
     cors_enabled: bool = False
     session_ttl_days: int = 14
+    # business "today" (matches the users' frontend); IANA name
+    timezone: str = "Europe/Warsaw"
     cookie_secure: bool = False
     # "none" is only needed for cross-site cookies (direct cross-site calls); requires Secure
     cookie_samesite: Literal["lax", "strict", "none"] = "lax"

@@ -46,8 +46,8 @@ export function RunDetailPage() {
     <Card title={a.runTitle} actions={<Link className="text-sm text-accent hover:underline" to="/assistant">{a.runBack}</Link>}>
       <p className="mb-3 text-sm text-muted">{a.runTraceHint}</p>
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <Badge tone="info">{a.kind[r.task] ?? r.task}</Badge>
         <Badge tone={runTone(r.status)}>{a.runStatus[r.status] ?? r.status}</Badge>
-        <span>{a.colModel}: {r.model ?? '–'}</span>
         <span>{a.colAttempts}: {r.attempts}</span>
         <span>{a.runTokens}: {r.input_tokens ?? '–'} / {r.output_tokens ?? '–'}</span>
         <span>{a.colDuration}: {formatSeconds(r.duration_ms)}</span>

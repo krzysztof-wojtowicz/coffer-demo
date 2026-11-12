@@ -63,6 +63,7 @@ export function useCommit() {
       Promise.all([
         qc.invalidateQueries({ queryKey: ['transactions'] }),
         qc.invalidateQueries({ queryKey: ['budget'] }),
+        qc.invalidateQueries({ queryKey: ['net-worth'] }),
       ]),
   })
 }

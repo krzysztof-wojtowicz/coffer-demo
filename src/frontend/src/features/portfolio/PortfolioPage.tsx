@@ -1,103 +1,23 @@
-import { useState, type FormEvent } from 'react'
+import { useState } from 'react'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { Money } from '../../components/Money'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
-import { Field } from '../../components/ui/Field'
-import { Input } from '../../components/ui/Input'
-import { Select } from '../../components/ui/Select'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { Spinner } from '../../components/ui/Spinner'
 import { pl } from '../../i18n/pl'
 import { cn } from '../../lib/cn'
-import { AdvisorPanel } from './AdvisorPanel'
+import { HoldingForm, portfolioErrorMessage } from './HoldingForm'
 import {
-  ASSET_CLASSES,
-  useCreateHolding,
   useDeleteHolding,
   useHoldings,
   usePortfolioSummary,
-  useUpdateHolding,
-  type AdviceHoldingIn,
-  type AssetClass,
   type Holding,
   type PortfolioSummary,
 } from './queries'
 
 const t = pl.portfolio
-
-type FormState = {
-  name: string
-  symbol: string
-  asset_class: AssetClass
-  quantity: string
-  purchase_price: string
-  currency: string
-  purchase_date: string
-  manual_value: string
-  note: string
-}
-
-const EMPTY: FormState = {
-  name: '',
-  symbol: '',
-  asset_class: 'stock',
-  quantity: '',
-  purchase_price: '',
-  currency: 'PLN',
-  purchase_date: '',
-  manual_value: '',
-  note: '',
-}
-
-const num = (s: string) => s.trim().replace(/\s/g, '').replace(',', '.')
-const orNull = (s: string) => (s.trim() ? s.trim() : null)
-
-function fromHolding(h: Holding): FormState {
-  return {
-    name: h.name,
-    symbol: h.symbol ?? '',
-    asset_class: h.asset_class,
-    quantity: h.quantity,
-    purchase_price: h.purchase_price,
-    currency: h.currency,
-    purchase_date: h.purchase_date ?? '',
-    manual_value: h.manual_value ?? '',
-    note: h.note ?? '',
-  }
-}
-
-function toBody(f: FormState) {
-  return {
-    name: f.name,
-    symbol: orNull(f.symbol),
-    asset_class: f.asset_class,
-    quantity: num(f.quantity),
-    purchase_price: num(f.purchase_price),
-    currency: f.currency.trim().toUpperCase() || 'PLN',
-    purchase_date: orNull(f.purchase_date),
-    manual_value: orNull(num(f.manual_value)),
-    note: orNull(f.note),
-  }
-}
-
-/** Polski komunikat z błędu API portfela (detail string albo lista błędów walidacji). */
-export function portfolioErrorMessage(error: unknown): string {
-  const detail = (error as { detail?: unknown } | undefined)?.detail
-  if (typeof detail === 'string') return detail
-  if (Array.isArray(detail)) {
-    return detail
-      .map((d: { loc?: (string | number)[]; msg?: string; type?: string }) => {
-        const field = String(d.loc?.[d.loc.length - 1] ?? '')
-        const name = t.fieldNames[field]
-        if (d.type === 'value_error' && d.msg) return d.msg.replace(/^Value error, /, '')
-        if (d.type?.includes('missing')) return `${name ?? field}: ${pl.validation.required}`
-        return `${name ?? field}: ${pl.validation.invalid}`
-      })
-      .join('; ')
-  }
-  return pl.common.genericError
-}
 
 function formatAmount(value: string, currency: string): string {
   try {
@@ -116,88 +36,6 @@ function Pct({ value }: { value: string | null }) {
       {neg || zero ? '' : '+'}
       {value.replace('.', ',')}%
     </span>
-  )
-}
-
-function HoldingForm({ editing, onDone }: { editing: Holding | null; onDone: () => void }) {
-  const [form, setForm] = useState<FormState>(editing ? fromHolding(editing) : EMPTY)
-  const create = useCreateHolding()
-  const update = useUpdateHolding()
-  const mutation = editing ? update : create
-  const set = (k: keyof FormState) => (e: { target: { value: string } }) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }))
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
-    const body = toBody(form)
-    if (editing) {
-      update.mutate({ id: editing.id, body }, { onSuccess: onDone })
-    } else {
-      create.mutate(body, { onSuccess: () => setForm(EMPTY) })
-    }
-  }
-
-  return (
-    <Card title={editing ? t.edit : t.add}>
-      <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={editing ? t.edit : t.add}>
-        <Field label={t.name}>
-          <Input required maxLength={100} value={form.name} onChange={set('name')} />
-        </Field>
-        <Field label={t.assetClass}>
-          <Select value={form.asset_class} onChange={set('asset_class')}>
-            {ASSET_CLASSES.map((c) => (
-              <option key={c} value={c}>
-                {t.classes[c]}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label={`${t.symbol} ${t.optional}`}>
-          <Input maxLength={20} title={t.symbolHint} placeholder="AAPL" value={form.symbol} onChange={set('symbol')} />
-        </Field>
-        <Field label={t.currency}>
-          <Input required maxLength={3} value={form.currency} onChange={set('currency')} />
-        </Field>
-        <Field label={t.quantity}>
-          <Input required inputMode="decimal" placeholder="10" value={form.quantity} onChange={set('quantity')} />
-        </Field>
-        <Field label={t.purchasePrice}>
-          <Input
-            required
-            inputMode="decimal"
-            placeholder="100,00"
-            value={form.purchase_price}
-            onChange={set('purchase_price')}
-          />
-        </Field>
-        <Field label={`${t.purchaseDate} ${t.optional}`}>
-          <Input type="date" value={form.purchase_date} onChange={set('purchase_date')} />
-        </Field>
-        <Field label={`${t.manualValue} ${t.optional}`}>
-          <Input
-            inputMode="decimal"
-            title={t.manualValueHint}
-            value={form.manual_value}
-            onChange={set('manual_value')}
-          />
-        </Field>
-        <Field label={`${t.note} ${t.optional}`} className="sm:col-span-2 lg:col-span-3">
-          <Input maxLength={500} value={form.note} onChange={set('note')} />
-        </Field>
-        <div className="flex items-end gap-2">
-          <Button type="submit" loading={mutation.isPending}>
-            {editing ? t.update : t.save}
-          </Button>
-          {editing && (
-            <Button type="button" variant="secondary" onClick={onDone}>
-              {t.cancel}
-            </Button>
-          )}
-        </div>
-      </form>
-      <p className="mt-2 text-xs text-muted">{t.manualValueHint}</p>
-      <ErrorMessage message={mutation.error ? portfolioErrorMessage(mutation.error) : null} />
-    </Card>
   )
 }
 
@@ -273,11 +111,23 @@ function HoldingsTable({
 }) {
   const del = useDeleteHolding()
   const byId = new Map(holdings.map((h) => [h.id, h]))
-  const remove = (id: number) => {
-    if (window.confirm(t.confirmDelete)) del.mutate(id)
-  }
+  const [pendingId, setPendingId] = useState<number | null>(null)
+  const remove = (id: number) => setPendingId(id)
   return (
     <Card title={t.holdings}>
+      <ConfirmDialog
+        open={pendingId !== null}
+        title={t.delete}
+        message={t.confirmDelete}
+        confirmLabel={t.delete}
+        cancelLabel={t.cancel}
+        danger
+        pending={del.isPending}
+        onConfirm={() => {
+          if (pendingId !== null) del.mutate(pendingId, { onSettled: () => setPendingId(null) })
+        }}
+        onCancel={() => setPendingId(null)}
+      />
       <ErrorMessage message={del.error ? portfolioErrorMessage(del.error) : null} />
       {s.holdings.length === 0 ? (
         <p className="text-muted">{t.empty}</p>
@@ -376,15 +226,6 @@ export function PortfolioPage() {
             }}
           />
           <Allocation s={s} />
-          <AdvisorPanel
-            holdings={s.holdings.map((v): AdviceHoldingIn => ({
-              symbol: v.symbol,
-              asset_class: v.asset_class,
-              quantity: v.quantity,
-              // Not converted to PLN (missing FX rate): the advisor must not treat it as PLN.
-              current_value: v.converted ? v.current_value : null,
-            }))}
-          />
         </>
       )}
     </>

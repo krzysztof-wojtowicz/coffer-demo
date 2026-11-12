@@ -66,6 +66,17 @@ def _market() -> Any | None:
         return None
 
 
+def quote_ticker(symbol: str, asset_class: str) -> str:
+    """Yahoo ticker for a holding. A bare crypto symbol ("BTC") is a different instrument on
+    Yahoo (a stock/ETF), so it is mapped to its USD pair ("BTC-USD"); the USD quote is then
+    converted to PLN like any other foreign-currency price. Explicit pairs are kept as typed.
+    """
+    sym = symbol.strip().upper()
+    if asset_class == "crypto" and "-" not in sym and "=" not in sym and sym.isalnum():
+        return f"{sym}-USD"
+    return sym
+
+
 @dataclass(frozen=True)
 class Price:
     price: Decimal
@@ -121,10 +132,10 @@ class SummaryResult:
 
 def summary(db: Session, user_id: int) -> SummaryResult:
     holdings = list_for_user(db, user_id)
-    symbols = sorted({h.symbol for h in holdings if h.symbol})
-    prices = fetch_prices(symbols)
+    tickers = {h.id: quote_ticker(h.symbol, h.asset_class) for h in holdings if h.symbol}
+    prices = fetch_prices(sorted(set(tickers.values())))
     known = prices or {}
-    quoted = {h.id: known.get(h.symbol) for h in holdings if h.symbol}
+    quoted = {hid: known.get(t) for hid, t in tickers.items()}
     currencies = {h.currency for h in holdings} | {p.currency for p in known.values()}
     rates = fetch_fx_rates(currencies)
     inputs = []

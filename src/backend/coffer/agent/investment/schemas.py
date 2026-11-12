@@ -45,3 +45,4 @@ class AdviceOut(BaseModel):
     # In all non-ok cases the picks are rule-based.
     ai_status: Literal["ok", "unavailable", "limited", "timeout"] = "unavailable"
     disclaimer: str = DISCLAIMER
+    run_id: int | None = None

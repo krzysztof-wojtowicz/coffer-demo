@@ -72,6 +72,7 @@ Znaczenie pogrubionych pojęć jest ustalone w [słowniku](glossary.md).
 | F23 | System pokazuje udział procentowy każdej klasy aktywów w wartości portfela. | Scenariusz: zakup aktywów | M |
 | F24 | System pokazuje zysk/stratę każdego aktywa względem ceny zakupu. | Scenariusz: zakup aktywów | S |
 | F25 | System aktualizuje ceny aktywów notowanych co najmniej raz dziennie. | Scenariusz: zakup aktywów | S |
+| F26 | System pokazuje **majątek**: środki na kontach (suma transakcji do dziś), wartość portfela i wartość netto, z flagą niepełnej wyceny portfela. Do czasu salda początkowego (E4-01) środki liczone są od zera. | Scenariusz: zakup aktywów („ile i co już mam”) | M |
 
 ### 4.4 Agent AI
 

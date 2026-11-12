@@ -83,7 +83,7 @@ def test_outside_month_ignored():
     assert s.expenses == D("3.00")
 
 
-def test_not_in_budget_ignored():
+def test_not_in_budget_counted_but_not_in_surplus():
     s = month_summary(
         M,
         [
@@ -92,9 +92,23 @@ def test_not_in_budget_ignored():
             tx(date(2026, 3, 3), "-5"),
         ],
     )
-    assert s.income == D("0.00")
-    assert s.expenses == D("5.00")
-    assert [c.category_name for c in s.by_category] == ["Jedzenie"]
+    assert s.income == D("500.00")
+    assert s.expenses == D("505.00")
+    assert s.balance == D("-5.00")
+    assert s.surplus == D("0.00")
+    assert [c.category_name for c in s.by_category] == ["Inwestycje", "Jedzenie"]
+
+
+def test_surplus_ignores_out_of_budget_investment():
+    s = month_summary(
+        M,
+        [
+            tx(date(2026, 3, 2), "1000", 9, "Pensja"),
+            tx(date(2026, 3, 3), "-500", 7, "Inwestycje", in_budget=False),
+        ],
+    )
+    assert s.balance == D("500.00")
+    assert s.surplus == D("1000.00")
 
 
 def test_cents_exact():
@@ -167,11 +181,14 @@ def test_invariants(txs):
     assert s.income - s.expenses == s.balance
     assert sum((c.expenses for c in s.by_category), D("0.00")) == s.expenses
     assert s.surplus >= 0
-    assert s.surplus == max(s.balance, D("0"))
+    budget_bal = sum(
+        (t.base_amount for t in txs if t.in_budget and t.date.strftime("%Y-%m") == M), D("0.00")
+    )
+    assert s.surplus == max(budget_bal, D("0"))
     assert s.income >= 0 and s.expenses >= 0
     assert all(c.expenses > 0 for c in s.by_category)
     keys = [(-c.expenses, c.category_name) for c in s.by_category]
     assert keys == sorted(keys)
-    relevant = [t for t in txs if t.in_budget and t.date.strftime("%Y-%m") == M]
+    relevant = [t for t in txs if t.date.strftime("%Y-%m") == M]
     assert s.income == sum((t.base_amount for t in relevant if t.base_amount > 0), D("0.00"))
     assert s.expenses == -sum((t.base_amount for t in relevant if t.base_amount < 0), D("0.00"))

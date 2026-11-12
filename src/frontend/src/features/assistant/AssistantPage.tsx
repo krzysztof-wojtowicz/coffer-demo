@@ -1,8 +1,15 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { Badge } from '../../components/ui/Badge'
 import { Card } from '../../components/ui/Card'
+import { MonthPicker } from '../../components/MonthPicker'
 import { pl } from '../../i18n/pl'
+import { apiErrorMessage } from '../../lib/errors'
+import { currentMonth } from '../../lib/month'
+import { useBudget } from '../budget/queries'
+import { usePortfolioSummary, type AdviceHoldingIn } from '../portfolio/queries'
+import { AiPanel } from './AiPanel'
 import { RationaleList, formatDateTime, formatSeconds, runTone } from './parts'
 import { useRuns, useSuggestions } from './queries'
 
@@ -10,8 +17,28 @@ export function AssistantPage() {
   const a = pl.assistant
   const suggestions = useSuggestions()
   const runs = useRuns()
+  const [month, setMonth] = useState(currentMonth())
+  const budget = useBudget(month)
+  const portfolio = usePortfolioSummary()
+  // Not converted to PLN (missing FX rate): the advisor must not treat it as PLN.
+  const holdings = (portfolio.data?.holdings ?? []).map(
+    (v): AdviceHoldingIn => ({
+      symbol: v.symbol,
+      asset_class: v.asset_class,
+      quantity: v.quantity,
+      current_value: v.converted ? v.current_value : null,
+    }),
+  )
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-text">{pl.nav.assistant}</h1>
+        <MonthPicker value={month} onChange={setMonth} max={currentMonth()} />
+      </div>
+      {budget.isError && <ErrorMessage message={apiErrorMessage(budget.error)} />}
+      {(budget.data || budget.isError) && (
+        <AiPanel month={month} summary={budget.data ?? null} holdings={holdings} />
+      )}
       <Card title={a.historyTitle}>
         {suggestions.isLoading && <p>{pl.common.loading}</p>}
         {suggestions.isError && <ErrorMessage message={pl.common.genericError} />}
@@ -19,7 +46,8 @@ export function AssistantPage() {
         <div className="space-y-3">
           {suggestions.data?.map((s) => (
             <article key={s.id} className="rounded-md border border-border bg-surface-2 p-3">
-              <p className="text-xs text-muted">
+              <p className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                <Badge tone="info">{a.kind[s.type] ?? s.type}</Badge>
                 {formatDateTime(s.generated_at)}
                 {s.month && ` · ${a.monthLabel}: ${s.month}`}
               </p>
@@ -46,7 +74,6 @@ export function AssistantPage() {
                   <th className="py-1 pr-3">{a.colDate}</th>
                   <th className="py-1 pr-3">{a.colTask}</th>
                   <th className="py-1 pr-3">{a.colStatus}</th>
-                  <th className="py-1 pr-3">{a.colModel}</th>
                   <th className="py-1 pr-3">{a.colAttempts}</th>
                   <th className="py-1">{a.colDuration}</th>
                 </tr>
@@ -59,11 +86,10 @@ export function AssistantPage() {
                         {formatDateTime(r.created_at)}
                       </Link>
                     </td>
-                    <td className="py-1.5 pr-3">{r.task}</td>
+                    <td className="py-1.5 pr-3">{a.kind[r.task] ?? r.task}</td>
                     <td className="py-1.5 pr-3">
                       <Badge tone={runTone(r.status)}>{a.runStatus[r.status] ?? r.status}</Badge>
                     </td>
-                    <td className="py-1.5 pr-3">{r.model ?? '–'}</td>
                     <td className="py-1.5 pr-3">{r.attempts}</td>
                     <td className="py-1.5">{formatSeconds(r.duration_ms)}</td>
                   </tr>

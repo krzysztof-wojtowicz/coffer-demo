@@ -336,6 +336,17 @@ Realizacja: karty E1-01..E1-07 w [`docs/tasks/`](tasks/README.md) (fale równole
 
 **Gotowe, gdy:** UC-07 i UC-08 przechodzą, a agent informacyjny zwraca podsumowanie ze źródłami i datami.
 
+#### Etap 4a: po serii zmian UI/UX (karty E4-01..E4-06)
+Stan: 5 zakładek (Podsumowanie, Transakcje, Portfel, Doradca AI, Konto), edycja transakcji (`PATCH /api/transactions/{id}`), karta „Majątek” (`GET /api/budget/net-worth`, `analytics/net_worth.py`), jeden panel Doradcy AI (nadwyżka + portfel; doradca zapisuje sugestię `advisor`), nowy UI kit. Znane luki i kolejne kroki:
+- [x] E4-01: saldo początkowe (`opening_balances`, migracja `0006`, sekcja w Koncie).
+- [ ] E4-02: filtry, sortowanie i paginacja transakcji po stronie serwera (zakres dat poza miesiącem).
+- [ ] E4-03: data aktualizacji cen i kursów w portfelu.
+- [ ] E4-04: wykres historii majątku (po E4-01).
+- [ ] E4-05: testy e2e Playwright kluczowych przepływów (po E4-01, E4-02).
+- [ ] E4-06: dostępność nowych komponentów UI (klawiatura, ARIA, fokus).
+
+Karty: [`docs/tasks/README.md`](tasks/README.md). Równolegle (fala 1) mogą iść E4-01, E4-02, E4-03, E4-06 (rozłączne pliki).
+
 ### Bufor (do oddania)
 Stabilizacja, dane demo, sprawdzone odtworzenie backupu, prezentacja.
 

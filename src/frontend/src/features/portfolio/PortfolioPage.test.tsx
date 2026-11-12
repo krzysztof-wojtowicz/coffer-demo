@@ -66,28 +66,13 @@ const summary = {
   prices_available: true,
   fx_missing: [] as string[],
 }
-const advice = {
-  top_picks: [
-    { name: 'iShares MSCI World', asset_class: 'etf', symbol: 'IWDA.AS', rationale: 'Dywersyfikacja globalna', risk_level: 3, source_url: 'https://example.com/a' },
-    { name: 'Obligacje skarbowe EDO', asset_class: 'bond', symbol: null, rationale: 'Ochrona przed inflacją', risk_level: 1, source_url: null },
-    { name: 'Złoto', asset_class: 'commodity', symbol: 'GLD', rationale: 'Zabezpieczenie', risk_level: 2, source_url: null },
-  ],
-  tips: [{ title: 'Rebalansuj raz w roku', summary: 'Utrzymuj docelową alokację.', source: 'Bankier', url: 'https://example.com/t' }],
-  llm_used: true,
-  ai_status: 'ok',
-  disclaimer: 'To nie jest porada inwestycyjna.',
-}
 
 let posts: Request[]
-let adviceRequests: Request[]
 let summaryBody: unknown
-let adviceResponse: () => Response
 
 beforeEach(() => {
   posts = []
-  adviceRequests = []
   summaryBody = summary
-  adviceResponse = () => json(advice)
   h.handler = (req) => {
     const path = new URL(req.url).pathname
     if (path === '/api/portfolio/summary') return json(summaryBody)
@@ -96,10 +81,6 @@ beforeEach(() => {
       return json(holding, 201)
     }
     if (path === '/api/portfolio/holdings') return json([holding])
-    if (path === '/api/agent/investment/advice') {
-      adviceRequests.push(req)
-      return adviceResponse()
-    }
     return json({ detail: 'Not Found' }, 404)
   }
 })
@@ -140,93 +121,82 @@ describe('PortfolioPage', () => {
     expect(await screen.findByText(/Brak kursu walut: CHF/)).toBeTruthy()
   })
 
-  it('dodaje pozycję z poprawnym body', async () => {
+  async function pickClass(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
+    await user.click(screen.getByLabelText(/Klasa aktywów/))
+    await user.click(screen.getByRole('option', { name }))
+  }
+
+  it('na starcie pokazuje tylko klasę i nazwę', async () => {
+    renderPage()
+    await screen.findByText('Apple')
+    expect(screen.getByLabelText(/Klasa aktywów/)).toBeTruthy()
+    expect(screen.getByLabelText(/^Nazwa/)).toBeTruthy()
+    for (const l of [/Symbol/, /Waluta/, /Ilość/, /Cena/, /Data zakupu/, /Bieżąca wartość/, /Notatka/]) {
+      expect(screen.queryByLabelText(l)).toBeNull()
+    }
+    expect(document.body.textContent).not.toContain('Dla aktywów bez notowań')
+  })
+
+  it('pokazuje pola zależnie od klasy i czyści nieużywane przy zmianie', async () => {
     const user = renderPage()
     await screen.findByText('Apple')
-    await user.type(screen.getByLabelText('Nazwa'), 'Mieszkanie')
-    await user.selectOptions(screen.getByLabelText('Klasa aktywów'), 'real_estate')
-    await user.type(screen.getByLabelText('Ilość'), '1')
-    await user.type(screen.getByLabelText('Cena zakupu (za jednostkę)'), '400000,50')
+    await pickClass(user, /^Akcje/)
+    expect(screen.getByLabelText(/Symbol \(ticker\)/)).toBeTruthy()
+    expect(screen.getByLabelText(/^Ilość/)).toBeTruthy()
+    expect(screen.queryByLabelText(/Bieżąca wartość/)).toBeNull()
+    await user.type(screen.getByLabelText(/Symbol \(ticker\)/), 'aapl')
+    await pickClass(user, /Nieruchomości/)
+    expect(screen.queryByLabelText(/Symbol/)).toBeNull()
+    expect(screen.queryByLabelText(/^Ilość/)).toBeNull()
+    expect(screen.getByLabelText(/Bieżąca wartość/)).toBeTruthy()
+    await pickClass(user, /^Akcje/)
+    expect((screen.getByLabelText(/Symbol \(ticker\)/) as HTMLInputElement).value).toBe('')
+  })
+
+  it('dodaje akcję z poprawnym body', async () => {
+    const user = renderPage()
+    await screen.findByText('Apple')
+    await pickClass(user, /^Akcje/)
+    await user.type(screen.getByLabelText(/^Nazwa/), 'Apple')
+    await user.type(screen.getByLabelText(/Symbol \(ticker\)/), 'aapl')
+    await user.clear(screen.getByLabelText(/^Waluta/))
+    await user.type(screen.getByLabelText(/^Waluta/), 'usd')
+    await user.type(screen.getByLabelText(/^Ilość/), '10')
+    await user.type(screen.getByLabelText(/^Cena za jednostkę/), '150,5')
+    await user.click(screen.getByRole('button', { name: 'Dodaj' }))
+    await waitFor(() => expect(posts.length).toBe(1))
+    expect(await posts[0].json()).toEqual({
+      name: 'Apple',
+      asset_class: 'stock',
+      symbol: 'AAPL',
+      quantity: '10',
+      purchase_price: '150.5',
+      currency: 'USD',
+      purchase_date: null,
+      manual_value: null,
+      note: null,
+    })
+  })
+
+  it('dodaje nieruchomość z ilością 1 i bez symbolu', async () => {
+    const user = renderPage()
+    await screen.findByText('Apple')
+    await pickClass(user, /Nieruchomości/)
+    await user.type(screen.getByLabelText(/^Nazwa/), 'Mieszkanie')
+    await user.type(screen.getByLabelText(/^Cena zakupu/), '400000,50')
     await user.type(screen.getByLabelText(/Bieżąca wartość/), '500000')
     await user.click(screen.getByRole('button', { name: 'Dodaj' }))
     await waitFor(() => expect(posts.length).toBe(1))
-    const body = await posts[0].json()
-    expect(body).toMatchObject({
+    expect(await posts[0].json()).toEqual({
       name: 'Mieszkanie',
       asset_class: 'real_estate',
+      symbol: null,
       quantity: '1',
       purchase_price: '400000.50',
-      manual_value: '500000',
       currency: 'PLN',
-      symbol: null,
+      purchase_date: null,
+      manual_value: '500000',
+      note: null,
     })
-  })
-
-  it('doradca AI pokazuje Top 3, porady i disclaimer', async () => {
-    const user = renderPage()
-    await screen.findByText('Apple')
-    await user.click(screen.getByRole('button', { name: 'Pobierz rekomendacje' }))
-    expect(await screen.findByText('Top 3 dla Ciebie teraz')).toBeTruthy()
-    expect(screen.getByText('iShares MSCI World')).toBeTruthy()
-    expect(screen.getByText('Rebalansuj raz w roku')).toBeTruthy()
-    expect(screen.getByText('To nie jest porada inwestycyjna.')).toBeTruthy()
-    const body = await adviceRequests[0].json()
-    expect(body).toEqual({
-      holdings: [{ symbol: 'AAPL', asset_class: 'stock', quantity: '10', current_value: '1200.00' }],
-    })
-  })
-
-  it('doradca AI: pozycja bez przeliczenia na PLN ma current_value null', async () => {
-    const chf = {
-      ...summary.holdings[0],
-      id: 2,
-      name: 'Nestle',
-      symbol: 'NESN.SW',
-      currency: 'CHF',
-      amount_currency: 'CHF',
-      converted: false,
-      current_value: '500.00',
-      share_pct: null,
-    }
-    summaryBody = { ...summary, holdings: [...summary.holdings, chf], fx_missing: ['CHF'] }
-    const user = renderPage()
-    await screen.findByText('Nestle')
-    await user.click(screen.getByRole('button', { name: 'Pobierz rekomendacje' }))
-    await waitFor(() => expect(adviceRequests.length).toBe(1))
-    const body = await adviceRequests[0].json()
-    expect(body.holdings).toEqual([
-      { symbol: 'AAPL', asset_class: 'stock', quantity: '10', current_value: '1200.00' },
-      { symbol: 'NESN.SW', asset_class: 'stock', quantity: '10', current_value: null },
-    ])
-  })
-
-  it.each([
-    ['timeout', 'Model AI nie odpowiedział na czas'],
-    ['limited', 'Osiągnięto dzienny limit zapytań do AI'],
-    ['unavailable', 'Rekomendacje przygotowane bez modelu językowego (reguły).'],
-  ])('doradca AI: ai_status %s daje polski komunikat i wynik regułowy', async (status, message) => {
-    adviceResponse = () => json({ ...advice, llm_used: false, ai_status: status })
-    const user = renderPage()
-    await screen.findByText('Apple')
-    await user.click(screen.getByRole('button', { name: 'Pobierz rekomendacje' }))
-    const note = await screen.findByTestId('advisor-ai-status')
-    expect(note.textContent).toContain(message)
-    expect(screen.getByText('iShares MSCI World')).toBeTruthy()
-  })
-
-  it('doradca AI: brak endpointu daje polski komunikat', async () => {
-    adviceResponse = () => json({ detail: 'Not Found' }, 404)
-    const user = renderPage()
-    await screen.findByText('Apple')
-    await user.click(screen.getByRole('button', { name: 'Pobierz rekomendacje' }))
-    expect(await screen.findByText('Doradca AI jest jeszcze niedostępny.')).toBeTruthy()
-  })
-
-  it('doradca AI: błąd serwera daje polski komunikat', async () => {
-    adviceResponse = () => json({ detail: 'Usługa chwilowo niedostępna' }, 503)
-    const user = renderPage()
-    await screen.findByText('Apple')
-    await user.click(screen.getByRole('button', { name: 'Pobierz rekomendacje' }))
-    expect(await screen.findByText('Usługa chwilowo niedostępna')).toBeTruthy()
   })
 })

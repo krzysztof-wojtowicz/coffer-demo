@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from coffer.analytics.month import TxView
 from coffer.core.months import parse_month
 from coffer.transactions.models import Category, Transaction
-from coffer.transactions.schemas import TransactionCreate
+from coffer.transactions.schemas import TransactionCreate, TransactionUpdate
 
 
 class UnknownCategoryError(Exception):
@@ -37,6 +37,29 @@ def create(db: Session, user_id: int, data: TransactionCreate) -> Transaction:
         source="manual",
     )
     db.add(tx)
+    db.commit()
+    return tx
+
+
+def update(
+    db: Session, user_id: int, transaction_id: int, data: TransactionUpdate
+) -> Transaction | None:
+    tx = db.scalar(
+        select(Transaction).where(Transaction.id == transaction_id, Transaction.user_id == user_id)
+    )
+    if tx is None:
+        return None
+    if data.category_id is not None:
+        if db.get(Category, data.category_id) is None:
+            raise UnknownCategoryError
+        tx.category_id = data.category_id
+    if data.date is not None:
+        tx.date = data.date
+    if data.amount is not None:
+        tx.amount = data.amount
+        tx.base_amount = data.amount  # PLN only: base equals amount
+    if data.description is not None:
+        tx.description = data.description
     db.commit()
     return tx
 

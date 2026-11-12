@@ -5,6 +5,8 @@ import { Card } from '../../components/ui/Card'
 import { Field } from '../../components/ui/Field'
 import { Input } from '../../components/ui/Input'
 import { pl } from '../../i18n/pl'
+import { OpeningBalanceSection } from '../cash/OpeningBalanceSection'
+import { ProfileSection } from '../profile/ProfileSection'
 import { apiErrorMessage } from '../../lib/errors'
 import { NewPasswordField } from './PasswordField'
 import { passwordProblems } from './password'
@@ -113,7 +115,10 @@ export function AccountPage() {
   const email = me.data?.email ?? ''
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">{pl.auth.accountTitle}</h1>
+      <h1 className="sr-only">{pl.auth.accountTitle}</h1>
+      <ProfileSection />
+      <OpeningBalanceSection />
+      <h2 className="pt-2 text-xl font-semibold">{pl.auth.securityTitle}</h2>
       <ChangePassword email={email} />
       <Sessions />
       <DeleteAccount />

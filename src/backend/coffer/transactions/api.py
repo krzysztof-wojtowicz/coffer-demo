@@ -5,7 +5,12 @@ from coffer.core.db import DbSession
 from coffer.core.months import MonthStr
 from coffer.transactions import service
 from coffer.transactions.models import Category, Transaction
-from coffer.transactions.schemas import CategoryOut, TransactionCreate, TransactionOut
+from coffer.transactions.schemas import (
+    CategoryOut,
+    TransactionCreate,
+    TransactionOut,
+    TransactionUpdate,
+)
 
 router = APIRouter(prefix="/api", tags=["transactions"])
 
@@ -47,6 +52,19 @@ def get_transactions(
 ) -> list[TransactionOut]:
     names = _names(db)
     return [_to_out(tx, names[tx.category_id]) for tx in service.list_for_user(db, user.id, month)]
+
+
+@router.patch("/transactions/{transaction_id}", response_model=TransactionOut)
+def update_transaction(
+    transaction_id: int, data: TransactionUpdate, user: CurrentUser, db: DbSession
+) -> TransactionOut:
+    try:
+        tx = service.update(db, user.id, transaction_id, data)
+    except service.UnknownCategoryError:
+        raise HTTPException(status_code=422, detail="Nieznana kategoria") from None
+    if tx is None:
+        raise HTTPException(status_code=404, detail="Nie znaleziono transakcji")
+    return _to_out(tx, _names(db)[tx.category_id])
 
 
 @router.delete("/transactions/{transaction_id}", status_code=204)

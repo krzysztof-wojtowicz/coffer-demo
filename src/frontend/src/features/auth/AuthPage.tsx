@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { ErrorMessage } from '../../components/ErrorMessage'
+import { Logo } from '../../components/Logo'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Field } from '../../components/ui/Field'
@@ -33,7 +34,10 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm space-y-4">
-        <p className="text-center text-3xl font-bold text-accent">{pl.appName}</p>
+        <p className="flex items-center justify-center gap-3 text-3xl font-bold text-accent">
+          <Logo className="size-10" />
+          {pl.appName}
+        </p>
         <Card title={isLogin ? pl.auth.loginTitle : pl.auth.registerTitle}>
           <form onSubmit={submit} className="flex flex-col gap-3">
             <Field label={pl.auth.email}>

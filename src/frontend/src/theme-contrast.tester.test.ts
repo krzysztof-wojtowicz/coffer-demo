@@ -1,7 +1,7 @@
 import css from "./index.css?raw";
 import badgeSrc from "./components/ui/Badge.tsx?raw";
 import toggleSrc from "./components/ThemeToggle.tsx?raw";
-import profileSrc from "./features/profile/ProfilePage.tsx?raw";
+import profileSrc from "./features/profile/ProfileSection.tsx?raw";
 import { describe, expect, it } from "vitest";
 
 

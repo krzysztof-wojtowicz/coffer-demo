@@ -6,6 +6,7 @@ from coffer.accounts.api import router as accounts_router
 from coffer.agent.api import router as agent_router
 from coffer.agent.investment.api import router as investment_router
 from coffer.budget.api import router as budget_router
+from coffer.cash.api import router as cash_router
 from coffer.core.body_limit import BodySizeLimitMiddleware
 from coffer.core.config import Settings, get_settings
 from coffer.core.origin import install_origin_policy
@@ -27,6 +28,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(RequestValidationError, redacted_validation_handler)
     app.include_router(transactions_router)
     app.include_router(budget_router)
+    app.include_router(cash_router)
     app.include_router(imports_router)
     app.include_router(agent_router)
     app.include_router(profile_router)

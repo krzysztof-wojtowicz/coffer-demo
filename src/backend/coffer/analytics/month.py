@@ -36,14 +36,19 @@ class MonthSummary:
 
 def month_summary(month: str, txs: Iterable[TxView]) -> MonthSummary:
     start, end = parse_month(month)
+    # income/expenses/balance/by_category cover ALL transactions (so months sum to cash);
+    # surplus uses only in_budget categories (investing the surplus must not shrink it).
     income = ZERO
     expenses = ZERO
+    budget_balance = ZERO
     names: dict[int, str] = {}
     per_category: dict[int, Decimal] = defaultdict(lambda: ZERO)
     for tx in txs:
-        if not tx.in_budget or not (start <= tx.date < end):
+        if not (start <= tx.date < end):
             continue
         amount = quantize(tx.base_amount)
+        if tx.in_budget:
+            budget_balance += amount
         if amount > 0:
             income += amount
         elif amount < 0:
@@ -66,6 +71,6 @@ def month_summary(month: str, txs: Iterable[TxView]) -> MonthSummary:
         income=income,
         expenses=expenses,
         balance=balance,
-        surplus=max(balance, ZERO),
+        surplus=max(quantize(budget_balance), ZERO),
         by_category=by_category,
     )

@@ -26,6 +26,7 @@ from coffer.agent.llm import (
     llm_deadline,
     remaining_s,
 )
+from coffer.agent.models import AgentRun, Suggestion
 from coffer.analytics.portfolio import HoldingInput, portfolio_summary
 from coffer.core.config import get_settings
 from coffer.market import service as market
@@ -495,7 +496,7 @@ def advise_for_user(
         db.commit()
         db.close()
         out = advise(holdings, risk_profile, llm, trace)
-    agent_service.record_run(
+    run = agent_service.record_run(
         db,
         user_id=user_id,
         task=TASK,
@@ -511,4 +512,59 @@ def advise_for_user(
         output_tokens=trace.output_tokens,
         duration_ms=int((time.perf_counter() - started) * 1000),
     )
+    out.run_id = run.id
+    if out.llm_used:
+        _record_suggestion(db, user_id, run, out, holdings, risk_profile, trace)
     return out
+
+
+def _record_suggestion(
+    db: Session,
+    user_id: int,
+    run: AgentRun,
+    out: AdviceOut,
+    holdings: Sequence[HoldingIn],
+    risk_profile: RiskProfile,
+    trace: _Trace,
+) -> None:
+    """Persist model-made picks as a history entry (aggregates only, like the surplus flow)."""
+    ctx = portfolio_context(holdings)
+    names = ", ".join(p.name for p in out.top_picks)
+    db.add(
+        Suggestion(
+            user_id=user_id,
+            agent_run_id=run.id,
+            type=TASK,
+            month=None,
+            summary=f"Propozycje dla portfela: {names}.",
+            rationale=[
+                {
+                    "claim": f"{p.name}: {p.rationale}",
+                    "refers_to": "portfolio",
+                    "value": f"ryzyko {p.risk_level}/5",
+                }
+                for p in out.top_picks
+            ],
+            risks=[],
+            sources=[{"title": t.source, "url": t.url} for t in out.tips],
+            disclaimer=out.disclaimer,
+            model=trace.model or "unknown",
+            profile_snapshot=(
+                {
+                    "risk": risk_profile.risk,
+                    "horizon": risk_profile.horizon,
+                    "preferred_classes": list(risk_profile.preferred_classes),
+                }
+                if risk_profile.from_user
+                else None
+            ),
+            data_snapshot={
+                "class_shares": {
+                    k: (str(v) if v is not None else None) for k, v in ctx.class_shares.items()
+                },
+                "symbols": list(ctx.symbols),
+            },
+            duration_ms=run.duration_ms,
+        )
+    )
+    db.commit()

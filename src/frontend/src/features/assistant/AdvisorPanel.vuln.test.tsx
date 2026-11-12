@@ -1,5 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { AdvisorPanel } from './AdvisorPanel'
 
 // Attack: a poisoned news feed / LLM answer smuggles a javascript: URL into source links.
@@ -23,7 +25,7 @@ const advice = {
   ai_status: 'ok',
   disclaimer: 'd',
 }
-vi.mock('./queries', () => ({
+vi.mock('../portfolio/queries', () => ({
   AdviceError: class extends Error {},
   useInvestmentAdvice: () => ({ data: advice, error: null, isPending: false, mutate: () => {} }),
 }))
@@ -32,7 +34,13 @@ afterEach(cleanup)
 
 describe('AdvisorPanel link safety', () => {
   it('renders only http(s) links, with noopener noreferrer', () => {
-    render(<AdvisorPanel holdings={[]} />)
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <AdvisorPanel holdings={[]} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
     const links = screen.getAllByRole('link')
     expect(links.map((a) => a.getAttribute('href'))).toEqual(['https://example.com/news'])
     expect(links[0].getAttribute('rel')).toContain('noopener')

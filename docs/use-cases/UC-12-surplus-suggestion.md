@@ -45,6 +45,8 @@ Dowiedzieć się, jak mogę wykorzystać **nadwyżkę** z wybranego miesiąca, r
 
 ## Uwagi i otwarte kwestie
 
+- Stan implementacji: sugestia nadwyżki jest jedną z dwóch zakładek panelu w *Doradca AI* (`/assistant`), obok doradcy portfela. Nazwa modelu nie jest wyświetlana w UI (API nadal ją zwraca).
+
 - Brak wymagania na limit czasu odpowiedzi modelu — trzeba go ustalić (dotyczy też 5a).
 - Czy „zanonimizowane agregaty” mają obejmować nazwy kategorii zdefiniowanych przez użytkownika, które mogą zawierać dane osobowe?
 - Czy sugestia ma uwzględniać portfel użytkownika (F32 wymienia portfel, budżet i profil)? Tu przyjęto budżet i profil.

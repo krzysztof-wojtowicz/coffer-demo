@@ -49,7 +49,10 @@ export function usePortfolioSummary() {
 
 function useInvalidate() {
   const qc = useQueryClient()
-  return () => qc.invalidateQueries({ queryKey: ['portfolio'] })
+  return () => {
+    qc.invalidateQueries({ queryKey: ['net-worth'] })
+    return qc.invalidateQueries({ queryKey: ['portfolio'] })
+  }
 }
 
 export function useCreateHolding() {

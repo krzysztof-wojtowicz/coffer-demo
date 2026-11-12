@@ -172,6 +172,24 @@ export interface paths {
         delete: operations["delete_transaction_api_transactions__transaction_id__delete"];
         options?: never;
         head?: never;
+        /** Update Transaction */
+        patch: operations["update_transaction_api_transactions__transaction_id__patch"];
+        trace?: never;
+    };
+    "/api/budget/net-worth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Net Worth */
+        get: operations["get_net_worth_api_budget_net_worth_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -187,6 +205,25 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cash/opening-balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Opening Balance */
+        get: operations["get_opening_balance_api_cash_opening_balance_get"];
+        /** Put Opening Balance */
+        put: operations["put_opening_balance_api_cash_opening_balance_put"];
+        post?: never;
+        /** Delete Opening Balance */
+        delete: operations["delete_opening_balance_api_cash_opening_balance_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -525,6 +562,8 @@ export interface components {
              * @default To nie jest porada inwestycyjna, tylko informacja edukacyjna. Inwestowanie wiąże się z ryzykiem utraty kapitału; decyzję podejmujesz samodzielnie.
              */
             disclaimer: string;
+            /** Run Id */
+            run_id?: number | null;
         };
         /** AdviceRequest */
         AdviceRequest: {
@@ -886,6 +925,47 @@ export interface components {
             /** By Category */
             by_category: components["schemas"]["CategoryTotalOut"][];
         };
+        /** NetWorthOut */
+        NetWorthOut: {
+            /** Cash Balance */
+            cash_balance: string;
+            /** Portfolio Value */
+            portfolio_value: string;
+            /** Net Worth */
+            net_worth: string;
+            /** Portfolio Complete */
+            portfolio_complete: boolean;
+            /**
+             * Opening Balance Set
+             * @default false
+             */
+            opening_balance_set: boolean;
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+        };
+        /** OpeningBalanceIn */
+        OpeningBalanceIn: {
+            /** Amount */
+            amount: number | string;
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+        };
+        /** OpeningBalanceOut */
+        OpeningBalanceOut: {
+            /** Amount */
+            amount: string;
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+        };
         /** PasswordChange */
         PasswordChange: {
             /** Current Password */
@@ -1093,6 +1173,20 @@ export interface components {
             category_name: string;
             /** Source */
             source: string;
+        };
+        /**
+         * TransactionUpdate
+         * @description Partial update; omitted or null fields mean no change.
+         */
+        TransactionUpdate: {
+            /** Date */
+            date?: string | null;
+            /** Amount */
+            amount?: number | string | null;
+            /** Description */
+            description?: string | null;
+            /** Category Id */
+            category_id?: number | null;
         };
         /** UserOut */
         UserOut: {
@@ -1472,6 +1566,61 @@ export interface operations {
             };
         };
     };
+    update_transaction_api_transactions__transaction_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transaction_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransactionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_net_worth_api_budget_net_worth_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetWorthOut"];
+                };
+            };
+        };
+    };
     get_month_api_budget__month__get: {
         parameters: {
             query?: never;
@@ -1500,6 +1649,77 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    get_opening_balance_api_cash_opening_balance_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpeningBalanceOut"] | null;
+                };
+            };
+        };
+    };
+    put_opening_balance_api_cash_opening_balance_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpeningBalanceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpeningBalanceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_opening_balance_api_cash_opening_balance_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

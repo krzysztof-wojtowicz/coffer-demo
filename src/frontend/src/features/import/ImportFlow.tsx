@@ -29,7 +29,7 @@ function formatSize(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
 }
 
-export function ImportPage() {
+export function ImportFlow({ onFinished }: { onFinished?: () => void }) {
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [result, setResult] = useState<CommitResult | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -42,9 +42,8 @@ export function ImportPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold text-text">{pl.import.title}</h1>
       {result ? (
-        <ResultStep result={result} onAnother={() => reset()} />
+        <ResultStep result={result} onAnother={() => reset()} onFinished={onFinished} />
       ) : preview ? (
         <PreviewStep
           key={preview.id}
@@ -339,7 +338,15 @@ function PreviewStep({
   )
 }
 
-function ResultStep({ result, onAnother }: { result: CommitResult; onAnother: () => void }) {
+function ResultStep({
+  result,
+  onAnother,
+  onFinished,
+}: {
+  result: CommitResult
+  onAnother: () => void
+  onFinished?: () => void
+}) {
   const navigate = useNavigate()
   return (
     <Card>
@@ -347,7 +354,7 @@ function ResultStep({ result, onAnother }: { result: CommitResult; onAnother: ()
         {commitMessage(result)}
       </p>
       <div className="flex gap-2">
-        <Button onClick={() => navigate('/transactions')}>{pl.import.viewTransactions}</Button>
+        <Button onClick={() => (onFinished ? onFinished() : navigate('/transactions'))}>{pl.import.viewTransactions}</Button>
         <Button variant="secondary" onClick={onAnother}>
           {pl.import.importAnother}
         </Button>

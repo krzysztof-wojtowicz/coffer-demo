@@ -251,6 +251,28 @@ def test_advice_run_is_recorded(auth_client, use_llm, db, user):
     assert len(run.raw_outputs) == 2
 
 
+def test_advice_suggestion_is_in_history(auth_client, use_llm, db, user):
+    use_llm(FakeLLM([call("get_quotes", {"symbols": ["AAPL"]}), final(LLM_PICKS)]))
+    body = auth_client.post(URL, json=HOLDINGS).json()
+    (item,) = auth_client.get("/api/agent/suggestions").json()
+    assert item["type"] == "advisor" and item["month"] is None
+    assert len(item["rationale"]) == 3
+    assert body["run_id"] is not None
+    assert auth_client.get(f"/api/agent/runs/{body['run_id']}").json()["task"] == "advisor"
+
+
+def test_advice_suggestion_hidden_from_other_user(auth_client, other_auth_client, use_llm):
+    use_llm(FakeLLM([final(LLM_PICKS)]))
+    auth_client.post(URL, json=HOLDINGS)
+    assert other_auth_client.get("/api/agent/suggestions").json() == []
+
+
+def test_advice_fallback_saves_no_suggestion(auth_client, use_llm):
+    use_llm(FakeLLM([LLMUnavailable("down")]))
+    auth_client.post(URL, json=HOLDINGS)
+    assert auth_client.get("/api/agent/suggestions").json() == []
+
+
 def test_advice_unavailable_is_recorded(auth_client, use_llm, db, user):
     use_llm(FakeLLM([LLMUnavailable("Gemini status 503")]))
     body = auth_client.post(URL, json=HOLDINGS).json()

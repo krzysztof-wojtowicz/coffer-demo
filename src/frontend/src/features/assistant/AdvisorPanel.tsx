@@ -1,9 +1,13 @@
+import { Link } from 'react-router-dom'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
-import { Card } from '../../components/ui/Card'
+import { Spinner } from '../../components/ui/Spinner'
+import { useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Notice } from './parts'
 import { pl } from '../../i18n/pl'
-import { AdviceError, useInvestmentAdvice, type AdviceHoldingIn } from './queries'
+import { AdviceError, useInvestmentAdvice, type AdviceHoldingIn } from '../portfolio/queries'
 
 const t = pl.portfolio.advisor
 
@@ -27,6 +31,7 @@ function SourceLink({ url, label }: { url: string | null | undefined; label: str
 
 export function AdvisorPanel({ holdings }: { holdings: AdviceHoldingIn[] }) {
   const advice = useInvestmentAdvice()
+  const qc = useQueryClient()
   const error = advice.error
     ? advice.error instanceof AdviceError
       ? advice.error.message
@@ -34,16 +39,24 @@ export function AdvisorPanel({ holdings }: { holdings: AdviceHoldingIn[] }) {
     : null
   const data = advice.data
 
+  useEffect(() => {
+    if (data) void qc.invalidateQueries({ queryKey: ['agent'] })
+  }, [data, qc])
+
   return (
-    <Card
-      title={t.title}
-      actions={
-        <Button size="sm" loading={advice.isPending} onClick={() => advice.mutate(holdings)}>
-          {t.fetch}
+    <div className="space-y-3">
+      <p className="text-text">{t.intro}</p>
+      <div className="flex items-center gap-3">
+        <Button loading={advice.isPending} onClick={() => advice.mutate(holdings)}>
+          {data ? t.refetch : t.fetch}
         </Button>
-      }
-    >
-      <p className="text-sm text-muted">{t.intro}</p>
+        {advice.isPending && (
+          <span className="flex items-center gap-2 text-sm text-muted" aria-live="polite">
+            <Spinner />
+            {t.loading}
+          </span>
+        )}
+      </div>
       <ErrorMessage message={error} />
       {data && (
         <div className="mt-4 space-y-5">
@@ -90,19 +103,32 @@ export function AdvisorPanel({ holdings }: { holdings: AdviceHoldingIn[] }) {
             </section>
           )}
           {!data.llm_used && (
-            <p className="text-xs text-muted" data-testid="advisor-ai-status">
-              {data.ai_status === 'timeout'
-                ? t.timeout
-                : data.ai_status === 'limited'
-                  ? t.limited
-                  : t.noLlm}
+            <div data-testid="advisor-ai-status">
+              <Notice>
+                {data.ai_status === 'timeout'
+                  ? t.timeout
+                  : data.ai_status === 'limited'
+                    ? t.limited
+                    : t.noLlm}
+              </Notice>
+            </div>
+          )}
+          <p
+            className="flex gap-2 rounded-md border border-warning/40 bg-warning/10 p-2 text-sm text-warning"
+            data-testid="advisor-disclaimer"
+          >
+            <span aria-hidden="true">ⓘ</span>
+            <span>{data.disclaimer}</span>
+          </p>
+          {data.run_id != null && (
+            <p className="text-xs">
+              <Link className="text-accent hover:underline" to={`/assistant/runs/${data.run_id}`}>
+                {pl.assistant.showTrace}
+              </Link>
             </p>
           )}
-          <p className="text-xs text-muted" data-testid="advisor-disclaimer">
-            {data.disclaimer}
-          </p>
         </div>
       )}
-    </Card>
+    </div>
   )
 }

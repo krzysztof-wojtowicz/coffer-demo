@@ -76,14 +76,35 @@ def test_deficit(auth_client, user, add_tx, category_id):
     assert body["surplus"] == "0.00"
 
 
-def test_non_budget_categories_excluded(auth_client, user, add_tx, category_id):
+def test_non_budget_categories_counted_but_not_in_surplus(auth_client, user, add_tx, category_id):
     add_tx(user, date(2026, 3, 1), "-500.00", category_id("Inwestycje"))
     add_tx(user, date(2026, 3, 1), "500.00", category_id("Przelewy własne"))
     add_tx(user, date(2026, 3, 1), "-7.00", category_id("Jedzenie"))
     body = auth_client.get("/api/budget/2026-03").json()
-    assert body["income"] == "0.00"
-    assert body["expenses"] == "7.00"
-    assert len(body["by_category"]) == 1
+    assert body["income"] == "500.00"
+    assert body["expenses"] == "507.00"
+    assert body["balance"] == "-7.00"
+    assert body["surplus"] == "0.00"
+    assert len(body["by_category"]) == 2
+
+
+def test_month_balances_sum_to_cash_balance(auth_client, user, add_tx, category_id, monkeypatch):
+    from datetime import timedelta
+
+    from tests.portfolio.test_portfolio_api import fake_market
+
+    fake_market(monkeypatch, {})
+    today = date.today()
+    prev = today.replace(day=1) - timedelta(days=1)
+    add_tx(user, prev, "2000.00", category_id("Inne"))
+    add_tx(user, prev, "-500.00", category_id("Inwestycje"))
+    add_tx(user, today, "-40.25", category_id("Jedzenie"))
+    add_tx(user, today, "100.00", category_id("Przelewy własne"))
+    total = sum(
+        Decimal(auth_client.get(f"/api/budget/{d:%Y-%m}").json()["balance"]) for d in (prev, today)
+    )
+    cash = Decimal(auth_client.get("/api/budget/net-worth").json()["cash_balance"])
+    assert total == cash == Decimal("1559.75")
 
 
 def test_december_boundaries(auth_client, user, add_tx, category_id):

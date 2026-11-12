@@ -41,6 +41,8 @@ beforeEach(() => {
     const path = new URL(req.url).pathname;
     if (path === "/api/auth/me")
       return json({ id: 1, email: "jan@example.com" });
+    if (path === "/api/profile") return json(null);
+    if (path === "/api/cash/opening-balance") return json(null);
     const text = await req.text();
     calls.push({
       method: req.method,

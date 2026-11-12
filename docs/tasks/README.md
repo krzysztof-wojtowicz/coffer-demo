@@ -51,6 +51,21 @@ Fundament (E3-00, orkiestrator): modele `InvestmentProfile`, `AgentRun`, `Sugges
 - Frontend: zdarzenie SSE `error` jest ignorowane; `noSurplus` porównuje string `"0.00"`.
 - `agent/anonymize.scrub` nie jest jeszcze używany (przeznaczony do kategoryzacji AI, F07).
 
+## Etap 4 (część 1): po serii zmian UI/UX
+
+Stan wyjściowy: nawigacja 5 zakładek, edycja transakcji (`PATCH`), karta „Majątek” (`/api/budget/net-worth`), jeden panel Doradcy AI, nowy UI kit. Plan: [`docs/plan.md`](../plan.md), sekcja Etapu 4.
+
+| Karta | Fala | Role | Zależności | Status | Notatka |
+|---|---|---|---|---|---|
+| [E4-01 Saldo początkowe](E4-01-opening-balance.md) | 1 | implementer + tester | — | done | zrealizowane poza falą: amount/as_of zamiast opening_balance/opening_date, dodany DELETE |
+| [E4-02 Transakcje: filtry i paginacja na serwerze](E4-02-transactions-server-filter.md) | 1 | implementer + tester | — | ready | zmiana kształtu odpowiedzi listy |
+| [E4-03 Data aktualizacji cen](E4-03-price-timestamps.md) | 1 | implementer + tester | — | ready | `prices_as_of` w podsumowaniu portfela |
+| [E4-06 Dostępność UI kit](E4-06-a11y-ui-kit.md) | 1 | implementer + tester | — | ready | tylko `components/ui/**` |
+| [E4-04 Historia majątku (wykres)](E4-04-net-worth-history.md) | 2 | implementer + tester | E4-01 | todo | seria tylko dla środków na kontach |
+| [E4-05 Testy e2e (Playwright)](E4-05-e2e-playwright.md) | 3 | tester | E4-01, E4-02 | todo | po ustabilizowaniu UI |
+
+Dalsze pozycje Etapu 4 (agent z narzędziami sieciowymi, UC-07, N08/N09, F05/F07, F12–F15) oraz lista „Odłożone z przeglądu Etapów 2–3” wyżej czekają na własne karty.
+
 ## Etap 0: specyfikacja
 
 | Zadanie | Status | Notatka |

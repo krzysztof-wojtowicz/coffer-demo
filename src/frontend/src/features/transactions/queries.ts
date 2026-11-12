@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
+import type { components } from '../../api/schema'
 
 export function useCategories() {
   return useQuery({
@@ -31,6 +32,7 @@ function useInvalidate() {
     Promise.all([
       qc.invalidateQueries({ queryKey: ['transactions'] }),
       qc.invalidateQueries({ queryKey: ['budget'] }),
+      qc.invalidateQueries({ queryKey: ['net-worth'] }),
     ])
 }
 
@@ -58,6 +60,24 @@ export function useDeleteTransaction() {
         params: { path: { transaction_id: id } },
       })
       if (error) throw error
+    },
+    onSuccess: invalidate,
+  })
+}
+
+export type TransactionOut = components['schemas']['TransactionOut']
+export type TransactionPatch = components['schemas']['TransactionUpdate']
+
+export function useUpdateTransaction() {
+  const invalidate = useInvalidate()
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: number; body: TransactionPatch }) => {
+      const { data, error } = await api.PATCH('/api/transactions/{transaction_id}', {
+        params: { path: { transaction_id: id } },
+        body,
+      })
+      if (error) throw error
+      return data
     },
     onSuccess: invalidate,
   })

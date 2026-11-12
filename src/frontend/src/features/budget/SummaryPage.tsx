@@ -2,21 +2,26 @@ import { useState } from 'react'
 import { MonthPicker } from '../../components/MonthPicker'
 import { pl } from '../../i18n/pl'
 import { currentMonth } from '../../lib/month'
-import { AssistantPanel } from '../assistant/AssistantPanel'
+import { NetWorthCard } from './NetWorthCard'
+import { PortfolioSummaryCard } from './PortfolioSummaryCard'
 import { SummaryTiles } from './SummaryTiles'
-import { useBudget } from './queries'
+
+const h2 = 'border-l-2 border-accent pl-2.5 text-base font-semibold tracking-tight text-text'
 
 export function SummaryPage() {
   const [month, setMonth] = useState(currentMonth())
-  const { data } = useBudget(month)
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-text">{pl.summary.title}</h1>
-        <MonthPicker value={month} onChange={setMonth} max={currentMonth()} />
-      </div>
-      <SummaryTiles month={month} />
-      {data && <AssistantPanel month={month} summary={data} />}
+      <h1 className="text-2xl font-semibold text-text">{pl.summary.title}</h1>
+      <NetWorthCard />
+      <PortfolioSummaryCard />
+      <section className="space-y-4">
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className={h2}>{pl.summary.monthHistory}</h2>
+          <MonthPicker value={month} onChange={setMonth} max={currentMonth()} />
+        </header>
+        <SummaryTiles month={month} />
+      </section>
     </>
   )
 }

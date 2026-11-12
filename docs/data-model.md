@@ -1,6 +1,6 @@
 # Model danych Coffer
 
-Dokument projektowy bazy danych: stan obecny (migracje `0001`–`0005`), model docelowy, zasady modelowania dla zespołu i plan migracji od `0006`. Uzupełnia diagram 7 w [`architecture.md`](architecture.md), który pokazuje stan obecny. Gdy kod i ten dokument się rozjadą, źródłem prawdy są migracje w `src/backend/alembic/versions/`; ten dokument opisuje **kierunek**.
+Dokument projektowy bazy danych: stan obecny (migracje `0001`–`0006`), model docelowy, zasady modelowania dla zespołu i plan migracji od `0006`. Uzupełnia diagram 7 w [`architecture.md`](architecture.md), który pokazuje stan obecny. Gdy kod i ten dokument się rozjadą, źródłem prawdy są migracje w `src/backend/alembic/versions/`; ten dokument opisuje **kierunek**.
 
 Skróty: **UC**: przypadek użycia, **F/N/Z**: wymagania z [`requirements.md`](requirements.md), **CASCADE**: `ON DELETE CASCADE`.
 
@@ -47,9 +47,11 @@ Baza: PostgreSQL 16 (lokalnie Docker, produkcyjnie Neon Free). Schemat tworzą w
 
 **`agent_runs`** (`agent`, `0003`): `id` PK, `user_id` FK CASCADE, `task varchar(30)`, `prompt_version`, `model`, `status varchar(20)`, `tool_calls/messages/raw_outputs/validation_errors jsonb NOT NULL default '[]'`, `error text`, `attempts int`, `input_tokens/output_tokens/duration_ms int`, `created_at`. Osobne indeksy `user_id` i `created_at`.
 
-**`suggestions`** (`agent`, `0003`): `id` PK, `user_id` FK CASCADE, `agent_run_id` FK→agent_runs `SET NULL`, `type varchar(30)`, `month varchar(7)`, `summary/disclaimer text`, `rationale/risks/sources/profile_snapshot/data_snapshot jsonb`, `model`, `duration_ms`, `created_at`. Osobne indeksy `user_id` i `created_at`.
+**`suggestions`** (`agent`, `0003`): `id` PK, `user_id` FK CASCADE, `agent_run_id` FK→agent_runs `SET NULL`, `type varchar(30)`, `month varchar(7)`, `summary/disclaimer text`, `rationale/risks/sources/profile_snapshot/data_snapshot jsonb`, `model`, `duration_ms`, `created_at`. Osobne indeksy `user_id` i `created_at`. Doradca portfela zapisuje tu wpis `type='advisor'` z `month` = NULL (tylko agregaty, tylko gdy odpowiedział model); CHECK `type`/`month` z sekcji 2 musi to dopuszczać.
 
 **`holdings`** (`portfolio`, `0004`): `id` PK, `user_id` FK CASCADE + indeks, `name varchar(100)`, `symbol varchar(20)` NULL, `asset_class varchar(20)` + `CHECK ck_holdings_asset_class`, `quantity numeric(20,8)` + `CHECK quantity > 0`, `purchase_price numeric(14,2)`, `currency varchar(3)` default PLN, `purchase_date date` NULL, `manual_value numeric(14,2)` NULL, `note varchar(500)`, `created_at`.
+
+**`opening_balances`** (moduł `cash`, migracja `0006`, `cash/models.py`): `user_id integer` PK + FK→users CASCADE (jeden wiersz na użytkownika, 1:1), `amount numeric(14,2)` NOT NULL (może być ujemne; brak CHECK, walidacja w Pydantic), `as_of date` NOT NULL (data salda; saldo obowiązuje na koniec tego dnia, transakcje z późniejszych dni się do niego dodają), `updated_at timestamptz` NOT NULL, default `now()`. Stan środków liczy `budget` przez `cash/service.py`; API: `GET/PUT/DELETE /api/cash/opening-balance`.
 
 ### 1.2 Ocena problemów
 
@@ -79,7 +81,9 @@ Przeczytane z `src/backend/alembic/versions/0005_accounts.py` i `coffer/accounts
 - UC-08 jest zaimplementowany jako `accounts.service.delete_account`: weryfikacja hasła i `DELETE FROM users`; resztę usuwa CASCADE. To potwierdza decyzję 2.9: każda nowa tabela z `user_id` **musi** mieć CASCADE, inaczej usunięcie konta zakończy się błędem FK albo zostawi dane.
 - Downgrade `0005` przywraca `users_email_key`, ale nie przywraca pierwotnej wielkości liter adresów (normalizacja nieodwracalna; opisane w migracji).
 
-Plan poniżej zaczyna się od `0006` z `down_revision = "0005"`. Struktury `users` i `auth_sessions` nie zmienia; `0006` zmienia w nich wyłącznie nazwy ograniczeń (po uzgodnieniu z właścicielem).
+> **Uwaga o numeracji:** numer `0006` zajęła już migracja `0006_opening_balance` (E4-01). Rewizje z planu poniżej dostaną kolejne wolne numery (`0006_conventions` → `0007`, `0007_agent_usage` → `0008` itd.); `down_revision` zawsze = aktualna głowa (`alembic heads`).
+
+Plan poniżej zaczyna się od `0006` z `down_revision = "0005"` (numeracja historyczna, patrz uwaga wyżej). Struktury `users` i `auth_sessions` nie zmienia; `0006` zmienia w nich wyłącznie nazwy ograniczeń (po uzgodnieniu z właścicielem).
 
 ---
 
@@ -233,7 +237,7 @@ erDiagram
         int id PK
         int user_id FK "CASCADE, indeks (user_id, created_at)"
         int agent_run_id FK "SET NULL"
-        varchar type "CHECK surplus"
+        varchar type "surplus lub advisor (CHECK: plan)"
         varchar month "CHECK YYYY-MM"
         text summary
         jsonb rationale
@@ -265,6 +269,7 @@ erDiagram
 | `budget` | **`budget_limits`**, **`savings_goals`** (nowe; moduł dostaje `models.py`) | `agent.tools` |
 | `imports` | `import_drafts` | nikt |
 | `portfolio` | `holdings` | `agent` |
+| `cash` (nowy, `0006`) | `opening_balances` | `budget` (przez `cash/service.py`) |
 | `market` | **`market_quotes`**, **`fx_rates`** (nowe) | `portfolio`, `transactions`, `agent` |
 | `agent` | `agent_runs`, `suggestions`, **`llm_usage_daily`** (nowa) | nikt (rdzeń nie importuje `agent`) |
 | `analytics` | **żadnych**: czyste funkcje na dataclassach, bez `sqlalchemy` (pilnuje import-linter) | |

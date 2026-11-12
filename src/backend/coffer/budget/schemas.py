@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from pydantic import BaseModel
@@ -39,3 +40,12 @@ class MonthSummaryOut(BaseModel):
                 for c in s.by_category
             ],
         )
+
+
+class NetWorthOut(BaseModel):
+    cash_balance: str
+    portfolio_value: str
+    net_worth: str
+    portfolio_complete: bool
+    opening_balance_set: bool = False
+    as_of: date

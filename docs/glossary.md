@@ -10,7 +10,7 @@ Jedno pojęcie — jedno znaczenie. Jeśli słowo z tej listy pada w wizji lub w
 | **Przychód** | Transakcja zwiększająca środki użytkownika (np. wynagrodzenie). |
 | **Wydatek** | Transakcja zmniejszająca środki użytkownika. |
 | **Kategoria** | Etykieta grupująca transakcje według celu (np. jedzenie, transport, mieszkanie). Każda transakcja ma dokładnie jedną. |
-| **Nadwyżka** | Przychody minus wydatki w danym miesiącu, gdy wynik jest dodatni. |
+| **Nadwyżka** | Przychody minus wydatki w danym miesiącu z kategorii budżetowych (bez Inwestycji i Przelewów własnych), gdy wynik jest dodatni. Kafelki miesiąca (Przychody, Wydatki, Balans) liczą wszystkie transakcje miesiąca i nie są nadwyżką; doradca AI używa nadwyżki. Suma balansów miesięcy równa się sumie transakcji, a „Środki na kontach” to ta suma plus saldo początkowe. |
 | **Limit wydatków** | Maksymalna kwota, jaką użytkownik zamierza wydać w danej kategorii w ciągu miesiąca. Ustala ją użytkownik. |
 | **Cel oszczędnościowy** | Kwota, którą użytkownik chce zgromadzić do określonej daty. |
 | **Aktywo** | Składnik majątku użytkownika należący do jednej z klas: gotówka, lokata, akcje, ETF, obligacje, kryptowaluty, nieruchomość. |
@@ -23,5 +23,6 @@ Jedno pojęcie — jedno znaczenie. Jeśli słowo z tej listy pada w wizji lub w
 | **Sugestia** | Informacja wygenerowana przez agenta AI z uzasadnieniem opartym na danych użytkownika i zastrzeżeniem, że nie jest poradą. Decyzję zawsze podejmuje użytkownik. |
 | **Okazja** | Aktywo, które spełnia kryteria profilu inwestycyjnego użytkownika i którego jeszcze nie ma w portfelu. |
 | **Analiza miesięczna** | Zestaw podsumowań dla jednego miesiąca: wydatki wg kategorii, przychody, nadwyżka, zmiana względem poprzedniego miesiąca. |
+| **Majątek (wartość netto)** | Środki na kontach plus wartość portfela. Środki na kontach to saldo początkowe (kwota i data podane przez użytkownika) plus suma transakcji od tej daty do dziś; bez salda liczone od zera; flaga `portfolio_complete` mówi, czy cały portfel ma aktualną wycenę. |
 | **Prognoza** | Szacunek salda budżetu na koniec miesiąca wyliczony z dotychczasowych transakcji. |
 | **Agent AI** | Część systemu korzystająca z modelu językowego, która na żądanie użytkownika tworzy sugestie, wyszukuje informacje i odpowiada na pytania. |

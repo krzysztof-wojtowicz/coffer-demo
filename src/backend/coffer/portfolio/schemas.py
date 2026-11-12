@@ -11,6 +11,8 @@ from pydantic import (
     model_validator,
 )
 
+from coffer.core import clock
+
 AssetClass = Literal["stock", "etf", "bond", "real_estate", "commodity", "crypto", "cash"]
 ValueSource = Literal["market", "manual", "cost"]
 
@@ -109,7 +111,7 @@ class _HoldingValidators(BaseModel):
     @field_validator("purchase_date", check_fields=False)
     @classmethod
     def _date(cls, v: dt.date | None) -> dt.date | None:
-        if v is not None and v > dt.date.today():
+        if v is not None and v > clock.today():
             raise ValueError("Data zakupu nie może być z przyszłości")
         return v
 

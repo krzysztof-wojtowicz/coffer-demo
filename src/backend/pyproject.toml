@@ -15,6 +15,7 @@ dependencies = [
     "python-multipart",
     "yfinance",
     "mcp>=1.2,<2",
+    "tzdata>=2026.6",
 ]
 
 [dependency-groups]
@@ -60,6 +61,7 @@ source_modules = [
     "coffer.accounts",
     "coffer.transactions",
     "coffer.budget",
+    "coffer.cash",
     "coffer.imports",
     "coffer.profile",
     "coffer.portfolio",

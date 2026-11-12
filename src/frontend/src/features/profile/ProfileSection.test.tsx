@@ -3,10 +3,10 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as mod from "./ProfilePage";
+import * as mod from "./ProfileSection";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ProfilePage: any = (mod as any).ProfilePage ?? (mod as any).default;
+const ProfilePage: any = (mod as any).ProfileSection ?? (mod as any).default;
 
 const h = vi.hoisted(() => ({ handler: null as null | ((req: Request) => unknown) }));
 vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {

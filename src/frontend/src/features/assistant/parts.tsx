@@ -1,8 +1,22 @@
 import { Badge } from '../../components/ui/Badge'
+import type { ReactNode } from 'react'
 import { pl } from '../../i18n/pl'
 import type { components } from '../../api/schema'
 
+import type { AgentStatus } from './queries'
+
 type Rationale = components['schemas']['RationaleItemOut']
+
+export function Notice({ children }: { children: ReactNode }) {
+  return <p className="rounded-md bg-warning/10 p-3 text-warning">{children}</p>
+}
+
+export function AiStatusBadge({ status }: { status: AgentStatus | null }) {
+  if (!status) return null
+  if (status.provider === 'none') return <Badge tone="neutral">{pl.assistant.statusOff}</Badge>
+  if (status.available) return <Badge tone="success">{pl.assistant.statusAvailable}</Badge>
+  return <Badge tone="warning">{pl.assistant.statusUnavailable}</Badge>
+}
 
 export function formatSeconds(ms: number | null | undefined): string {
   if (ms == null) return '–'

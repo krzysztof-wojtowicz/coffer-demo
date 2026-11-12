@@ -2,16 +2,15 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useLogout } from '../features/auth/queries'
 import { pl } from '../i18n/pl'
 import { cn } from '../lib/cn'
+import { Logo } from './Logo'
 import { ThemeToggle } from './ThemeToggle'
 import { Button } from './ui/Button'
 
 const links = [
   { to: '/', label: pl.nav.summary, end: true },
   { to: '/transactions', label: pl.nav.transactions, end: false },
-  { to: '/import', label: pl.nav.import, end: false },
   { to: '/portfolio', label: pl.nav.portfolio, end: false },
   { to: '/assistant', label: pl.nav.assistant, end: false },
-  { to: '/profile', label: pl.nav.profile, end: false },
   { to: '/account', label: pl.nav.account, end: false },
 ]
 
@@ -20,9 +19,12 @@ export function Layout({ email }: { email: string }) {
   return (
     <div className="min-h-screen bg-bg text-text">
       <header className="border-b border-accent/40 bg-surface text-text shadow-sm">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <strong className="text-lg tracking-tight text-accent">{pl.appName}</strong>
-          <nav className="flex flex-wrap gap-1">
+        <div className="mx-auto flex max-w-5xl items-center gap-x-4 px-4 py-3">
+          <span className="flex shrink-0 items-center gap-2">
+            <Logo />
+            <strong className="text-lg tracking-tight text-accent">{pl.appName}</strong>
+          </span>
+          <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto whitespace-nowrap">
             {links.map((l) => (
               <NavLink
                 key={l.to}
@@ -39,9 +41,9 @@ export function Layout({ email }: { email: string }) {
               </NavLink>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             <ThemeToggle />
-            <span className="text-sm text-muted">{email}</span>
+            <span className="hidden max-w-[12rem] truncate text-sm text-muted sm:inline">{email}</span>
             <Button variant="secondary" size="sm" onClick={() => logout.mutate()}>
               {pl.nav.logout}
             </Button>

@@ -94,7 +94,9 @@ GET_MONTH_ANALYSIS = Tool(
     name="get_month_analysis",
     description=(
         "Zwraca analizę budżetu użytkownika za wskazany miesiąc (RRRR-MM): przychody, "
-        "wydatki, bilans, nadwyżkę oraz wydatki i udział procentowy w podziale na kategorie."
+        "wydatki, bilans (ze wszystkich transakcji, także inwestycji i przelewów własnych), "
+        "nadwyżkę (tylko z kategorii budżetowych) oraz wydatki i udział procentowy "
+        "w podziale na kategorie."
     ),
     input_model=MonthInput,
     func=get_month_analysis,

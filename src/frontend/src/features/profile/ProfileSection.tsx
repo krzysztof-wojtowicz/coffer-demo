@@ -45,7 +45,7 @@ const BUCKET_COLOR: Record<Bucket, string> = {
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })
 
-export function ProfilePage() {
+export function ProfileSection() {
   const p = pl.profile
   const profile = useProfile()
   const [editing, setEditing] = useState(false)

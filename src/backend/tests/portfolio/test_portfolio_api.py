@@ -243,3 +243,29 @@ def test_summary_without_fx_function(auth_client, monkeypatch):
     s = auth_client.get("/api/portfolio/summary").json()
     assert s["fx_missing"] == ["USD"]
     assert s["total_value"] == "501000.00"
+
+
+def test_crypto_symbol_is_quoted_as_usd_pair_and_converted(auth_client, monkeypatch):
+    # Bare "BTC"/"ETH" are ETFs on Yahoo (tens of USD); the bug valued 0.003 BTC at ~0.4 PLN.
+    calls = fake_market(
+        monkeypatch,
+        {"BTC": ("31.62", "USD"), "BTC-USD": ("70000.00", "USD"), "ETH-USD": ("2000.00", "USD")},
+        fx={"USD": Decimal("4")},
+    )
+    base = {"asset_class": "crypto", "purchase_price": "1000.00"}
+    auth_client.post(BASE, json={**base, "name": "Bitcoin", "symbol": "btc", "quantity": "0.003"})
+    auth_client.post(BASE, json={**base, "name": "Ether", "symbol": "ETH", "quantity": "0.1"})
+    auth_client.post(BASE, json={**STOCK, "symbol": "BTC"})  # a stock named BTC stays as is
+    btc, eth, stock = auth_client.get("/api/portfolio/summary").json()["holdings"]
+    assert calls[0] == ["BTC", "BTC-USD", "ETH-USD"]
+    assert btc["symbol"] == "BTC" and btc["price_currency"] == "USD"
+    assert btc["value_source"] == "market" and btc["current_value"] == "840.00"
+    assert eth["current_value"] == "800.00"
+    assert stock["current_value"] == "1264.80"  # 10 * 31.62 * 4
+
+
+def test_quote_ticker_mapping():
+    assert service.quote_ticker("btc", "crypto") == "BTC-USD"
+    assert service.quote_ticker("BTC-PLN", "crypto") == "BTC-PLN"
+    assert service.quote_ticker("BTC", "etf") == "BTC"
+    assert service.quote_ticker("AAPL", "stock") == "AAPL"

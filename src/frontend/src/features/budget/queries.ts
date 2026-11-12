@@ -13,3 +13,14 @@ export function useBudget(month: string) {
     },
   })
 }
+
+export function useNetWorth() {
+  return useQuery({
+    queryKey: ['net-worth'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/budget/net-worth')
+      if (error) throw error
+      return data
+    },
+  })
+}

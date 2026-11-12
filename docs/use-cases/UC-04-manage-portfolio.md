@@ -42,5 +42,7 @@ Odwzorowanie w systemie aktualnego składu **portfela**: dodanie, edycja lub usu
 
 ## Uwagi i otwarte kwestie
 
+- Stan implementacji: pozycje dodaje się w zakładce *Portfel* (formularz w siatce, szczegóły pozycji); karta *Majątek* na stronie głównej łączy wartość portfela ze środkami na kontach (`GET /api/budget/net-worth`).
+
 - Jak opisać pozycje bez tickera i ilości (gotówka, lokata, nieruchomość)? Czy wystarczy nazwa i kwota?
 - Czy dokupienie aktywa, które już jest w portfelu, tworzy nową pozycję, czy zmienia istniejącą?

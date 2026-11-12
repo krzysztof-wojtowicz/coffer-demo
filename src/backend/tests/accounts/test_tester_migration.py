@@ -65,7 +65,7 @@ def test_upgrade_normalizes_then_downgrade_upgrade_cycle(mig) -> None:
     cfg, engine = mig
     command.upgrade(cfg, "0004")
     _insert(engine, " Jan@Example.COM ", "ola@example.com")
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0005")
     assert _emails(engine) == ["jan@example.com", "ola@example.com"]
     with pytest.raises(Exception, match="ux_users_email_lower"):
         _insert(engine, "OLA@example.com")
@@ -82,6 +82,6 @@ def test_upgrade_normalizes_then_downgrade_upgrade_cycle(mig) -> None:
     with pytest.raises(Exception, match="users_email_key"):
         _insert(engine, "ola@example.com")
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0005")
     assert _version(engine) == "0005"
     assert _emails(engine) == ["jan@example.com", "ola@example.com"]
