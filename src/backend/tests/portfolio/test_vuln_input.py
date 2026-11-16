@@ -22,7 +22,7 @@ def test_nul_in_holding_text_is_rejected(auth_client, field):
 
 
 def test_summary_survives_max_amounts(auth_client, monkeypatch):
-    monkeypatch.setattr(service, "fetch_prices", lambda symbols: None)
+    monkeypatch.setattr(service, "fetch_prices", lambda *a, **k: None)
     for _ in range(1000):  # 1000 x ~1e24 needs 30 digits > default Decimal precision (28)
         assert auth_client.post(BASE, json=HUGE).status_code == 201
     r = auth_client.get("/api/portfolio/summary")

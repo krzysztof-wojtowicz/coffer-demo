@@ -1,27 +1,52 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 
 from coffer.accounts.api import redacted_validation_handler
 from coffer.accounts.api import router as accounts_router
 from coffer.agent.api import router as agent_router
-from coffer.agent.investment.api import router as investment_router
 from coffer.budget.api import router as budget_router
 from coffer.cash.api import router as cash_router
 from coffer.core.body_limit import BodySizeLimitMiddleware
 from coffer.core.config import Settings, get_settings
+from coffer.core.db import SessionLocal
 from coffer.core.origin import install_origin_policy
 from coffer.imports.api import router as imports_router
 from coffer.market.api import router as market_router
+from coffer.market.scheduler import start_price_scheduler
 from coffer.portfolio.api import router as portfolio_router
 from coffer.profile.api import router as profile_router
+from coffer.scripts.refresh_prices import fetch_stale, store
 from coffer.transactions.api import router as transactions_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    app = FastAPI(title="Coffer API")
+    settings = settings or get_settings()
+    refresh_hours = settings.price_refresh_hours
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        scheduler = (
+            start_price_scheduler(
+                SessionLocal,
+                refresh_hours,
+                lambda factory: fetch_stale(factory, refresh_hours),
+                store,
+            )
+            if refresh_hours > 0
+            else None
+        )
+        try:
+            yield
+        finally:
+            if scheduler is not None:
+                scheduler.stop()
+
+    app = FastAPI(title="Coffer API", lifespan=lifespan)
     # Middleware order (outermost first): CORS (if enabled) -> Origin check -> body limit -> routes.
     # CORS must be outermost so preflight OPTIONS never reaches the Origin check or auth.
-    settings = settings or get_settings()
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)
     install_origin_policy(app, settings)
     app.include_router(accounts_router)
@@ -34,7 +59,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(profile_router)
     app.include_router(portfolio_router)
     app.include_router(market_router)
-    app.include_router(investment_router)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

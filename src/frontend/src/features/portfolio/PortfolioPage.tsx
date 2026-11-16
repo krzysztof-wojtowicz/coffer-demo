@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { Money } from '../../components/Money'
 import { Badge } from '../../components/ui/Badge'
@@ -11,6 +12,9 @@ import { cn } from '../../lib/cn'
 import { HoldingForm, portfolioErrorMessage } from './HoldingForm'
 import {
   useDeleteHolding,
+  formatAsOf,
+  isStale,
+  purchaseImpactLink,
   useHoldings,
   usePortfolioSummary,
   type Holding,
@@ -163,6 +167,9 @@ function HoldingsTable({
                       <Badge tone={v.value_source === 'market' ? 'info' : 'neutral'}>
                         {t.valueSource[v.value_source]}
                       </Badge>
+                      {v.as_of && isStale(v.as_of) && (
+                        <div className="mt-0.5 text-xs text-warning">{t.priceFrom(formatAsOf(v.as_of))}</div>
+                      )}
                     </td>
                     <td className="py-2 pr-3 text-right tabular-nums">
                       <div className={cn(v.gain.startsWith('-') ? 'text-negative' : Number(v.gain) > 0 && 'text-positive')}>
@@ -176,6 +183,14 @@ function HoldingsTable({
                         <Button variant="ghost" size="sm" onClick={() => onEdit(h)}>
                           {t.editAction}
                         </Button>
+                      )}
+                      {v.symbol && (
+                        <Link
+                          to={purchaseImpactLink(v.asset_class, v.symbol)}
+                          className="mr-1 inline-block cursor-pointer rounded-md px-2 py-1 text-sm text-accent hover:bg-surface-2"
+                        >
+                          {t.assessPurchase}
+                        </Link>
                       )}
                       <Button variant="ghost" size="sm" onClick={() => remove(v.id)}>
                         {t.delete}
@@ -216,6 +231,19 @@ export function PortfolioPage() {
               {t.fxMissing.replace('{currencies}', s.fx_missing.join(', '))}
             </p>
           )}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {s.prices_as_of ? (
+              <p className="text-sm text-muted">{t.pricesAsOf(formatAsOf(s.prices_as_of))}</p>
+            ) : (
+              <span />
+            )}
+            <Link
+              to={purchaseImpactLink()}
+              className="cursor-pointer text-sm font-medium text-accent hover:underline"
+            >
+              {t.assessPurchase}
+            </Link>
+          </div>
           <SummaryTiles s={s} />
           <HoldingsTable
             s={s}

@@ -322,7 +322,11 @@ def test_sse_first_byte_immediate_and_ping_while_waiting(monkeypatch):
 def test_sse_endpoint_starts_with_comment(auth_client):
     app.dependency_overrides[get_llm_client] = lambda: None
     try:
-        r = auth_client.post("/api/agent/surplus/stream", json={"month": "2025-03"})
+        r = auth_client.post(
+            "/api/agent/actions/portfolio_review/run",
+            json={"params": {}},
+            headers={"accept": "text/event-stream"},
+        )
     finally:
         app.dependency_overrides.pop(get_llm_client, None)
     assert r.text.startswith(": ping\n\n")
@@ -331,7 +335,7 @@ def test_sse_endpoint_starts_with_comment(auth_client):
     json.loads(events[-1].split("data: ", 1)[1])
 
 
-# --- shared deadline (advisor budget) --------------------------------------------------
+# --- shared deadline (agent action budget) --------------------------------------------------
 
 
 def test_request_timeout_capped_by_deadline(mock_transport, monkeypatch):
@@ -371,7 +375,7 @@ def test_fallback_chain_stops_on_timeout():
 
 
 @pytest.mark.parametrize("value", ["0", "110", "300"])
-def test_settings_reject_bad_advisor_timeout(monkeypatch, value):
-    monkeypatch.setenv("COFFER_ADVISOR_TIMEOUT_S", value)
+def test_settings_reject_bad_agent_timeout(monkeypatch, value):
+    monkeypatch.setenv("COFFER_AGENT_TIMEOUT_S", value)
     with pytest.raises(ValidationError):
         Settings(_env_file=None)  # type: ignore[call-arg]

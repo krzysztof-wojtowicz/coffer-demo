@@ -26,7 +26,7 @@ Załatwia to `src/frontend/vercel.json`:
 
 ### Streaming asystenta (SSE) i ograniczenia
 
-`POST /api/agent/surplus/stream` zwraca `text/event-stream`, a frontend czyta go przez `fetch` + `getReader()`.
+`POST /api/agent/actions/{id}/run` z nagłówkiem `Accept: text/event-stream` zwraca `text/event-stream`, a frontend czyta go przez `fetch` + `getReader()`.
 Zewnętrzne rewrite'y Vercel przesyłają odpowiedź strumieniowo, więc zdarzenia docierają na bieżąco.
 Ograniczenia (identyczne na Hobby i Pro):
 

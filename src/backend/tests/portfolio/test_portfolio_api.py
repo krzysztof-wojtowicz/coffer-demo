@@ -43,12 +43,12 @@ class Quote:
 def fake_market(monkeypatch, prices=None, fail=False, fx=None):
     """prices: symbol -> "price" (PLN) or ("price", "CCY"); fx: CCY -> PLN rate.
 
-    Without `fx` the fake module has no get_fx_rate at all (older market module).
+    Without `fx` the fake module has no get_fx_quote at all (older market module).
     """
     mod = types.ModuleType("coffer.market.service")
     calls: list[list[str]] = []
 
-    def get_quotes(symbols):
+    def get_quotes(symbols, db=None):
         calls.append(list(symbols))
         if fail:
             raise MarketDataUnavailable("down")
@@ -60,14 +60,15 @@ def fake_market(monkeypatch, prices=None, fail=False, fx=None):
                 out[s] = Quote(s, s, Decimal(price), ccy, None, now)
         return out
 
-    def get_fx_rate(from_ccy, to_ccy):
+    def get_fx_quote(from_ccy, to_ccy, db=None):
         assert to_ccy == "PLN"
-        return Decimal("1") if from_ccy == to_ccy else (fx or {}).get(from_ccy)
+        rate = Decimal("1") if from_ccy == to_ccy else (fx or {}).get(from_ccy)
+        return None if rate is None else (rate, dt.datetime.now(dt.UTC))
 
     mod.get_quotes = get_quotes  # type: ignore[attr-defined]
     mod.MarketDataUnavailable = MarketDataUnavailable  # type: ignore[attr-defined]
     if fx is not None:
-        mod.get_fx_rate = get_fx_rate  # type: ignore[attr-defined]
+        mod.get_fx_quote = get_fx_quote  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, service.MARKET_SERVICE, mod)
     return calls
 
@@ -237,7 +238,7 @@ def test_summary_fx_missing_falls_back(auth_client, monkeypatch):
 
 
 def test_summary_without_fx_function(auth_client, monkeypatch):
-    fake_market(monkeypatch, {"AAPL": ("200.00", "USD")})  # module lacks get_fx_rate
+    fake_market(monkeypatch, {"AAPL": ("200.00", "USD")})  # module lacks get_fx_quote
     auth_client.post(BASE, json=FLAT)
     auth_client.post(BASE, json=STOCK)
     s = auth_client.get("/api/portfolio/summary").json()

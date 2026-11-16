@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from coffer.accounts.models import User
 from coffer.accounts.service import hash_password, register
+from coffer.budget.models import BudgetLimit
 from coffer.core.db import SessionLocal
 from coffer.transactions.models import Category, Transaction
 
@@ -172,6 +173,7 @@ def seed_demo(db: Session, today: dt.date | None = None) -> int:
     user = _demo_user(db)
     categories = {c.name: c.id for c in db.scalars(select(Category))}
     db.execute(delete(Transaction).where(Transaction.user_id == user.id))
+    db.execute(delete(BudgetLimit).where(BudgetLimit.user_id == user.id))
     drafts = generate(today)
     db.add_all(
         Transaction(
@@ -185,6 +187,10 @@ def seed_demo(db: Session, today: dt.date | None = None) -> int:
             source="manual",
         )
         for d in drafts
+    )
+    db.add_all(
+        BudgetLimit(user_id=user.id, category_id=_category_id(categories, name), amount=Decimal(a))
+        for name, a in (("Jedzenie", "1200.00"), ("Transport", "400.00"))
     )
     db.commit()
     return len(drafts)

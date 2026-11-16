@@ -1,14 +1,10 @@
-import { Badge } from '../../components/ui/Badge'
 import type { ReactNode } from 'react'
+import { Badge } from '../../components/ui/Badge'
 import { pl } from '../../i18n/pl'
-import type { components } from '../../api/schema'
-
 import type { AgentStatus } from './queries'
 
-type Rationale = components['schemas']['RationaleItemOut']
-
 export function Notice({ children }: { children: ReactNode }) {
-  return <p className="rounded-md bg-warning/10 p-3 text-warning">{children}</p>
+  return <p className="rounded-md bg-warning/10 p-3 text-sm text-warning">{children}</p>
 }
 
 export function AiStatusBadge({ status }: { status: AgentStatus | null }) {
@@ -18,53 +14,20 @@ export function AiStatusBadge({ status }: { status: AgentStatus | null }) {
   return <Badge tone="warning">{pl.assistant.statusUnavailable}</Badge>
 }
 
-export function formatSeconds(ms: number | null | undefined): string {
-  if (ms == null) return '–'
-  return `${(Math.round(ms / 100) / 10).toFixed(1).replace('.', ',')} s`
+export function SourceBadge({ source }: { source: string }) {
+  return source === 'ai' ? (
+    <Badge tone="info">{pl.assistant.sourceAi}</Badge>
+  ) : (
+    <Badge tone="neutral">{pl.assistant.sourceRules}</Badge>
+  )
 }
 
-export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('pl-PL', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+const pretty = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
 
-export function runTone(status: string): 'success' | 'danger' | 'warning' | 'neutral' {
-  if (status === 'ok') return 'success'
-  if (status === 'invalid') return 'danger'
-  if (status === 'unavailable') return 'warning'
-  return 'neutral'
-}
-
-const sourceTone = { budget: 'info', profile: 'success', portfolio: 'neutral' } as const
-
-export function RationaleList({ items, risks }: { items: Rationale[]; risks: string[] }) {
-  const a = pl.assistant
+export function Pre({ children }: { children: unknown }) {
   return (
-    <>
-      <h3 className="font-semibold">{a.rationale}</h3>
-      <ul className="list-disc space-y-1 pl-5">
-        {items.map((r, i) => (
-          <li key={i}>
-            {r.claim} <Badge tone={sourceTone[r.refers_to]}>{a.sources[r.refers_to]}</Badge>{' '}
-            <span className="tabular-nums text-muted">{r.value}</span>
-          </li>
-        ))}
-      </ul>
-      {risks.length > 0 && (
-        <>
-          <h3 className="mt-3 font-semibold">{a.risks}</h3>
-          <ul className="list-disc pl-5">
-            {risks.map((r, i) => (
-              <li key={i}>{r}</li>
-            ))}
-          </ul>
-        </>
-      )}
-    </>
+    <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-bg p-2 text-xs text-text">
+      {pretty(children)}
+    </pre>
   )
 }

@@ -52,7 +52,12 @@ def get_summary(user: CurrentUser, db: DbSession) -> PortfolioSummaryOut:
     s = result.summary
     return PortfolioSummaryOut(
         holdings=[
-            HoldingValuationOut(**asdict(h), currency=result.currencies[h.id]) for h in s.holdings
+            HoldingValuationOut(
+                **asdict(h),
+                currency=result.currencies[h.id],
+                as_of=result.quote_times.get(h.id),
+            )
+            for h in s.holdings
         ],
         allocation=[AllocationOut(**asdict(a)) for a in s.allocation],
         total_value=s.total_value,
@@ -61,4 +66,5 @@ def get_summary(user: CurrentUser, db: DbSession) -> PortfolioSummaryOut:
         total_gain_pct=s.total_gain_pct,
         prices_available=result.prices_available,
         fx_missing=s.fx_missing,
+        prices_as_of=result.prices_as_of,
     )

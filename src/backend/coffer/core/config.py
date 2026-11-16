@@ -61,8 +61,9 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-5-5"
     anthropic_base_url: str = "https://api.anthropic.com"
     llm_timeout_s: int = 90  # total budget per model call, retries included
-    # Whole investment-advisor run (all tool-calling steps); below the 120 s Vercel proxy limit
-    advisor_timeout_s: int = Field(default=60, gt=0, lt=110)
+    # Whole agent action (all tool-calling steps); below the 120 s Vercel proxy limit
+    agent_timeout_s: int = Field(default=60, gt=0, lt=110)
+    price_refresh_hours: int = Field(default=0, ge=0, le=24)
     # Fallback chain tried after the primary (llm_provider + its *_model) on LLMUnavailable.
     # Env: comma list or JSON list of "provider:model", e.g.
     # "gemini:gemini-3.8-flash,anthropic:claude-haiku-5-5"; an entry equal to the primary

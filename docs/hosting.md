@@ -20,18 +20,18 @@ Powiązane dokumenty:
 
 ## 1. Coffer w skrócie (dla deweloperów)
 
-**Coffer** to aplikacja do zarządzania finansami osobistymi z lokalnym asystentem AI. Użytkownik importuje lub dodaje transakcje, widzi analizę miesiąca (przychody, wydatki, nadwyżka) i dostaje sugestię wykorzystania nadwyżki. Liczy rdzeń aplikacji, a model językowy (Ollama, działa lokalnie) tylko interpretuje gotowe agregaty. Projekt powstaje na Politechnice Warszawskiej w ramach przedmiotów _Inżynieria Oprogramowania 1_ (specyfikacja) i _Tworzenie Agentów AI w środowisku .NET_ (integracja z agentem).
+**Coffer** to aplikacja do zarządzania finansami osobistymi z lokalnym asystentem AI. Użytkownik importuje lub dodaje transakcje, widzi analizę miesiąca (przychody, wydatki, nadwyżka, limity kategorii) i uruchamia akcje asystenta (analiza portfela, pomysły inwestycyjne, oszczędzanie, wpływ zakupu, plan budżetu, informacje o spółce). Liczy rdzeń aplikacji, a model językowy (Ollama, działa lokalnie) tylko interpretuje gotowe agregaty. Projekt powstaje na Politechnice Warszawskiej w ramach przedmiotów _Inżynieria Oprogramowania 1_ (specyfikacja) i _Tworzenie Agentów AI w środowisku .NET_ (integracja z agentem).
 
 | Działa | Jeszcze nie ma |
 |---|---|
 | konto użytkownika (rejestracja, logowanie) | kursy NBP (kursy walut pochodzą z Yahoo Finance) |
-| transakcje (dodawanie, lista, usuwanie) | edycja transakcji |
+| transakcje (dodawanie, lista, edycja, usuwanie) | |
 | import CSV z deduplikacją | |
-| analiza miesiąca (kategorie, nadwyżka) | |
+| analiza miesiąca (kategorie, nadwyżka, porównania, limity kategorii) | |
 | profil inwestycyjny | |
-| asystent AI: sugestia nadwyżki, historia, ślad przebiegu | |
+| asystent AI: katalog 6 akcji, historia sugestii, ślad przebiegu, wynik regułowy bez AI | |
 | portfel inwestycyjny: pozycje, wycena w PLN, alokacja | |
-| doradca AI portfela (dane rynkowe z Yahoo Finance, serwer MCP) | |
+| dane rynkowe z Yahoo Finance (tabela `market_quotes`, job `make prices`), serwer MCP | |
 
 ## 2. Wymagania
 
@@ -92,9 +92,10 @@ Zmienne środowiskowe `COFFER_*` (z procesu albo z pliku `.env` w katalogu głó
 | `COFFER_GEMINI_API_KEY` | (pusty) | klucz API Google Gemini (dla `gemini`) |
 | `COFFER_GEMINI_MODEL` | `gemini-3.5-flash-lite` | model Gemini |
 | `COFFER_LLM_FALLBACKS` | (pusty) | zapasowe modele `provider:model`, np. `gemini:gemini-3.8-flash` |
-| `COFFER_ADVISOR_TIMEOUT_S` | `60` | łączny limit czasu doradcy inwestycyjnego (s), < 110 |
+| `COFFER_AGENT_TIMEOUT_S` | `60` | łączny limit czasu jednej akcji agenta (wszystkie kroki, s), < 110 |
+| `COFFER_PRICE_REFRESH_HOURS` | `0` | odświeżanie notowań w tle co N godzin (wątek w procesie API); `0` = wyłączone, 1–24; ręcznie: `make prices` |
 | `COFFER_LLM_TIMEOUT_S` | `90` | limit czasu żądania do modelu (s) |
-| `COFFER_AGENT_DAILY_LIMIT` | `50` | maks. przebiegów agenta na użytkownika na dobę |
+| `COFFER_AGENT_DAILY_LIMIT` | `50` | maks. przebiegów agenta z modelem na użytkownika na dobę; po wyczerpaniu akcje zwracają wynik regułowy |
 | `COFFER_AGENT_MAX_ATTEMPTS` | `2` | próby wywołania modelu (1 + 1 poprawka po błędzie walidacji) |
 
 - **Wyłączenie AI:** `COFFER_LLM_PROVIDER=none` w `.env` (restart `make dev-api`). Reszta aplikacji działa bez zmian.
@@ -137,9 +138,9 @@ Bez klucza status asystenta to „Model niedostępny”, a reszta aplikacji dzia
   - Claude: Messages API (`POST {base_url}/v1/messages`, nagłówki `x-api-key` i `anthropic-version: 2026-10-21`), prompt systemowy w osobnym polu `system`, `max_tokens` 16000. Schemat idzie w `output_config.format = {type: "json_schema", schema}` (structured outputs; wymuszone narzędzie przez `tool_choice` nie działa na najnowszych modelach). API wymaga `additionalProperties: false` w każdym obiekcie i nie przyjmuje ograniczeń liczbowych/długości, więc `anthropic_schema()` dopisuje to pierwsze i usuwa drugie. Z odpowiedzi brane są tylko bloki `text`; `stop_reason` `refusal` lub `max_tokens` → `LLMUnavailable`. Dla modeli, które to wspierają (np. `claude-sonnet-5-5`), włączony jest serwerowy fallback przy odmowie (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`).
 - **Tokeny:** OpenAI `usage.prompt_tokens`/`completion_tokens`, Gemini `usageMetadata.promptTokenCount`/`candidatesTokenCount`, Claude `usage.input_tokens`/`output_tokens`; zapisywane w śladzie przebiegu.
 - **Obsługa błędów:** błąd sieci, timeout (`COFFER_LLM_TIMEOUT_S`), status HTTP ≠ 200 (np. 401 zły klucz, 429 limit) i niepoprawna/pusta odpowiedź zamieniane są na `LLMUnavailable`. `status()` dostawców chmurowych nie wykonuje płatnych wywołań: sprawdza tylko, czy skonfigurowano klucz.
-- **Fallback:** przy `LLMUnavailable` workflow od razu kończy przebieg komunikatem „asystent niedostępny” (komunikat błędu nie zawiera klucza ani treści odpowiedzi), a przy nadwyżce <= 0 odpowiedź powstaje bez modelu. Rdzeń (konta, transakcje, analityka) nigdy nie zależy od LLM.
+- **Fallback:** przy `LLMUnavailable` (i timeoucie, limicie dziennym albo odpowiedzi odrzuconej przez walidator) akcja zwraca wynik regułowy z policzonych faktów, a przy braku danych (`no_data`) model w ogóle nie jest wołany. Komunikat błędu nie zawiera klucza ani treści odpowiedzi. Rdzeń (konta, transakcje, analityka) nigdy nie zależy od LLM.
 
-**Co trafia do modelu.** Tak samo jak przy Ollamie: tylko agregaty (przychody, wydatki, kategorie z udziałami, nadwyżka, profil inwestycyjny) i prompt systemowy. Nie trafiają e-mail, opisy transakcji ani identyfikatory. Uwaga: przy Gemini/OpenAI/Claude te agregaty opuszczają komputer i są przetwarzane przez zewnętrznego dostawcę zgodnie z jego regulaminem.
+**Co trafia do modelu.** Tak samo jak przy Ollamie: tylko agregaty (sumy miesiąca, kategorie z udziałami, udziały klas aktywów, symbole instrumentów, profil inwestycyjny) i prompt systemowy. Nie trafiają e-mail, opisy transakcji ani identyfikatory. Uwaga: przy Gemini/OpenAI/Claude te agregaty opuszczają komputer i są przetwarzane przez zewnętrznego dostawcę zgodnie z jego regulaminem.
 
 ## 5. Najczęstsze problemy
 
@@ -160,18 +161,17 @@ przeglądarka ──► Vite (:5173, proxy /api) ──► FastAPI (:8000) ─�
 
 **Rdzeń liczy, agent interpretuje.** Sumy, nadwyżki i udziały liczy wyłącznie `coffer.analytics` (czyste funkcje, `Decimal`). Model nigdy nie liczy: dostaje gotowe agregaty i opisuje je słowami. Brak modelu nie psuje rdzenia.
 
-**Sugestia nadwyżki (szczegóły: [`docs/plan.md`](plan.md), sekcja 4):**
-1. Kod woła narzędzia: analiza miesiąca i profil inwestycyjny (`user_id` pochodzi z sesji).
-2. Gdy nadwyżka <= 0, odpowiedź powstaje bez modelu.
-3. Model dostaje tylko agregaty (prompt [`agent/prompts/surplus_v2.md`](../src/backend/coffer/agent/prompts/surplus_v2.md)) i zwraca ustrukturyzowany szkic (podsumowanie, uzasadnienie, ryzyka).
-4. Walidator sprawdza, czy uzasadnienie istnieje, a liczby pochodzą z wyników narzędzi.
-5. Przy błędzie następuje jedna poprawka z informacją o błędzie; potem komunikat „asystent niedostępny”.
-6. Sugestia i ślad przebiegu (prompty, narzędzia, wynik) są zapisywane w bazie.
-7. Postęp i wynik płyną do przeglądarki przez SSE (`POST /api/agent/surplus/stream`).
+**Uruchomienie akcji (szczegóły: [`docs/agents.md`](agents.md), [`docs/architecture.md`](architecture.md), sekcja 5):**
+1. `POST /api/agent/actions/{id}/run` (JSON albo SSE, gdy `Accept: text/event-stream`); `user_id` pochodzi z sesji, parametry walidowane modelem akcji.
+2. Ochrona przed nadużyciem (20 wywołań/min, 200/dobę, 2 równolegle, inaczej 429), potem `prepare`: kod woła narzędzia i liczy fakty oraz tabele. Brak danych kończy przebieg statusem `no_data` bez modelu.
+3. Bez LLM albo po wyczerpaniu dziennego limitu wynik powstaje regułowo (`status` `unavailable` / `limited`, źródło `rules`).
+4. Model dostaje tylko agregaty (prompt `agent/prompts/<akcja>_v1.md`) i w pętli (maks. kilka kroków, jeden budżet `COFFER_AGENT_TIMEOUT_S`) może wołać narzędzia z listy akcji; zwraca ustrukturyzowany szkic.
+5. Walidator sprawdza liczby i odwołania; przy błędzie jedna poprawka, potem wynik regułowy (`invalid`).
+6. Sugestia i ślad przebiegu (kroki, narzędzia, tokeny, koszt) są zapisywane w bazie; postęp płynie przez SSE.
 
 **Deduplikacja importu.** Transakcja to duplikat, gdy istnieje już taka sama trójka: data + kwota + opis ze znormalizowanymi spacjami. Porównanie jest na multizbiorze: dwie identyczne transakcje w pliku przy jednej w bazie dają jedną nową i jednego duplikata.
 
-**Prywatność.** Do modelu trafiają tylko agregaty (przychody, wydatki, kategorie z udziałami, nadwyżka, profil inwestycyjny). Nie trafiają: e-mail, opisy transakcji, identyfikatory. Przy Ollamie model działa lokalnie i dane nie opuszczają komputera; przy Gemini/OpenAI agregaty są wysyłane do dostawcy.
+**Prywatność.** Do modelu trafiają tylko agregaty (sumy miesiąca, kategorie z udziałami, udziały klas aktywów, symbole, profil inwestycyjny). Nie trafiają: e-mail, opisy transakcji, identyfikatory. Przy Ollamie model działa lokalnie i dane nie opuszczają komputera; przy Gemini/OpenAI agregaty są wysyłane do dostawcy.
 
 ## 7. Struktura kodu
 
@@ -199,11 +199,10 @@ coffer/
     │       ├── portfolio/     portfel inwestycyjny (pozycje, wycena)
     │       ├── market/        dane rynkowe (Yahoo Finance), serwer MCP
     │       ├── agent/         asystent AI
-    │       │   ├── investment/  doradca portfela (top 3, porady ze źródłami)
-    │       │   ├── tools/       rejestr i narzędzia odczytu danych
-    │       │   ├── workflows/   przebieg sugestii nadwyżki
-    │       │   └── prompts/     wersjonowane prompty (surplus_v1, surplus_v2)
-    │       └── scripts/       dump_openapi, seed_demo
+    │       │   ├── actions/     interfejs akcji, katalog i 6 akcji
+    │       │   ├── tools/       rejestr (22 narzędzia): dane użytkownika, rynek, obliczenia
+    │       │   └── prompts/     wersjonowane prompty (<akcja>_v1.md)
+    │       └── scripts/       dump_openapi, seed_demo, refresh_prices
     └── frontend/     React, TypeScript, Vite
         └── src/
             ├── features/    auth, transactions, import, budget, profile, portfolio, assistant
@@ -213,7 +212,7 @@ coffer/
             └── i18n/        teksty interfejsu po polsku (pl.ts)
 ```
 
-Pliki w `agent/`: `llm.py` (klienci LLM: Ollama, OpenAI, Gemini, Claude), `validator.py`, `anonymize.py`, `drafts.py`, `sse.py`, `api.py`, `service.py`.
+Pliki w `agent/`: `llm.py` (klienci LLM: Ollama, OpenAI, Gemini, Claude), `runner.py` (silnik akcji), `guard.py` (limit wywołań), `trace.py` (ślad), `pricing.py` (koszt), `validator.py`, `anonymize.py`, `sse.py`, `api.py`, `service.py`.
 
 **Zasady modułów:** moduł `coffer/<moduł>/` ma `api.py` (cienki router), `service.py`, `models.py`, `schemas.py`. Inne moduły korzystają z niego tylko przez `service.py` (analityka: publiczne dataclassy). Rdzeń nigdy nie importuje `coffer.agent`; pilnuje tego `import-linter` w `make lint`.
 
@@ -226,6 +225,7 @@ Pliki w `agent/`: `llm.py` (klienci LLM: Ollama, OpenAI, Gemini, Claude), `valid
 | `make test-backend ARGS="tests/accounts"` | testy backendu (całość bez `ARGS`) |
 | `make check-web` | tsc, vitest i build frontendu |
 | `make openapi` | zrzut OpenAPI i typy TypeScript |
+| `make prices` | jednorazowe pobranie notowań do `market_quotes` |
 
 Testy backendu są w `src/backend/tests/<moduł>`, testy frontu obok kodu (`*.test.ts(x)`). Testy używają osobnej bazy (domyślnie `coffer_test`); żeby równoległe uruchomienia nie kasowały sobie danych, ustaw `COFFER_TEST_DB=coffer_test_<moduł>`.
 

@@ -21,6 +21,15 @@ Jak projekt jest przygotowany do równoległej pracy wielu agentów i ludzi.
 4. **Osobne bazy testowe:** `COFFER_TEST_DB=coffer_test_<moduł>`, więc równoległe testy nie kasują sobie danych.
 5. **Fale:** fala N+1 startuje, gdy fala N ma status `done` i `make check` przechodzi.
 
+## Przykład: podział prac w Etapie 5 (akcje agenta)
+
+Etap 5 (jeden mechanizm akcji agenta zamiast nadwyżki i doradcy, limity kategorii, job cen) był realizowany w falach według `docs/tasks/E5-*.md`; to wzorzec pracy równoległej:
+- **Fala 0:** `E5-00` (kontrakty: interfejs akcji, schematy, decyzje D1–D12) pisał jeden agent, zanim ktokolwiek zaczął kod.
+- **Fale z rozłącznymi plikami:** silnik (`agent/runner`, `guard`, `trace`), narzędzia (`agent/tools/*`), akcje (`agent/actions/*`), budżet (`budget/*`, `analytics/*`), ceny (`market/*`, `scripts/refresh_prices.py`) i frontend (`features/assistant`, `features/budget`) miały różne karty i różnych właścicieli; pliki współdzielone (`main.py`, `config.py`, `pl.ts`, `.env.example`) edytowano wyłącznie punktowo.
+- **Tester niezależnie:** testy (`tests/e5`, `tests/contract_e5`) powstawały z kontraktu kart (prywatność, brak sieci, ślad, współbieżność limitów, izolacja użytkowników), bez czytania implementacji.
+- **Polityka `make openapi` (E5-00 D12):** schemat OpenAPI i `schema.d.ts` regeneruje tylko orkiestrator po zakończeniu fali, a nie każdy agent po swojej karcie, żeby uniknąć konfliktów w pliku generowanym.
+- **Dokumentacja na końcu:** `E5-11` (bilbo) aktualizuje wszystkie `.md` poza kartami po zamknięciu kodu, ze źródłem prawdy w kodzie.
+
 ## Ekonomia tokenów
 - `CLAUDE.md` jest krótki, bo ładuje się każdemu agentowi. Szczegóły są w kartach, czytane tylko przez tego, kto ich potrzebuje.
 - Karta wskazuje konkretne pliki do przeczytania; agent nie przegląda repo ani całego `plan.md`.
@@ -33,7 +42,7 @@ Jak projekt jest przygotowany do równoległej pracy wielu agentów i ludzi.
 ## Jak uruchomić
 W sesji Claude Code w katalogu repo: „zrealizuj falę 1 z `docs/tasks`” albo `/run-task E1-03`. Pracę można też przydzielać po imionach:
 
-- „Aragorn i Samwise robią limity doradcy” (domyślne role: backend + tester),
+- „Aragorn i Samwise robią limity kategorii” (domyślne role: backend + tester),
 - „Gimli robi testy migracji” (zmiana roli na zadanie),
 - „niech Galadriela przejrzy auth, a Merry sprawdzi, gdzie liczymy sumy”,
 - „Bard, znajdź i napraw luki w imporcie” (luka → test-exploit → poprawka → zielony test),

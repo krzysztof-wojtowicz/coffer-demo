@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PortfolioSummaryCard } from './PortfolioSummaryCard'
 
 const h = vi.hoisted(() => ({ data: null as unknown }))
-vi.mock('../portfolio/queries', () => ({
+vi.mock('../portfolio/queries', async (orig) => ({
+  ...(await orig<typeof import('../portfolio/queries')>()),
   usePortfolioSummary: () => ({ data: h.data, error: null, isLoading: false }),
 }))
 

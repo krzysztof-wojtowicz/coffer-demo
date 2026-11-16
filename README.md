@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/krzysztof-wojtowicz/coffer-demo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/krzysztof-wojtowicz/coffer-demo/actions/workflows/ci.yml)
 
-Coffer to aplikacja do finansów osobistych: zbiera Twoje transakcje i inwestycje w jednym miejscu, liczy, ile zostaje Ci co miesiąc, i z pomocą asystenta AI podpowiada, co z tą nadwyżką zrobić.
+Coffer to aplikacja do finansów osobistych: zbiera Twoje transakcje i inwestycje w jednym miejscu, liczy, ile zostaje Ci co miesiąc, i z pomocą asystenta AI analizuje budżet i portfel oraz podpowiada, co dalej z pieniędzmi.
 
 **[Otwórz aplikację](https://cofferai.vercel.app)**
 
@@ -19,20 +19,25 @@ Coffer to aplikacja do finansów osobistych: zbiera Twoje transakcje i inwestycj
 
 **Podsumowanie**
 - Karta *Majątek*: środki na kontach, wartość portfela i wartość netto. Środki na kontach to saldo początkowe, które podajesz (kwota i data), plus suma Twoich transakcji od tej daty do dziś. Bez podanego salda liczą się wszystkie transakcje od zera, więc wynik może nie zgadzać się ze stanem konta w banku. Gdy część portfela nie ma aktualnej wyceny, karta to zaznacza.
-- Dla wybranego miesiąca: kafelki przychodów, wydatków i balansu (wszystkie transakcje miesiąca). Nadwyżka (tylko kategorie budżetowe) jest podstawą propozycji doradcy AI.
-- Wydatki według kategorii z udziałem procentowym.
+- Dla wybranego miesiąca: kafelki przychodów, wydatków i balansu (wszystkie transakcje miesiąca). Nadwyżka (tylko kategorie budżetowe) jest domyślną kwotą w akcji *Nowe możliwości inwestycyjne*.
+- Wydatki według kategorii z udziałem procentowym, porównanie z poprzednim miesiącem i karta *Wnioski* (kategorie, które najbardziej urosły).
+- Miesięczne limity kategorii: ustawiasz kwotę dla kategorii, a lista pokazuje zużycie limitu.
 - Skrócona karta portfela.
 
-**Doradca AI** (zakładka *Doradca AI*)
-- Jeden panel z przełącznikiem: *Nadwyżka miesiąca* albo *Portfel inwestycyjny*.
-- Nadwyżka: jednym kliknięciem prosisz o propozycję wykorzystania nadwyżki z danego miesiąca. Dostajesz krótką sugestię z uzasadnieniem i listą ryzyk.
-- Przed wysłaniem widzisz dokładnie, jakie dane trafiają do modelu.
-- Portfel inwestycyjny: „Top 3 dla Ciebie teraz” (instrumenty z poziomem ryzyka i uzasadnieniem) oraz porady z linkami do źródeł.
-- Historia sugestii i przebiegów obejmuje oba rodzaje; jeśli w miesiącu nie ma nadwyżki, asystent mówi to wprost, bez angażowania modelu.
+**Doradca AI** (zakładka *Doradca AI*) to katalog sześciu akcji. Wybierasz akcję, wypełniasz parametry i uruchamiasz ją; wynik to fakty i tabele policzone przez aplikację oraz opis i rekomendacje od modelu.
+- *Analiza portfela*: ocena struktury portfela względem profilu, bez parametrów.
+- *Nowe możliwości inwestycyjne*: pomysły na instrumenty (kwota domyślnie z nadwyżki miesiąca, opcjonalnie klasa aktywów).
+- *Gdzie zaoszczędzić*: wydatki, które da się obciąć, na podstawie kilku ostatnich miesięcy.
+- *Wpływ zakupu na portfel*: jak planowany zakup zmieni alokację i koncentrację.
+- *Plan budżetu*: propozycja limitów kategorii, opcjonalnie pod cel oszczędnościowy; limity można zastosować jednym przyciskiem.
+- *Informacje o spółce*: notowania, wiadomości i opis firmy po nazwie lub symbolu.
+- Przed uruchomieniem widzisz, jakie dane trafią do modelu. Postęp przebiegu płynie na żywo, a każdy przebieg ma **ślad**: kroki, wywołane narzędzia, czas i zużycie.
+- Gdy modelu brakuje, jest niedostępny albo wyczerpałeś limit, dostajesz **wynik regułowy** (same policzone fakty i proste wnioski, oznaczony „bez AI”). Gdy brakuje danych do analizy, akcja mówi to wprost i nie angażuje modelu.
+- Historia sugestii i przebiegów obejmuje wszystkie akcje.
 
 **Profil inwestycyjny** (na górze zakładki *Konto*)
 - Trzy pytania: horyzont inwestycyjny, tolerancja ryzyka i preferowane klasy aktywów.
-- Na tej podstawie Coffer pokazuje Twój profil (ostrożny, umiarkowany, dynamiczny) z orientacyjną alokacją, a asystent i doradca dopasowują do niego propozycje.
+- Na tej podstawie Coffer pokazuje Twój profil (ostrożny, umiarkowany, dynamiczny) z orientacyjną alokacją, a akcje asystenta dopasowują do niego propozycje.
 
 **Portfel**
 - Pozycje inwestycyjne: akcje, ETF, obligacje, surowce, kryptowaluty, nieruchomości, gotówka i lokaty. Dodajesz, edytujesz i usuwasz je w dowolnej walucie.
@@ -51,11 +56,11 @@ Coffer to aplikacja do finansów osobistych: zbiera Twoje transakcje i inwestycj
 3. **Sprawdź podsumowanie** miesiąca na stronie głównej.
 4. **Uzupełnij profil inwestycyjny** w zakładce *Konto*. Bez niego sugestie są mniej dopasowane.
 5. **Dodaj portfel** w zakładce *Portfel*: pozycje, ilości, ceny zakupu.
-6. **Poproś o rekomendacje** w zakładce *Doradca AI*: o pomysł na nadwyżkę albo o propozycje dla portfela.
+6. **Uruchom akcję** w zakładce *Doradca AI*: np. analizę portfela, plan budżetu albo pomysły na inwestycję.
 
 ## Prywatność i bezpieczeństwo
 
-- **Do modelu AI trafiają tylko agregaty.** Asystent nadwyżki dostaje sumy miesiąca (przychody, wydatki, nadwyżka, wydatki per kategoria) i profil inwestycyjny. Doradca portfela dostaje udziały procentowe klas aktywów, symbole instrumentów i profil, bez kwot. Nigdy nie wysyłamy e-maila, opisów transakcji ani identyfikatorów.
+- **Do modelu AI trafiają tylko agregaty.** Akcje dostają sumy miesiąca i wydatki per kategoria, udziały procentowe klas aktywów, symbole instrumentów i profil inwestycyjny; narzędzia modelu zwracają tylko takie agregaty. Nigdy nie wysyłamy e-maila, opisów transakcji ani identyfikatorów.
 - **Liczy aplikacja, nie model.** Wszystkie sumy i wyceny wylicza kod Coffera; model tylko je opisuje i proponuje pomysły. Gdy model jest niedostępny, reszta aplikacji działa normalnie.
 - **Model w chmurze.** Wersja publiczna korzysta z zewnętrznego dostawcy modelu (Google Gemini), więc powyższe agregaty są przetwarzane przez niego zgodnie z jego regulaminem.
 - **Hasła** są przechowywane wyłącznie jako skrót Argon2.
@@ -64,12 +69,12 @@ Coffer to aplikacja do finansów osobistych: zbiera Twoje transakcje i inwestycj
 
 ## Zastrzeżenie
 
-Sugestie asystenta i rekomendacje doradcy mają charakter informacyjny i edukacyjny. **Nie są poradą inwestycyjną**; inwestowanie wiąże się z ryzykiem utraty kapitału, a decyzję podejmujesz samodzielnie. Notowania i kursy walut pochodzą z Yahoo Finance i mogą być opóźnione lub chwilowo niedostępne.
+Wyniki akcji asystenta mają charakter informacyjny i edukacyjny. **Nie są poradą inwestycyjną**; inwestowanie wiąże się z ryzykiem utraty kapitału, a decyzję podejmujesz samodzielnie. Notowania i kursy walut pochodzą z Yahoo Finance i mogą być opóźnione lub chwilowo niedostępne.
 
 ## Ograniczenia
 
 - **Pierwsze wejście bywa wolne.** Serwer działa na darmowym planie i usypia po ok. 15 minutach bez ruchu; pierwsze żądanie po przerwie może trwać ok. 50 s.
-- **Limit asystenta:** 50 zapytań o sugestię nadwyżki na użytkownika na dobę.
+- **Limity asystenta:** dzienny limit przebiegów z modelem na użytkownika (`COFFER_AGENT_DAILY_LIMIT`, domyślnie 50; na wersji publicznej 20) oraz ochrona przed nadużyciem: 20 uruchomień akcji na minutę, 200 na dobę i 2 równolegle (po przekroczeniu odpowiedź 429). Po wyczerpaniu limitu modelu dostajesz wynik regułowy.
 - **Import CSV** obsługuje na razie jeden format pliku (opisany w [docs/csv-format.md](docs/csv-format.md)), a nie wyciągi konkretnych banków.
 - **Kursy walut i notowania** pochodzą tylko z Yahoo Finance. Gdy są niedostępne, pozycje wyceniane są z wyceny ręcznej lub ceny zakupu, a pozycji, których nie da się przeliczyć na PLN, nie wliczamy do sumy.
 - Karta *Majątek* liczy środki od salda początkowego, które podajesz (kwota i data). Bez salda liczy od zera, więc wynik może nie być stanem z banku. Coffer nie obsługuje wielu kont ani przelewów między nimi.
@@ -81,13 +86,13 @@ Sugestie asystenta i rekomendacje doradcy mają charakter informacyjny i edukacy
 Nie. Transakcje dodajesz ręcznie albo importujesz z pliku CSV. Coffer nie prosi o dane logowania do banku.
 
 **Czy model AI widzi moje transakcje?**
-Nie. Widzi tylko sumy miesiąca i wydatki per kategoria (asystent) albo procentową strukturę portfela i symbole (doradca). Na stronie asystenta możesz podejrzeć dokładnie, co zostanie wysłane.
+Nie. Widzi tylko agregaty: sumy miesiąca i wydatki per kategoria, procentową strukturę portfela i symbole instrumentów. Na stronie asystenta możesz podejrzeć dokładnie, co zostanie wysłane.
 
 **Czy zaimportowanie tego samego pliku dwa razy zdubluje transakcje?**
 Nie. Podgląd importu oznacza transakcje, które już są w Coffer (ta sama data, kwota i opis), jako duplikaty i domyślnie ich nie importuje.
 
 **Dlaczego asystent mówi, że jest niedostępny?**
-Model AI chwilowo nie odpowiada albo wyczerpałeś dzienny limit zapytań. Podsumowanie, transakcje i portfel działają dalej; spróbuj ponownie później.
+Model AI chwilowo nie odpowiada albo wyczerpałeś dzienny limit. Akcja pokazuje wtedy wynik regułowy (bez AI), a podsumowanie, transakcje i portfel działają dalej; spróbuj ponownie później.
 
 **Dlaczego wartość pozycji pokazuje „cena zakupu” zamiast „notowanie”?**
 Nie udało się pobrać bieżącego notowania (brak symbolu, nieznany symbol lub chwilowa niedostępność Yahoo Finance). Wtedy pozycja jest wyceniana ręcznie albo po cenie zakupu.
@@ -100,6 +105,8 @@ Darmowy serwer usypia przy braku ruchu. Pierwsze wejście po przerwie trwa do ok
 Coffer to monorepo: backend w Pythonie (FastAPI, PostgreSQL), frontend w React + TypeScript, asystent AI z wymiennym dostawcą modelu (Ollama lokalnie, Gemini, OpenAI lub Claude). Wersja publiczna działa na Vercel (frontend), Render (API) i Neon (baza).
 
 - [Uruchomienie, konfiguracja i hosting](docs/hosting.md): instalacja lokalna, zmienne środowiskowe, dostawcy LLM, testy, struktura kodu
+- Zmienne dotyczące AI i cen: `COFFER_AGENT_TIMEOUT_S` (łączny czas akcji, domyślnie 60 s), `COFFER_AGENT_DAILY_LIMIT`, `COFFER_PRICE_REFRESH_HOURS` (odświeżanie cen w tle co N godzin, 0 = wyłączone)
+- `make prices`: jednorazowe pobranie notowań do tabeli `market_quotes` (`make prices` z katalogu głównego)
 - [Architektura systemu](docs/architecture.md)
 - [Wdrożenie produkcyjne: Neon, Render, Vercel, CI](docs/deploy/)
 - [Serwer MCP danych rynkowych](docs/mcp-market.md)

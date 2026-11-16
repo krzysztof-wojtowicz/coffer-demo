@@ -28,8 +28,8 @@ Zobaczenie, na co wydałem pieniądze w wybranym miesiącu, ile zarobiłem i jak
 2. System wybiera transakcje z tego miesiąca, pomijając kategorie „Przelewy własne” i „Inwestycje”.
 3. System liczy sumę wydatków w podziale na kategorie (F10) oraz sumę przychodów, sumę wydatków i nadwyżkę (F11).
 4. System porównuje wydatki w każdej kategorii z poprzednim miesiącem i podaje zmianę w PLN i w % (F12).
-5. System sprawdza **limity wydatków** i oznacza kategorie, w których limit przekroczono (F14), oraz wskazuje 3 kategorie o największym wzroście względem średniej z 3 poprzednich miesięcy (F15).
-6. System pokazuje analizę miesięczną.
+5. System sprawdza **limity wydatków** (`/api/budget/limits`, zużycie limitu pokazuje lista kategorii) i oznacza kategorie, w których limit przekroczono (F14), oraz wskazuje 3 kategorie o największym wzroście względem średniej z 3 poprzednich miesięcy (F15).
+6. System pokazuje analizę miesięczną wraz z kartą *Wnioski* (`/api/budget/{month}/insights`: zmiany względem poprzedniego miesiąca i kategorie o największym wzroście).
 
 ## Scenariusze alternatywne
 
@@ -47,4 +47,4 @@ Zobaczenie, na co wydałem pieniądze w wybranym miesiącu, ile zarobiłem i jak
 - Jak pokazywać nadwyżkę ujemną: jako 0 czy jako deficyt? Słownik definiuje nadwyżkę tylko dla wyniku dodatniego.
 - Jak liczyć zmianę w %, gdy wydatki w poprzednim miesiącu wynosiły 0?
 - F12–F15 mają priorytet S, a F10–F11 — M; można rozdzielić UC na część podstawową i dodatkową.
-- Ustawianie limitów (F13) nie ma osobnego UC.
+- Ustawianie limitów (F13) nie ma osobnego UC. Stan: limity i porównania miesięcy są zrealizowane (Etap 5); akcje `savings_analysis` i `budget_plan` (zakładka *Doradca AI*) korzystają z tych samych danych, a `budget_plan` proponuje limity, które użytkownik może zastosować jednym przyciskiem.

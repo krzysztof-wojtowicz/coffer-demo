@@ -27,7 +27,7 @@ Sprawdzenie przed podjęciem decyzji, jak zakup wybranego aktywa zmieni udział 
 
 ## Scenariusz podstawowy
 
-1. Użytkownik wskazuje aktywo (klasę aktywów, nazwę lub ticker) i planowaną kwotę lub ilość zakupu.
+1. Użytkownik uruchamia akcję agenta `purchase_impact` (*Wpływ zakupu na portfel*) i wskazuje aktywo (klasę aktywów, nazwę lub ticker) i planowaną kwotę lub ilość zakupu.
 2. System ustala ostatnio znaną cenę aktywa i przelicza ją na walutę bazową.
 3. System oblicza udział klas aktywów w portfelu przed zakupem i po zakupie.
 4. System przekazuje agentowi AI wynik obliczeń, skład portfela i profil inwestycyjny, bez danych osobowych (N03).
@@ -40,9 +40,10 @@ Sprawdzenie przed podjęciem decyzji, jak zakup wybranego aktywa zmieni udział 
 - **2a. System nie zna ceny aktywa:** System prosi użytkownika o podanie ceny ręcznie i wraca do kroku 2.
 - **3a. Portfel jest pusty:** System pokazuje, że po zakupie aktywo stanowiłoby 100% portfela, a agent AI uwzględnia to w uzasadnieniu.
 - **4a. Profil inwestycyjny nie jest uzupełniony:** Agent AI ocenia tylko zmianę udziału klas aktywów. Uzasadnienie wspomina o braku profilu, a system proponuje jego uzupełnienie (UC-05).
-- **5a. Usługa agenta AI jest niedostępna:** System pokazuje samo porównanie udziałów z kroku 3 i informuje, że ocena agenta jest chwilowo niedostępna (N08).
+- **5a. Usługa agenta AI jest niedostępna (lub limit dzienny, timeout):** System pokazuje wynik regułowy: porównanie udziałów z kroku 3 i prostą ocenę z reguł, oznaczone „bez AI” (N08).
 - **5b. Ocena agenta nie ma uzasadnienia:** System nie pokazuje oceny, tylko porównanie udziałów (F32).
 
 ## Uwagi i otwarte kwestie
 
-- Czy ocena powinna uwzględniać budżet, np. czy planowana kwota mieści się w nadwyżce z ostatniego miesiąca?
+- Rozstrzygnięte: nadwyżka z poprzedniego miesiąca jest **faktem** w raporcie („Nadwyżka w <miesiąc>” oraz „Kwota w granicach nadwyżki: tak/nie”), a nie kryterium blokującym zakup. Limit czasu akcji to `COFFER_AGENT_TIMEOUT_S`.
+- Brak ceny (2a): akcja kończy się statusem `no_data`; użytkownik podaje cenę w parametrze `price` albo kwotę w PLN.

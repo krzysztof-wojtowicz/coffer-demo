@@ -1,8 +1,10 @@
 import datetime as dt
+from collections import Counter
 from dataclasses import dataclass
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session
 
 from coffer.analytics.month import TxView
@@ -13,6 +15,10 @@ from coffer.transactions.schemas import TransactionCreate, TransactionUpdate
 
 class UnknownCategoryError(Exception):
     pass
+
+
+def get_category(db: Session, category_id: int) -> Category | None:
+    return db.get(Category, category_id)
 
 
 def list_categories(db: Session) -> list[Category]:
@@ -130,3 +136,36 @@ def list_views(db: Session, user_id: int, start: dt.date, end: dt.date) -> list[
         )
         for tx, cat in rows
     ]
+
+
+def normalize_description(description: str) -> str:
+    """Collapse whitespace and casefold: the shared key for dedup and category hints."""
+    return " ".join(description.split()).casefold()
+
+
+def dedup_keys(
+    db: Session, user_id: int, start: dt.date, end: dt.date
+) -> Counter[tuple[dt.date, Decimal, str]]:
+    """Counts (date, amount, normalized description) of the user's transactions in [start, end)."""
+    counter: Counter[tuple[dt.date, Decimal, str]] = Counter()
+    rows = db.execute(
+        select(Transaction.date, Transaction.amount, Transaction.description).where(
+            Transaction.user_id == user_id, Transaction.date >= start, Transaction.date < end
+        )
+    )
+    for d, amount, description in rows:
+        counter[(d, amount, normalize_description(description))] += 1
+    return counter
+
+
+def category_hints(db: Session, user_id: int) -> dict[str, str]:
+    """Normalized description -> category name of the user's newest non-review transaction."""
+    key = func.lower(func.regexp_replace(func.trim(Transaction.description), r"\s+", " ", "g"))
+    rows = db.execute(
+        select(key, Category.name)
+        .join(Category, Category.id == Transaction.category_id)
+        .where(Transaction.user_id == user_id, Transaction.needs_review.is_(False))
+        .ext(distinct_on(key))
+        .order_by(key, Transaction.date.desc(), Transaction.id.desc())
+    )
+    return {normalize_description(description): name for description, name in rows}

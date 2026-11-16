@@ -67,5 +67,18 @@ flowchart LR
 | [UC-09](UC-09-log-in.md)                  | Logowanie i wylogowanie                           | Użytkownik                             | F01, F02, N02                     |
 | [UC-10](UC-10-add-transaction.md)         | Ręczne dodanie transakcji                         | Użytkownik                             | F03, N04, N06                     |
 | [UC-11](UC-11-monthly-analysis.md)        | Analiza miesięczna budżetu                        | Użytkownik                             | F10–F15, N04, N08                 |
-| [UC-12](UC-12-surplus-suggestion.md)      | Sugestia wykorzystania nadwyżki                   | Użytkownik, Dostawca modelu językowego | F31, F32, F33, N03, N08           |
+| [UC-12](UC-12-surplus-suggestion.md)      | Sugestia wykorzystania nadwyżki (akcja `investment_ideas`) | Użytkownik, Dostawca modelu językowego | F31, F32, F33, N03, N08           |
 | [UC-13](UC-13-company-info.md)            | Wyszukanie informacji o spółce                    | Użytkownik, Dostawca modelu językowego, Wyszukiwarka internetowa | F34, F35, N07, N08 |
+
+## Mapowanie przypadków użycia na akcje agenta
+
+Funkcje AI to katalog sześciu akcji jednego silnika (`POST /api/agent/actions/{id}/run`, zakładka *Doradca AI*). Każda ma wynik regułowy, gdy modelu brak.
+
+| Akcja (`id`) | Nazwa w UI | Przypadek użycia | Wymagania |
+| --- | --- | --- | --- |
+| `investment_ideas` | Nowe możliwości inwestycyjne | [UC-06](UC-06-find-opportunities.md), [UC-12](UC-12-surplus-suggestion.md) | F31, F36 |
+| `purchase_impact` | Wpływ zakupu na portfel | [UC-07](UC-07-assess-purchase-impact.md) | F37 |
+| `company_research` | Informacje o spółce | [UC-13](UC-13-company-info.md) | F34, F35 |
+| `savings_analysis` | Gdzie zaoszczędzić | [UC-11](UC-11-monthly-analysis.md) (rozszerzenie) | F12, F15, F31 |
+| `budget_plan` | Plan budżetu | [UC-11](UC-11-monthly-analysis.md) (limity, F13, F17) | F13, F17, F31 |
+| `portfolio_review` | Analiza portfela | [UC-04](UC-04-manage-portfolio.md) (rozszerzenie) | F23, F32, F37 |

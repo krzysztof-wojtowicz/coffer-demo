@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import type { components } from '../../api/schema'
-import { pl } from '../../i18n/pl'
 
 export type Holding = components['schemas']['HoldingOut']
 export type HoldingCreate = components['schemas']['HoldingCreate']
@@ -18,12 +17,6 @@ export const ASSET_CLASSES: AssetClass[] = [
   'crypto',
   'cash',
 ]
-
-export type AdviceHoldingIn = components['schemas']['HoldingIn']
-export type AdviceRequest = components['schemas']['AdviceRequest']
-export type InvestmentAdvice = components['schemas']['AdviceOut']
-export type TopPick = components['schemas']['TopPickOut']
-export type AdviceTip = components['schemas']['TipOut']
 
 export function useHoldings() {
   return useQuery({
@@ -93,27 +86,25 @@ export function useDeleteHolding() {
   })
 }
 
-export class AdviceError extends Error {}
+/** Deep link to the assistant's purchase-impact action (see E5-06). */
+export function purchaseImpactLink(assetClass?: string, symbol?: string | null): string {
+  const p = new URLSearchParams({ action: 'purchase_impact' })
+  if (assetClass) p.set('asset_class', assetClass)
+  if (symbol) p.set('symbol', symbol)
+  return `/assistant?${p.toString()}`
+}
 
-export function useInvestmentAdvice() {
-  return useMutation({
-    mutationFn: async (holdings: AdviceHoldingIn[]): Promise<InvestmentAdvice> => {
-      const body: AdviceRequest = { holdings }
-      let result
-      try {
-        result = await api.POST('/api/agent/investment/advice', { body })
-      } catch {
-        throw new AdviceError(pl.portfolio.advisor.error)
-      }
-      const { data, error, response } = result
-      if (response.status === 404 || response.status === 405) {
-        throw new AdviceError(pl.portfolio.advisor.notAvailable)
-      }
-      if (error || !data) {
-        const detail = (error as { detail?: unknown } | undefined)?.detail
-        throw new AdviceError(typeof detail === 'string' ? detail : pl.portfolio.advisor.error)
-      }
-      return data
-    },
+export function formatAsOf(iso: string): string {
+  return new Date(iso).toLocaleString('pl-PL', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
+}
+
+/** True when a quote is older than 24 h. */
+export function isStale(iso: string | null | undefined, now: number = Date.now()): boolean {
+  return !!iso && now - new Date(iso).getTime() > 24 * 3600 * 1000
 }

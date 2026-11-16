@@ -199,6 +199,7 @@ class HoldingValuationOut(BaseModel):
     share_pct: Decimal | None
     amount_currency: str
     converted: bool
+    as_of: dt.datetime | None = None
 
     @field_serializer("quantity")
     def _ser_qty(self, v: Decimal) -> str:
@@ -244,6 +245,7 @@ class PortfolioSummaryOut(BaseModel):
     total_gain_pct: Decimal | None
     prices_available: bool
     fx_missing: list[str]
+    prices_as_of: dt.datetime | None = None
 
     @field_serializer("total_value", "total_cost", "total_gain")
     def _ser_money(self, v: Decimal) -> str:

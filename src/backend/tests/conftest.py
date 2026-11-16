@@ -61,7 +61,7 @@ def _clean_db(test_engine) -> Iterator[None]:
         conn.execute(
             text(
                 "TRUNCATE users, auth_sessions, transactions, import_drafts, "
-                "investment_profiles, agent_runs, suggestions "
+                "investment_profiles, agent_runs, suggestions, market_quotes "
                 "RESTART IDENTITY CASCADE"
             )
         )

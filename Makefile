@@ -1,7 +1,7 @@
 BACKEND = cd src/backend && uv run
 FRONTEND = cd src/frontend
 
-.PHONY: setup db-up db-down migrate dev-api dev-web test-backend lint check-web check-web-clean check openapi seed mcp-market migrate-remote seed-remote
+.PHONY: setup db-up db-down migrate dev-api dev-web test-backend lint check-web check-web-clean check openapi seed mcp-market prices migrate-remote seed-remote
 
 setup:
 	cd src/backend && uv sync
@@ -63,3 +63,6 @@ seed:
 
 mcp-market:
 	@$(BACKEND) python -m coffer.market.mcp_server
+
+prices:
+	$(BACKEND) python -m coffer.scripts.refresh_prices

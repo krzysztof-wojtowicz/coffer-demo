@@ -193,6 +193,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/budget/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Limits */
+        get: operations["get_limits_api_budget_limits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/budget/limits/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Limit */
+        put: operations["put_limit_api_budget_limits__category_id__put"];
+        post?: never;
+        /** Delete Limit */
+        delete: operations["delete_limit_api_budget_limits__category_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/budget/{month}/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Insights */
+        get: operations["get_insights_api_budget__month__insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/budget/{month}": {
         parameters: {
             query?: never;
@@ -298,24 +350,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/agent/surplus": {
+    "/api/agent/actions": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List Actions */
+        get: operations["list_actions_api_agent_actions_get"];
         put?: never;
-        /** Surplus */
-        post: operations["surplus_api_agent_surplus_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/agent/surplus/stream": {
+    "/api/agent/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Tools */
+        get: operations["list_tools_api_agent_tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/actions/{action_id}/run": {
         parameters: {
             query?: never;
             header?: never;
@@ -324,8 +393,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Surplus Stream */
-        post: operations["surplus_stream_api_agent_surplus_stream_post"];
+        /** Run */
+        post: operations["run_api_agent_actions__action_id__run_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -505,23 +574,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/agent/investment/advice": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Advice */
-        post: operations["advice_api_agent_investment_advice_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -543,45 +595,111 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AdviceOut */
-        AdviceOut: {
-            /** Top Picks */
-            top_picks: components["schemas"]["TopPickOut"][];
-            /** Tips */
-            tips: components["schemas"]["TipOut"][];
-            /** Llm Used */
-            llm_used: boolean;
+        /** ActionInfoOut */
+        ActionInfoOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /** Params */
+            params: components["schemas"]["ParamSpec"][];
+            /** Tools */
+            tools: string[];
+            /** Uses User Data */
+            uses_user_data: boolean;
+            /** Uses Internet */
+            uses_internet: boolean;
+        };
+        /** ActionReport */
+        ActionReport: {
+            /** Headline */
+            headline: string;
             /**
-             * Ai Status
-             * @default unavailable
-             * @enum {string}
+             * Facts
+             * @default []
              */
-            ai_status: "ok" | "unavailable" | "limited" | "timeout";
+            facts: components["schemas"]["Fact"][];
+            /**
+             * Tables
+             * @default []
+             */
+            tables: components["schemas"]["Table"][];
+            /**
+             * Findings
+             * @default []
+             */
+            findings: components["schemas"]["Finding"][];
+            /**
+             * Recommendations
+             * @default []
+             */
+            recommendations: components["schemas"]["Recommendation"][];
+            /**
+             * Risks
+             * @default []
+             */
+            risks: string[];
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Source"][];
             /**
              * Disclaimer
-             * @default To nie jest porada inwestycyjna, tylko informacja edukacyjna. Inwestowanie wiąże się z ryzykiem utraty kapitału; decyzję podejmujesz samodzielnie.
+             * @default To jest sugestia informacyjna, a nie porada inwestycyjna. Decyzję podejmujesz samodzielnie.
              */
             disclaimer: string;
-            /** Run Id */
-            run_id?: number | null;
         };
-        /** AdviceRequest */
-        AdviceRequest: {
-            /** Holdings */
-            holdings?: components["schemas"]["HoldingIn"][];
+        /** ActionRunOut */
+        ActionRunOut: {
+            /** Action */
+            action: string;
+            /** Run Id */
+            run_id: number | null;
+            /** Suggestion Id */
+            suggestion_id: number | null;
+            /**
+             * Ai Status
+             * @enum {string}
+             */
+            ai_status: "ok" | "unavailable" | "limited" | "timeout" | "invalid" | "no_data";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ai" | "rules" | "none";
+            report: components["schemas"]["ActionReport"];
+            /** Model */
+            model: string | null;
+            /** Provider */
+            provider: string | null;
+            /** Duration Ms */
+            duration_ms: number;
         };
         /** AgentRunListItem */
         AgentRunListItem: {
             /** Id */
             id: number;
-            /** Task */
-            task: string;
+            /** Action */
+            action: string;
             /** Status */
             status: string;
+            /** Provider */
+            provider: string | null;
             /** Model */
             model: string | null;
-            /** Attempts */
-            attempts: number;
+            /** Llm Calls */
+            llm_calls: number;
+            /** Tool Calls Count */
+            tool_calls_count: number;
+            /** Input Tokens */
+            input_tokens: number | null;
+            /** Output Tokens */
+            output_tokens: number | null;
+            /** Cost Usd */
+            cost_usd: string | null;
             /** Duration Ms */
             duration_ms: number | null;
             /**
@@ -589,19 +707,38 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Suggestion Id */
+            suggestion_id: number | null;
+        };
+        /** AgentRunListOut */
+        AgentRunListOut: {
+            /** Items */
+            items: components["schemas"]["AgentRunListItem"][];
+            /** Total */
+            total: number;
         };
         /** AgentRunOut */
         AgentRunOut: {
             /** Id */
             id: number;
-            /** Task */
-            task: string;
+            /** Action */
+            action: string;
             /** Status */
             status: string;
+            /** Provider */
+            provider: string | null;
             /** Model */
             model: string | null;
-            /** Attempts */
-            attempts: number;
+            /** Llm Calls */
+            llm_calls: number;
+            /** Tool Calls Count */
+            tool_calls_count: number;
+            /** Input Tokens */
+            input_tokens: number | null;
+            /** Output Tokens */
+            output_tokens: number | null;
+            /** Cost Usd */
+            cost_usd: string | null;
             /** Duration Ms */
             duration_ms: number | null;
             /**
@@ -609,10 +746,16 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Suggestion Id */
+            suggestion_id: number | null;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
             /** Prompt Version */
             prompt_version: string;
-            /** Tool Calls */
-            tool_calls: {
+            /** Steps */
+            steps: {
                 [key: string]: unknown;
             }[];
             /** Messages */
@@ -625,10 +768,10 @@ export interface components {
             validation_errors: string[];
             /** Error */
             error: string | null;
-            /** Input Tokens */
-            input_tokens: number | null;
-            /** Output Tokens */
-            output_tokens: number | null;
+            /** Tool Calls */
+            tool_calls: {
+                [key: string]: unknown;
+            }[];
         };
         /** AgentStatusOut */
         AgentStatusOut: {
@@ -667,6 +810,36 @@ export interface components {
             file: string;
             /** Bank */
             bank: string;
+        };
+        /** CategoryChangeOut */
+        CategoryChangeOut: {
+            /** Category Id */
+            category_id: number;
+            /** Category Name */
+            category_name: string;
+            /** Current */
+            current: string;
+            /** Previous */
+            previous: string;
+            /** Change */
+            change: string;
+            /** Change Pct */
+            change_pct: string | null;
+        };
+        /** CategoryGrowthOut */
+        CategoryGrowthOut: {
+            /** Category Id */
+            category_id: number;
+            /** Category Name */
+            category_name: string;
+            /** Current */
+            current: string;
+            /** Average 3M */
+            average_3m: string;
+            /** Increase */
+            increase: string;
+            /** Increase Pct */
+            increase_pct: string | null;
         };
         /** CategoryOut */
         CategoryOut: {
@@ -721,6 +894,35 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** Fact */
+        Fact: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "money" | "percent" | "number" | "text" | "date";
+        };
+        /** Finding */
+        Finding: {
+            /** Title */
+            title: string;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /**
+             * Refers To
+             * @enum {string}
+             */
+            refers_to: "budget" | "profile" | "portfolio" | "market" | "calc";
+            /** Value */
+            value?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -752,17 +954,6 @@ export interface components {
             manual_value?: number | string | null;
             /** Note */
             note?: string | null;
-        };
-        /** HoldingIn */
-        HoldingIn: {
-            /** Symbol */
-            symbol?: string | null;
-            /** Asset Class */
-            asset_class: string;
-            /** Quantity */
-            quantity: number | string;
-            /** Current Value */
-            current_value?: number | string | null;
         };
         /** HoldingOut */
         HoldingOut: {
@@ -859,6 +1050,8 @@ export interface components {
             amount_currency: string;
             /** Converted */
             converted: boolean;
+            /** As Of */
+            as_of?: string | null;
         };
         /** ImportCounts */
         ImportCounts: {
@@ -909,6 +1102,50 @@ export interface components {
             status: "new" | "duplicate" | "error";
             /** Error */
             error: string | null;
+        };
+        /** InsightsOut */
+        InsightsOut: {
+            /** Month */
+            month: string;
+            /** Previous Month */
+            previous_month: string;
+            /** Comparison */
+            comparison: components["schemas"]["CategoryChangeOut"][];
+            /** Top Growth */
+            top_growth: components["schemas"]["CategoryGrowthOut"][];
+            /** Limits */
+            limits: components["schemas"]["LimitStatusOut"][];
+        };
+        /** LimitIn */
+        LimitIn: {
+            /** Amount */
+            amount: number | string;
+        };
+        /** LimitOut */
+        LimitOut: {
+            /** Category Id */
+            category_id: number;
+            /** Category Name */
+            category_name: string;
+            /** Amount */
+            amount: string;
+        };
+        /** LimitStatusOut */
+        LimitStatusOut: {
+            /** Category Id */
+            category_id: number;
+            /** Category Name */
+            category_name: string;
+            /** Limit */
+            limit: string;
+            /** Spent */
+            spent: string;
+            /** Remaining */
+            remaining: string;
+            /** Used Pct */
+            used_pct: string;
+            /** Exceeded */
+            exceeded: boolean;
         };
         /** MonthSummaryOut */
         MonthSummaryOut: {
@@ -966,6 +1203,35 @@ export interface components {
              */
             as_of: string;
         };
+        /**
+         * ParamSpec
+         * @description One field of an action's parameter form (rendered by the frontend).
+         */
+        ParamSpec: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "month" | "text" | "symbol" | "amount" | "quantity" | "int" | "select";
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /** Default */
+            default?: string | number | null;
+            /**
+             * Options
+             * @default []
+             */
+            options: string[];
+            /** Help */
+            help?: string | null;
+        };
         /** PasswordChange */
         PasswordChange: {
             /** Current Password */
@@ -996,6 +1262,8 @@ export interface components {
             prices_available: boolean;
             /** Fx Missing */
             fx_missing: string[];
+            /** Prices As Of */
+            prices_as_of?: string | null;
         };
         /** ProfileIn */
         ProfileIn: {
@@ -1055,88 +1323,135 @@ export interface components {
             /** Quotes */
             quotes: components["schemas"]["QuoteOut"][];
         };
-        /** RationaleItemOut */
-        RationaleItemOut: {
-            /** Claim */
-            claim: string;
+        /** Recommendation */
+        Recommendation: {
+            /** Title */
+            title: string;
             /**
-             * Refers To
-             * @enum {string}
+             * Detail
+             * @default
              */
-            refers_to: "budget" | "profile" | "portfolio";
-            /** Value */
-            value: string;
+            detail: string;
+            /** Symbol */
+            symbol?: string | null;
+            /** Asset Class */
+            asset_class?: string | null;
+            /** Amount */
+            amount?: string | null;
+            /** Risk Level */
+            risk_level?: number | null;
+            /** Source Url */
+            source_url?: string | null;
+        };
+        /** RunRequest */
+        RunRequest: {
+            /**
+             * Params
+             * @default {}
+             */
+            params: {
+                [key: string]: unknown;
+            };
+        };
+        /** Source */
+        Source: {
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+            /** Publisher */
+            publisher?: string | null;
+            /** Published At */
+            published_at?: string | null;
+            /**
+             * Fetched At
+             * Format: date-time
+             */
+            fetched_at: string;
+        };
+        /** SuggestionListOut */
+        SuggestionListOut: {
+            /** Items */
+            items: components["schemas"]["SuggestionOut"][];
+            /** Total */
+            total: number;
         };
         /** SuggestionOut */
         SuggestionOut: {
             /** Id */
             id: number;
-            /** Type */
-            type: string;
-            /** Month */
-            month: string | null;
-            /** Summary */
-            summary: string;
-            /** Rationale */
-            rationale: components["schemas"]["RationaleItemOut"][];
-            /** Risks */
-            risks: string[];
-            /** Disclaimer */
-            disclaimer: string;
-            /** Model */
-            model: string;
+            /** Action */
+            action: string;
             /**
-             * Generated At
+             * Source
+             * @enum {string}
+             */
+            source: "ai" | "rules";
+            /** Ai Status */
+            ai_status: string;
+            /** Headline */
+            headline: string;
+            report: components["schemas"]["ActionReport"];
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /** Model */
+            model: string | null;
+            /** Provider */
+            provider: string | null;
+            /** Run Id */
+            run_id: number | null;
+            /**
+             * Created At
              * Format: date-time
              */
-            generated_at: string;
-            /** Duration Ms */
-            duration_ms: number | null;
+            created_at: string;
             /** Profile Used */
             profile_used: boolean;
         };
-        /** SurplusRequest */
-        SurplusRequest: {
-            /** Month */
-            month: string;
-        };
-        /** SurplusSuggestionOut */
-        SurplusSuggestionOut: {
-            summary: components["schemas"]["MonthSummaryOut"];
-            /**
-             * Ai Status
-             * @enum {string}
-             */
-            ai_status: "ok" | "no_surplus" | "unavailable" | "limited";
-            suggestion?: components["schemas"]["SuggestionOut"] | null;
-            /** Run Id */
-            run_id?: number | null;
-        };
-        /** TipOut */
-        TipOut: {
+        /** Table */
+        Table: {
+            /** Id */
+            id: string;
             /** Title */
             title: string;
-            /** Summary */
-            summary: string;
-            /** Source */
-            source: string;
-            /** Url */
-            url: string | null;
+            /** Columns */
+            columns: components["schemas"]["TableColumn"][];
+            /** Rows */
+            rows: {
+                [key: string]: string;
+            }[];
         };
-        /** TopPickOut */
-        TopPickOut: {
+        /** TableColumn */
+        TableColumn: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "money" | "percent" | "number" | "text" | "date";
+        };
+        /** ToolInfoOut */
+        ToolInfoOut: {
             /** Name */
             name: string;
-            /** Asset Class */
-            asset_class: string;
-            /** Symbol */
-            symbol: string | null;
-            /** Rationale */
-            rationale: string;
-            /** Risk Level */
-            risk_level: number;
-            /** Source Url */
-            source_url: string | null;
+            /** Description */
+            description: string;
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "user_data" | "market" | "calc";
+            /** Uses Internet */
+            uses_internet: boolean;
+            /** Parameters */
+            parameters: {
+                [key: string]: unknown;
+            };
         };
         /** TransactionCreate */
         TransactionCreate: {
@@ -1621,6 +1936,121 @@ export interface operations {
             };
         };
     };
+    get_limits_api_budget_limits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LimitOut"][];
+                };
+            };
+        };
+    };
+    put_limit_api_budget_limits__category_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LimitIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LimitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_limit_api_budget_limits__category_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_insights_api_budget__month__insights_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                month: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_month_api_budget__month__get: {
         parameters: {
             query?: never;
@@ -1871,18 +2301,14 @@ export interface operations {
             };
         };
     };
-    surplus_api_agent_surplus_post: {
+    list_actions_api_agent_actions_get: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SurplusRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -1890,30 +2316,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SurplusSuggestionOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ActionInfoOut"][];
                 };
             };
         };
     };
-    surplus_stream_api_agent_surplus_stream_post: {
+    list_tools_api_agent_tools_get: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolInfoOut"][];
+                };
+            };
+        };
+    };
+    run_api_agent_actions__action_id__run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: string;
+            };
+            cookie?: never;
+        };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SurplusRequest"];
+                "application/json": components["schemas"]["RunRequest"];
             };
         };
         responses: {
@@ -1923,7 +2362,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ActionRunOut"];
                 };
             };
             /** @description Validation Error */
@@ -1940,7 +2379,14 @@ export interface operations {
     list_suggestions_api_agent_suggestions_get: {
         parameters: {
             query?: {
+                action?: string | null;
+                source?: ("ai" | "rules") | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                q?: string | null;
+                order?: "asc" | "desc";
                 limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -1954,7 +2400,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuggestionOut"][];
+                    "application/json": components["schemas"]["SuggestionListOut"];
                 };
             };
             /** @description Validation Error */
@@ -2002,7 +2448,15 @@ export interface operations {
     list_runs_api_agent_runs_get: {
         parameters: {
             query?: {
+                action?: string | null;
+                status?: string | null;
+                provider?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                sort?: "created_at" | "duration_ms" | "cost_usd" | "tokens";
+                order?: "asc" | "desc";
                 limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -2016,7 +2470,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgentRunListItem"][];
+                    "application/json": components["schemas"]["AgentRunListOut"];
                 };
             };
             /** @description Validation Error */
@@ -2290,39 +2744,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuotesOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    advice_api_agent_investment_advice_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AdviceRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdviceOut"];
                 };
             };
             /** @description Validation Error */

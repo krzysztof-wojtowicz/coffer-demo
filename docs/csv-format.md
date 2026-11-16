@@ -19,8 +19,13 @@ Wymyślony format do rozwoju i testów importu (UC-02) przed obsługą prawdziwy
 | `Data księgowania` | pomijana |
 | `Opis` | opis transakcji (może zawierać nazwiska i numery kont, więc przed wysłaniem do AI wymaga anonimizacji, N03) |
 | `Kwota` | kwota w walucie oryginalnej |
-| `Waluta` | waluta oryginalna (obca → przeliczenie po kursie NBP, Etap 2) |
+| `Waluta` | waluta oryginalna; obecnie obsługiwane jest tylko `PLN`, wiersz w innej walucie dostaje błąd „Waluta … nie jest jeszcze obsługiwana” (przeliczanie po kursie dziennym jest planowane) |
 | `Saldo po operacji` | pomijana |
+
+## Deduplikacja i kategoryzacja
+
+- **Duplikat (F05):** wiersz o tej samej dacie, kwocie i opisie (po normalizacji spacji i bez rozróżniania wielkości liter) co transakcja już zapisana. Porównanie dotyczy tylko zakresu dat z pliku i jest wielozbiorowe: dwie identyczne transakcje w pliku przy jednej w bazie dają jedną nową i jednego duplikata.
+- **Kategoria (F07):** najpierw dokładne trafienie w opis, który użytkownik już kiedyś skategoryzował (podpowiedź z jego własnych poprawek, F08), potem reguły słów kluczowych; wiersz bez trafienia dostaje kategorię domyślną i znacznik „do sprawdzenia”. Skuteczność reguł (N05, min. 80%) sprawdza test na zbiorze 200 wymyślonych transakcji.
 
 ## Konfiguracja banku
 

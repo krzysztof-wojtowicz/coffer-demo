@@ -22,6 +22,7 @@ class CategoryTotal:
     category_id: int
     category_name: str
     expenses: Decimal
+    in_budget: bool = True
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ def month_summary(month: str, txs: Iterable[TxView]) -> MonthSummary:
     expenses = ZERO
     budget_balance = ZERO
     names: dict[int, str] = {}
+    budget_flags: dict[int, bool] = {}
     per_category: dict[int, Decimal] = defaultdict(lambda: ZERO)
     for tx in txs:
         if not (start <= tx.date < end):
@@ -54,10 +56,11 @@ def month_summary(month: str, txs: Iterable[TxView]) -> MonthSummary:
         elif amount < 0:
             expenses += -amount
             names[tx.category_id] = tx.category_name
+            budget_flags[tx.category_id] = tx.in_budget
             per_category[tx.category_id] += -amount
     by_category = sorted(
         (
-            CategoryTotal(cid, names[cid], quantize(total))
+            CategoryTotal(cid, names[cid], quantize(total), budget_flags[cid])
             for cid, total in per_category.items()
             if total > 0
         ),

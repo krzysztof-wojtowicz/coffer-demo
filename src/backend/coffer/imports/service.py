@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from coffer.imports.banks import BANKS
 from coffer.imports.categorize import categorize
-from coffer.imports.dedup import dedup_key, mark_duplicates
+from coffer.imports.dedup import mark_duplicates
 from coffer.imports.models import ImportDraft
 from coffer.imports.parser import ParsedRow, parse
 from coffer.imports.schemas import (
@@ -20,7 +20,6 @@ from coffer.imports.schemas import (
     ImportRowOut,
 )
 from coffer.transactions import service as tx_service
-from coffer.transactions.models import Transaction
 
 MAX_FILE_BYTES = 1024 * 1024
 DRAFT_TTL = timedelta(hours=1)
@@ -46,15 +45,14 @@ class UnknownCategoryError(Exception):
     pass
 
 
-def _existing(db: Session, user_id: int) -> Counter[tuple[date, Decimal, str]]:
-    counter: Counter[tuple[date, Decimal, str]] = Counter()
-    for d, amount, description in db.execute(
-        select(Transaction.date, Transaction.amount, Transaction.description).where(
-            Transaction.user_id == user_id
-        )
-    ):
-        counter[dedup_key(d, amount, description)] += 1
-    return counter
+def _existing(
+    db: Session, user_id: int, rows: list[ParsedRow]
+) -> Counter[tuple[date, Decimal, str]]:
+    """Stored transactions limited to the date range present in the file."""
+    dates = [r.date for r in rows if r.error is None and r.date is not None]
+    if not dates:
+        return Counter()
+    return tx_service.dedup_keys(db, user_id, min(dates), max(dates) + timedelta(days=1))
 
 
 def _to_parsed(raw: dict[str, Any]) -> ParsedRow:
@@ -107,15 +105,16 @@ def create_preview(
     parsed = parse(content, bank)
     if not parsed:
         raise EmptyImportError
-    dups = mark_duplicates(parsed, _existing(db, user_id))
+    dups = mark_duplicates(parsed, _existing(db, user_id, parsed))
     categories = {c.name: c.id for c in tx_service.list_categories(db)}
+    hints = tx_service.category_hints(db, user_id)
     default_id = next(c.id for c in tx_service.list_categories(db) if c.is_default)
     rows: list[dict[str, Any]] = []
     for p in parsed:
         if p.error is not None:
             status, category_id, review = "error", None, False
         else:
-            name = categorize(p.description)
+            name = categorize(p.description, hints)
             category_id = categories.get(name) if name else None
             review = category_id is None
             if category_id is None:
@@ -190,7 +189,7 @@ def commit(db: Session, user_id: int, draft_id: str, data: CommitIn) -> CommitOu
         raise UnknownCategoryError
 
     parsed = [_to_parsed(r) for r in draft.rows]
-    dups = mark_duplicates(parsed, _existing(db, user_id))
+    dups = mark_duplicates(parsed, _existing(db, user_id, parsed))
     items: list[tx_service.BulkItem] = []
     skipped_duplicates = 0
     skipped_errors = 0

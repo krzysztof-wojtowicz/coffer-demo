@@ -1,12 +1,6 @@
 import { pl } from '../i18n/pl'
 
-export function aiStatusMessage(status: 'ok' | 'no_surplus' | 'unavailable'): string | null {
-  if (status === 'no_surplus') return pl.assistant.noSurplus
-  if (status === 'unavailable') return pl.assistant.unavailable
-  return null
-}
-
-function validationText(type: string): string {
+export function validationText(type: string): string {
   if (type.includes('missing')) return pl.validation.required
   if (type.includes('decimal') || type.includes('number')) return pl.validation.invalidAmount
   if (type.includes('date')) return pl.validation.invalidDate

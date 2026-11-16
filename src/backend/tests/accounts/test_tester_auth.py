@@ -482,6 +482,7 @@ def _seed_everything(db: Session, uid: int, category_id: int) -> None:
             type="surplus",
             summary="s",
             rationale=[],
+            report={},
             disclaimer="d",
             model="m",
             data_snapshot={},

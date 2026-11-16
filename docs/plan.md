@@ -103,7 +103,7 @@ src/backend/coffer/
   profile/       │   models.py   tabele SQLAlchemy
   market/        │   schemas.py  modele Pydantic (wejście/wyjście API)
   analytics/     ┘ (analytics: tylko czyste funkcje, bez models.py i bez bazy)
-  agent/         llm.py, tools/, runner.py, workflows/, validator.py, anonymizer.py, prompts/
+  agent/         llm.py, tools/, actions/, runner.py, guard.py, trace.py, validator.py, anonymize.py, prompts/
   worker.py      punkt wejścia kontenera worker
 src/frontend/src/
   features/{auth,transactions,budget,portfolio,profile,assistant}/
@@ -161,6 +161,8 @@ rdzeń ──✗──► agent
 3. **Wycena portfela (F22–F24):** worker codziennie pobiera ceny instrumentów obecnych w portfelach i kursy NBP → `portfolio.service` łączy pozycje z ostatnimi cenami z `market` → `analytics` liczy wartość, udziały klas i zysk/stratę → pozycje bez aktualnej ceny oznaczone jako nieaktualne (UC-04 6a).
 
 ## 4. Agent i LLM: integracja
+
+> **Stan po Etapie 5:** sekcja 4 opisuje projekt wyjściowy (Etap 3). Zrealizowany mechanizm to jeden silnik akcji (`agent/runner.py`, katalog `agent/actions/`, rejestr 22 narzędzi) zamiast osobnych workflow nadwyżki i doradcy; opis stanu rzeczywistego: [`architecture.md`](architecture.md) (sekcja 5 i 5.1) oraz sekcja „Etap 5” w rozdziale 6. Nazwy narzędzi w 4.2 są poglądowe (rzeczywiste: `get_portfolio`, `get_month_analysis` itd.).
 
 ### 4.1 Komponenty modułu `agent`
 
@@ -230,7 +232,7 @@ Pola `typ`, zastrzeżenie i daty ustawia system, nie model. Ten sam model Pydant
 ### 4.5 Przebieg jednego żądania
 
 ```
-UI ──POST /api/agent/surplus {miesiac}──► api
+UI ──POST /api/agent/actions/{id}/run {params}──► api
 api ──SSE: status "liczę nadwyżkę"──► UI
 api → budget/portfolio/profile.service → analytics          (bez LLM)
 api ──SSE: dane deterministyczne (nadwyżka, udziały)──► UI  (pokazywane zawsze)
@@ -240,7 +242,7 @@ api → LLMClient.complete(...) → SuggestionValidator
      └─ błąd / timeout / limit → AgentRun z błędem → SSE: "asystent niedostępny" ──► UI
 ```
 
-Endpointy: `POST /api/agent/surplus`, `POST /api/agent/purchase-impact`, `POST /api/agent/company-info` (SSE), `GET /api/suggestions` (historia; zmiana profilu nie zmienia zapisanych sugestii, UC-05).
+Endpointy (po Etapie 5): `POST /api/agent/actions/{id}/run` (JSON albo SSE), `GET /api/agent/{actions,tools,status,suggestions,runs}` (historia; zmiana profilu nie zmienia zapisanych sugestii, UC-05).
 
 ### 4.6 Fallback i limity (N08)
 
@@ -327,25 +329,49 @@ Realizacja: karty E1-01..E1-07 w [`docs/tasks/`](tasks/README.md) (fale równole
 **Gotowe, gdy:** sugestia nadwyżki działa z uzasadnieniem z danych, przechodzi walidator, zapisuje się w historii, a test z wyłączonym LLM przechodzi.
 
 ### Etap 4: priorytety S (do 24.01.2027), w tej kolejności
-1. **F34–F35 + N07:** agent z narzędziami sieciowymi (jedyna prawdziwa pętla agenta, więc bez tego projekt na przedmiot o agentach nie ma agenta).
-2. **F37 / UC-07:** `analytics.simulate_purchase` + workflow oceny.
-3. **N08** (pełny), **N09** (usuwanie konta, test po metadanych).
-4. **F25 / F24:** job cen, zysk/strata.
-5. **F05** (deduplikacja), **F07** (reguły kategoryzacji z poprawek).
-6. **F12–F15:** porównania i limity (odpadają pierwsze przy braku czasu).
+1. **F34–F35 + N07 (zrealizowane: akcja `company_research`):** agent z narzędziami sieciowymi (jedyna prawdziwa pętla agenta, więc bez tego projekt na przedmiot o agentach nie ma agenta).
+2. **F37 / UC-07 (zrealizowane: akcja `purchase_impact`):** `analytics.simulate_purchase` + workflow oceny.
+3. **N08** (pełny, wynik regułowy dla wszystkich akcji), **N09** (usuwanie konta, test po metadanych) (zrealizowane).
+4. **F25 / F24 (zrealizowane w Etapie 5):** job cen (`make prices`), zysk/strata.
+5. **F05** (deduplikacja), **F07** (reguły kategoryzacji z poprawek) (zrealizowane, domknięte w E5-09; N05 ma test).
+6. **F12–F15 (zrealizowane w Etapie 5):** porównania i limity.
 
-**Gotowe, gdy:** UC-07 i UC-08 przechodzą, a agent informacyjny zwraca podsumowanie ze źródłami i datami.
+**Gotowe, gdy:** UC-07 i UC-08 przechodzą, a agent informacyjny zwraca podsumowanie ze źródłami i datami. **Stan:** spełnione w Etapie 5.
 
 #### Etap 4a: po serii zmian UI/UX (karty E4-01..E4-06)
-Stan: 5 zakładek (Podsumowanie, Transakcje, Portfel, Doradca AI, Konto), edycja transakcji (`PATCH /api/transactions/{id}`), karta „Majątek” (`GET /api/budget/net-worth`, `analytics/net_worth.py`), jeden panel Doradcy AI (nadwyżka + portfel; doradca zapisuje sugestię `advisor`), nowy UI kit. Znane luki i kolejne kroki:
+Stan: 5 zakładek (Podsumowanie, Transakcje, Portfel, Doradca AI, Konto), edycja transakcji (`PATCH /api/transactions/{id}`), karta „Majątek” (`GET /api/budget/net-worth`, `analytics/net_worth.py`), panel Doradcy AI (po Etapie 5: katalog sześciu akcji), nowy UI kit. Znane luki i kolejne kroki:
 - [x] E4-01: saldo początkowe (`opening_balances`, migracja `0006`, sekcja w Koncie).
 - [ ] E4-02: filtry, sortowanie i paginacja transakcji po stronie serwera (zakres dat poza miesiącem).
-- [ ] E4-03: data aktualizacji cen i kursów w portfelu.
+- [x] E4-03: data aktualizacji cen i kursów w portfelu (przeniesione do E5-04/E5-08: `prices_as_of`, `market_quotes`).
 - [ ] E4-04: wykres historii majątku (po E4-01).
 - [ ] E4-05: testy e2e Playwright kluczowych przepływów (po E4-01, E4-02).
 - [ ] E4-06: dostępność nowych komponentów UI (klawiatura, ARIA, fokus).
 
 Karty: [`docs/tasks/README.md`](tasks/README.md). Równolegle (fala 1) mogą iść E4-01, E4-02, E4-03, E4-06 (rozłączne pliki).
+
+### Etap 5: jeden mechanizm akcji agenta, limity kategorii, job cen
+**Cel:** zastąpić osobne funkcje AI (nadwyżka, doradca portfela) jednym silnikiem akcji z katalogiem sześciu akcji, śladem przebiegu, wynikiem regułowym bez AI i ochroną przed nadużyciem; dołożyć porównania miesięcy, limity kategorii i job cen. Decyzje i kontrakt: [`tasks/E5-00-architecture.md`](tasks/E5-00-architecture.md); stan kart: [`tasks/README.md`](tasks/README.md).
+
+- [x] E5-00: decyzje i kontrakt (interfejs akcji, schemat raportu, API, ślad, plan fal).
+- [x] E5-01: migracje `0007_agent_actions`, `0008_budget_limits`, `0009_market_quotes`.
+- [x] E5-02: porównania miesięcy i limity kategorii (F12–F15), `GET /api/budget/{month}/insights`, `/api/budget/limits`.
+- [x] E5-03: silnik akcji (`runner`, `guard`, `trace`, `pricing`), `POST /api/agent/actions/{id}/run`, usunięcie nadwyżki i doradcy.
+- [x] E5-04: dane rynkowe w bazie (`market_quotes`), `make prices`, opcjonalny wątek cen (`COFFER_PRICE_REFRESH_HOURS`), `prices_as_of`.
+- [x] E5-05: akcje `savings_analysis`, `purchase_impact`, `budget_plan`.
+- [x] E5-06: front asystenta (panel akcji, historia, przebiegi, oś śladu).
+- [x] E5-07: akcje `investment_ideas`, `company_research`.
+- [x] E5-08: front budżetu (limity, wnioski) i data cen w portfelu.
+- [x] E5-09: import (granice modułów, kategoryzacja z historii, test N05).
+- [x] E5-10: testy przekrojowe (prywatność, izolacja, brak sieci, ślad, współbieżność limitów, N08 dla 6 akcji).
+- [x] E5-11: dokumentacja (ten zestaw plików).
+
+**Stan:** wszystkie akcje, limity i job cen działają; zostają poza semestrem m.in. czat (F38), eksport (F09), prognoza (F18), kategorie ze stałym kodem, waluty obce po kursie dziennym i purge retencji (patrz `data-model.md`, sekcja 4).
+
+#### Następne kroki (po Etapie 5)
+1. Ręczne przeklikanie aplikacji (6 akcji z lokalnym modelem i bez niego, limity, „Oceń zakup”) i lista poprawek.
+2. Wdrożenie: redeploy backendu na Render + migracje `0007`–`0009`; nowa checklista wydania (`deploy/release-checklist.md` opisuje jeszcze `0005`).
+3. Domknięcie E4: E4-02 (filtry i paginacja transakcji po stronie serwera), E4-06 (a11y), E4-04 (wykres majątku), E4-05 (e2e Playwright).
+4. Opcjonalnie (C): F16 cel oszczędnościowy zapisywany, F18 prognoza salda, F09 eksport CSV, F38 czat.
 
 ### Bufor (do oddania)
 Stabilizacja, dane demo, sprawdzone odtworzenie backupu, prezentacja.

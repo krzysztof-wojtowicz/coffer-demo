@@ -14,7 +14,7 @@ Aplikacja do finansów osobistych z asystentem AI (projekt studencki, 4 osoby). 
 - `make setup`: zależności · `make db-up`: Postgres w Dockerze · `make migrate`
 - `make test-backend ARGS="tests/accounts"`: testy (ustaw `COFFER_TEST_DB=coffer_test_<moduł>`, żeby nie kolidować z innymi agentami)
 - `make lint`: ruff + pyright + import-linter · `make check`: wszystko (lint, testy, front)
-- `make openapi`: zrzut OpenAPI + typy TS · `make dev-api` / `make dev-web` · `make seed`: dane demo
+- `make openapi`: zrzut OpenAPI + typy TS · `make dev-api` / `make dev-web` · `make seed`: dane demo · `make prices`: odświeżenie notowań
 
 ## Twarde zasady
 - **Pieniądze:** tylko `Decimal`, nigdy `float`; zaokrąglanie przez `coffer.core.money.quantize` (ROUND_HALF_UP). W bazie `NUMERIC(14,2)`. W JSON kwoty to stringi.

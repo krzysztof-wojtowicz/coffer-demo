@@ -28,7 +28,7 @@ Szybko poznać aktualne informacje o spółce, którą rozważam kupić, wraz ze
 
 ## Scenariusz podstawowy
 
-1. Użytkownik podaje nazwę lub ticker spółki i prosi o informacje.
+1. Użytkownik uruchamia akcję agenta `company_research` (*Informacje o spółce*) i podaje nazwę lub ticker spółki.
 2. System przekazuje agentowi AI wyłącznie nazwę lub ticker spółki. Agent nie ma dostępu do danych użytkownika.
 3. Agent AI wyszukuje informacje o spółce w Internecie.
 4. Agent AI tworzy podsumowanie na podstawie znalezionych źródeł.
@@ -37,14 +37,13 @@ Szybko poznać aktualne informacje o spółce, którą rozważam kupić, wraz ze
 ## Scenariusze alternatywne
 
 - **3a. Wyszukiwarka nie zwraca wyników:** System informuje, że nie znaleziono informacji o spółce, i proponuje sprawdzenie nazwy lub tickera. Scenariusz wraca do kroku 1.
-- **3b. Przekroczony limit czasu wyszukiwania lub tworzenia podsumowania:** System informuje o przekroczeniu czasu i proponuje ponowienie. Scenariusz się kończy.
-- **4a. Model językowy niedostępny:** System informuje, że asystent AI jest chwilowo niedostępny (N08). Scenariusz się kończy.
+- **3b. Przekroczony limit czasu wyszukiwania lub tworzenia podsumowania (`COFFER_AGENT_TIMEOUT_S`):** System pokazuje wynik regułowy z danych, które zdążył pobrać, i proponuje ponowienie. Scenariusz się kończy.
+- **4a. Model językowy niedostępny (lub limit dzienny):** System pokazuje wynik regułowy (notowania, wiadomości i opis bez streszczenia AI, oznaczone „bez AI”) (N08). Scenariusz się kończy.
 - **4b. Podsumowanie nie ma żadnego źródła:** System nie pokazuje podsumowania i postępuje jak w 3a, bo F35 wymaga listy źródeł.
 
 ## Uwagi i otwarte kwestie
 
 - Nazwa spółki jest niejednoznaczna (kilka spółek o podobnej nazwie lub ticker na różnych giełdach) — czy system ma prosić o doprecyzowanie?
-- Brak wymagania na limit czasu (3b) — trzeba go ustalić.
-- Czy podsumowanie wymaga zastrzeżenia, że nie jest poradą? F33 dotyczy sugestii, a tu agent tylko streszcza informacje.
-- Czy dopuszczamy zapamiętanie wyniku (cache), skoro data pobrania ma być widoczna?
+- Rozstrzygnięte: limit czasu to `COFFER_AGENT_TIMEOUT_S` (domyślnie 60 s); raport zawiera zastrzeżenie „Informacje mają charakter poglądowy i nie są rekomendacją; sprawdź źródła.”; wyniki nie są cache'owane (data pobrania jest w wynikach narzędzi, a historia przechowuje wcześniejsze uruchomienia).
+- Akcja nie używa żadnych danych użytkownika (narzędzia: wiadomości, historia cen, Wikipedia, notowania).
 - Czy 4b nie powinno być zapisane jako wymaganie (podsumowanie bez źródeł jest odrzucane)?

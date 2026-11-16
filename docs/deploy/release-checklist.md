@@ -6,7 +6,7 @@ bezpieczeństwa w `vercel.json`, nowe hasło demo. Stan produkcji przed wdrożen
 Neon `dark-hall-98925715`, gałąź `production`, migracja `0004`; sekret `RENDER_DEPLOY_HOOK_URL`
 **nie jest ustawiony** (deploy.yml tylko się pomija), więc backend wdrażasz ręcznie w Render.
 
-Dochodzi też odporność LLM: łańcuch fallbacków, budżet czasu na wywołanie, `ai_status` doradcy,
+Dochodzi też odporność LLM: łańcuch fallbacków, budżet czasu na wywołanie, `ai_status` akcji agenta,
 `GET /api/agent/status`. Agent LLM nie zmienia schematu bazy (jedyna migracja to `0005`).
 
 ## 0. Przed merge (lokalnie / CI)
@@ -14,7 +14,7 @@ Dochodzi też odporność LLM: łańcuch fallbacków, budżet czasu na wywołani
 Stan z 2026-11-06 na końcowym diffie: `make lint` OK; `make check` OK (backend 755 passed + 5 xfailed,
 front 150 testów, build); OpenAPI zgodne; `alembic check` bez dryfu; `docker build` OK.
 
-- [ ] Powtórz `make check` po ostatnich poprawkach (`COFFER_ADVISOR_TIMEOUT_S`).
+- [ ] Powtórz `make check` po ostatnich poprawkach (`COFFER_AGENT_TIMEOUT_S`).
 - [ ] `make openapi` nie zmienia `src/frontend/src/api/schema.d.ts`.
 - [ ] Workflow „Migrations” na PR zielony (jedna głowa, `alembic check`, downgrade/upgrade).
   Lokalnie sprawdzone: `upgrade head`, `check`, `downgrade 0004`, `upgrade head` OK.
@@ -65,7 +65,8 @@ Settings → Environment usługi `coffer-api`:
   `gemini-3.8-flash` (wartość z Blueprintu) daje 503 albo timeout. Przy `gemini-3.8-flash` każde
   pytanie czeka do 40 s, zanim zadziała fallback. **Zalecane:** `COFFER_GEMINI_MODEL=gemini-3.5-flash-lite`
   (fallback zostaje jako zabezpieczenie).
-- [ ] `COFFER_ADVISOR_TIMEOUT_S` (domyślnie 60, dozwolone 1–109): zostaw domyślne albo wartość z `render.yaml`.
+- [ ] `COFFER_AGENT_TIMEOUT_S` (domyślnie 60, dozwolone 1–109): zostaw domyślne albo wartość z `render.yaml`.
+- [ ] `COFFER_PRICE_REFRESH_HOURS=0` na Render free (instancja usypia; job cen ręcznie: `make prices`).
   Musi być mniejsze niż limit 120 s proxy Vercel.
 - [ ] `COFFER_OLLAMA_URL`, `COFFER_OLLAMA_MODEL`, `COFFER_OLLAMA_API_KEY`: opcjonalne, tylko przy
   `COFFER_LLM_PROVIDER=ollama` ze zdalną Ollamą. W przeciwnym razie nie ustawiaj.
@@ -113,9 +114,9 @@ W przeglądarce (https://cofferai.vercel.app, DevTools → Console bez błędów
 - [ ] Status AI (zalogowany, DevTools lub karta w przeglądarce): `GET /api/agent/status` →
   `{"provider":"gemini","model":"gemini-3.5-flash-lite","available":true}`. `model` to aktywny model łańcucha.
   Bez sesji odpowiedź to 401, tak ma być.
-- [ ] Doradca inwestycyjny (`POST /api/agent/investment/advice`, panel doradcy): odpowiedź w < 60 s z
+- [ ] Akcja agenta (np. `POST /api/agent/actions/portfolio_review/run`, zakładka *Doradca AI*): odpowiedź w < 60 s z
   `ai_status: "ok"`. `ai_status: "limited"` (limit dzienny lub timeout) albo `"unavailable"` (brak LLM)
-  też jest poprawne: część liczbowa się wyświetla, panel pokazuje komunikat po polsku, nie ma 5xx ani 504 z Vercel.
+  też jest poprawne (wynik regułowy): część liczbowa się wyświetla, panel pokazuje komunikat po polsku, nie ma 5xx ani 504 z Vercel.
 - [ ] Asystent (SSE): pierwsze pytanie po zimnym starcie kończy się odpowiedzią albo komunikatem w < 2 min.
 - [ ] Render → Logs: brak tracebacków; przy 503 od modelu głównego widać przejście na fallback.
 - [ ] Neon SQL Editor: `SELECT version_num FROM alembic_version;` → `0005`; po zalogowaniu hash ma `m=19456,t=2,p=1`.
@@ -148,7 +149,7 @@ i przywraca `users_email_key`. Stare hashe przepisane na nowe parametry stary ko
 - **Pamięć Argon2:** `COFFER_PASSWORD_HASH_CONCURRENCY=2`, czyli nowe hashe 2 × 19 MiB. Do czasu rehashu
   stare hashe (m=64 MiB, p=4) kosztują do 2 × 64 MiB. Bazowy proces ~90–150 MB, limit 512 MB.
 - **LLM:** model główny `gemini-3.8-flash` jest niestabilny (503/timeout). Ustaw flash-lite jako główny
-  (sekcja 2). Budżet 40 s na wywołanie plus timeout doradcy (domyślnie 60 s) mieszczą się w 120 s proxy Vercel.
+  (sekcja 2). Budżet 40 s na wywołanie plus timeout akcji agenta (domyślnie 60 s) mieszczą się w 120 s proxy Vercel.
 - **Rate limit w pamięci:** reset przy restarcie i uśpieniu instancji free. Poprawny tylko przy 1 instancji i 1 workerze.
 - **Podglądy Vercel:** POST z domeny podglądu dostaje 403, dopóki nie ustawisz `COFFER_ALLOWED_ORIGIN_REGEX`.
   CSP blokuje też Vercel Toolbar na podglądach.

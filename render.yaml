@@ -69,9 +69,12 @@ services:
       # Budget per model call incl. retries; keep well below the 120 s Vercel proxy limit
       - key: COFFER_LLM_TIMEOUT_S
         value: "40"
-      # Whole investment-advisor run (all steps); must be < 110 (Vercel proxy limit 120 s)
-      - key: COFFER_ADVISOR_TIMEOUT_S
+      # Whole agent action (all steps); must be < 110 (Vercel proxy limit 120 s)
+      - key: COFFER_AGENT_TIMEOUT_S
         value: "60"
+      # In-process price refresh every N hours (0 = off; free tier sleeps anyway)
+      - key: COFFER_PRICE_REFRESH_HOURS
+        value: "0"
       # Paid API in production: keep the per-user daily limit low
       - key: COFFER_AGENT_DAILY_LIMIT
         value: "20"

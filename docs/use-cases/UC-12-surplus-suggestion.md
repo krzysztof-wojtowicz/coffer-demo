@@ -1,4 +1,4 @@
-# UC-12 — Sugestia wykorzystania nadwyżki
+# UC-12 — Sugestia wykorzystania nadwyżki (akcja `investment_ideas`)
 
 ## Aktor
 
@@ -22,33 +22,33 @@ Dowiedzieć się, jak mogę wykorzystać **nadwyżkę** z wybranego miesiąca, r
 
 ## Warunek końcowy
 
-- Użytkownik widzi nadwyżkę z wybranego miesiąca oraz **sugestię** z uzasadnieniem i zastrzeżeniem, że nie jest to porada inwestycyjna.
-- Do modelu językowego trafiły wyłącznie zanonimizowane agregaty (N03).
+- Użytkownik widzi kwotę do zainwestowania (domyślnie **nadwyżkę** z wybranego miesiąca) oraz **sugestię**: listę pomysłów na instrumenty z uzasadnieniem i zastrzeżeniem, że nie jest to porada inwestycyjna.
+- Do modelu językowego trafiły wyłącznie agregaty (N03).
 - System nie wykonał żadnej operacji finansowej.
 
 ## Scenariusz podstawowy
 
-1. Użytkownik wybiera miesiąc i prosi o sugestię wykorzystania nadwyżki.
-2. System liczy nadwyżkę deterministycznie, bez udziału modelu (jak w UC-11).
-3. System sprawdza, że nadwyżka jest większa od 0.
-4. System wysyła do modelu językowego wyłącznie zanonimizowane agregaty: sumy, kategorie, udziały i **profil inwestycyjny**. Nie wysyła adresu e-mail ani opisów transakcji (N03).
-5. Agent AI tworzy sugestię z uzasadnieniem.
-6. System sprawdza, czy odpowiedź zawiera uzasadnienie odwołujące się do danych użytkownika (F32).
-7. System pokazuje nadwyżkę, sugestię, uzasadnienie i zastrzeżenie (F33).
+Realizuje go akcja agenta `investment_ideas` (*Nowe możliwości inwestycyjne*, zakładka *Doradca AI*); parametry opcjonalne: miesiąc (domyślnie poprzedni), kwota, klasa aktywów.
+
+1. Użytkownik wybiera akcję, opcjonalnie podaje miesiąc, kwotę lub klasę aktywów, i uruchamia ją.
+2. Jeśli kwota nie została podana, system przyjmuje za nią nadwyżkę wybranego miesiąca, policzoną deterministycznie bez udziału modelu (jak w UC-11).
+3. System pobiera profil inwestycyjny i skład portfela, liczy lukę alokacji i dobiera kandydatów z uniwersum instrumentów (bez tych, które użytkownik już ma).
+4. System wysyła do modelu językowego wyłącznie agregaty i kandydatów: kwotę, udziały klas, poziom ryzyka, profil. Nie wysyła adresu e-mail ani opisów transakcji (N03). Model może dociągnąć notowania i wiadomości narzędziami akcji.
+5. Agent AI uzasadnia wybór pomysłów (top 3).
+6. System sprawdza, czy odpowiedź zawiera uzasadnienie odwołujące się do danych użytkownika (F32) i czy liczby pochodzą z wyników narzędzi.
+7. System pokazuje kwotę wraz ze źródłem (nadwyżka z miesiąca albo kwota podana), pomysły z uzasadnieniem, źródła i zastrzeżenie (F33). Przebieg ma **ślad** (kroki i narzędzia) dostępny z historii.
 
 ## Scenariusze alternatywne
 
-- **3a. Nadwyżka wynosi 0 lub jest ujemna:** System informuje, że w tym miesiącu nie ma nadwyżki, pokazuje wyliczenia i nie wywołuje modelu. Scenariusz się kończy.
-- **4a. Brak profilu inwestycyjnego:** System wysyła same agregaty budżetu, agent AI tworzy sugestię ogólną, a system zachęca do uzupełnienia profilu (UC-05).
-- **5a. Model niedostępny lub przekroczony limit czasu:** System pokazuje samo wyliczenie nadwyżki i komunikat „Asystent AI jest chwilowo niedostępny” (N08). Scenariusz się kończy.
-- **6a. Odpowiedź bez uzasadnienia:** System odrzuca odpowiedź i postępuje jak w 5a.
+- **2a. Nadwyżka wynosi 0 lub jest ujemna, a użytkownik nie podał kwoty:** Akcja kończy się statusem `no_data` z komunikatem „Brak nadwyżki w wybranym miesiącu. Podaj kwotę ręcznie.”; model nie jest wywoływany. Podanie kwoty ręcznie pozwala uruchomić akcję dla dowolnego miesiąca.
+- **3a. Brak profilu inwestycyjnego:** System przyjmuje profil domyślny (umiarkowane ryzyko, średni horyzont), zaznacza to w raporcie i zachęca do uzupełnienia profilu (UC-05).
+- **3b. Brak kandydatów:** Akcja kończy się statusem `no_data` („Brak instrumentów spełniających kryteria. Zmień klasę aktywów.”).
+- **5a. Model niedostępny, limit dzienny wyczerpany, przekroczony limit czasu albo odpowiedź odrzucona przez walidator:** System pokazuje **wynik regułowy** (fallback bez AI): ten sam wybór pomysłów z uzasadnieniem z reguł, oznaczony jako „bez AI” (N08). Przebieg trafia do historii ze statusem `unavailable`, `limited`, `timeout` albo `invalid`.
+- **\*a. Zbyt wiele uruchomień akcji:** Przy przekroczeniu ochrony przed nadużyciem (20/min, 200/dobę, 2 równolegle) system odpowiada komunikatem „Zbyt wiele uruchomień akcji…” (HTTP 429).
 
 ## Uwagi i otwarte kwestie
 
-- Stan implementacji: sugestia nadwyżki jest jedną z dwóch zakładek panelu w *Doradca AI* (`/assistant`), obok doradcy portfela. Nazwa modelu nie jest wyświetlana w UI (API nadal ją zwraca).
-
-- Brak wymagania na limit czasu odpowiedzi modelu — trzeba go ustalić (dotyczy też 5a).
-- Czy „zanonimizowane agregaty” mają obejmować nazwy kategorii zdefiniowanych przez użytkownika, które mogą zawierać dane osobowe?
-- Czy sugestia ma uwzględniać portfel użytkownika (F32 wymienia portfel, budżet i profil)? Tu przyjęto budżet i profil.
-- Czy system ma ponawiać wywołanie modelu przy błędzie?
-- Jak traktować miesiąc bieżący, który się jeszcze nie zakończył (nadwyżka niepełna)?
+- Stan implementacji: UC-12 realizuje akcja `investment_ideas` z katalogu sześciu akcji panelu *Doradca AI* (`/assistant`); nadwyżka jest domyślną kwotą, a nie warunkiem. Do F31 należą też akcje `savings_analysis` i `budget_plan`. Osobne endpointy nadwyżki i doradcy portfela zostały usunięte na rzecz jednego mechanizmu akcji.
+- Rozstrzygnięte: limit czasu to `COFFER_AGENT_TIMEOUT_S` (domyślnie 60 s, dotyczy całej akcji); portfel uwzględniamy (luka alokacji); przy błędzie walidacji następuje jedna poprawka (`COFFER_AGENT_MAX_ATTEMPTS`=2), potem wynik regułowy.
+- Czy „zanonimizowane agregaty” mają obejmować nazwy kategorii zdefiniowanych przez użytkownika? Kategorie są dziś globalne (słownik systemowy), więc problem nie występuje.
+- Miesiąc bieżący (niepełny): domyślnym miesiącem jest poprzedni; użytkownik może wskazać bieżący, a nadwyżka jest wtedy niepełna.

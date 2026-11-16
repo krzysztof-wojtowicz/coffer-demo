@@ -35,7 +35,8 @@ Obraz: `python:3.12-slim` + `uv sync --frozen --no-dev` (z `uv.lock`), użytkown
 | `COFFER_LLM_PROVIDER` | `gemini` | Albo `openai` lub `none` (rdzeń działa bez LLM). Także `anthropic` albo `ollama` (tylko zdalna). Szczegóły: „AI/LLM na produkcji”. |
 | `COFFER_LLM_FALLBACKS` | `gemini:gemini-3.8-flash` | Łańcuch zapasowych modeli `provider:model` po przecinku. |
 | `COFFER_LLM_TIMEOUT_S` | `40` | Budżet czasu na jedno wywołanie modelu łącznie z ponowieniami. |
-| `COFFER_ADVISOR_TIMEOUT_S` | `60` | Łączny budżet czasu doradcy inwestycyjnego (wszystkie kroki); musi być < 110. |
+| `COFFER_AGENT_TIMEOUT_S` | `60` | Łączny budżet czasu jednej akcji agenta (wszystkie kroki); musi być < 110. |
+| `COFFER_PRICE_REFRESH_HOURS` | `0` | Odświeżanie notowań w tle co N godzin (0 = wyłączone, zob. „Notowania (job cen)”). Na Render free zostaw `0`. |
 | `COFFER_GEMINI_API_KEY` | sekret | Gdy provider = `gemini`. |
 | `COFFER_OPENAI_API_KEY` | sekret | Gdy provider = `openai` (pole można zostawić puste). |
 | `COFFER_AGENT_DAILY_LIMIT` | `20` | Limit uruchomień agenta na użytkownika na dzień (płatne API). |
@@ -44,9 +45,11 @@ Aplikacja nie ma osobnego sekretu sesji (tokeny sesji są losowe i trzymane w ba
 
 ## AI/LLM na produkcji
 
-Asystent (nadwyżka, strumień SSE) i doradca inwestycyjny wołają model przez `coffer/agent/llm.py`. Brak modelu nie psuje rdzenia: nadwyżka pokazuje samo podsumowanie, doradca zwraca propozycje regułowe (`llm_used=false`).
+Wszystkie akcje asystenta (`POST /api/agent/actions/{id}/run`, JSON albo strumień SSE) wołają model przez `coffer/agent/llm.py`. Brak modelu nie psuje rdzenia: akcja zwraca wynik regułowy (źródło `rules`, status `unavailable`), a przy braku danych status `no_data` bez wołania modelu.
 
-**Odporność.** Każde wywołanie ma budżet `COFFER_LLM_TIMEOUT_S` (z ponowieniami). Statusy 429/500/502/503/504 oraz błędy sieci i timeouty są ponawiane maks. 2 razy z wykładniczym backoffem z jitterem (1 s, 2 s, …), z poszanowaniem `Retry-After`; ponowienie, które nie zmieści się w budżecie, jest pomijane. 400/401/403/404 nie są ponawiane. Gdy model nadal jest niedostępny, aplikacja przechodzi do następnego wpisu z `COFFER_LLM_FALLBACKS` (pierwszy jest zawsze `COFFER_LLM_PROVIDER` + jego `*_MODEL`; duplikat jest pomijany). Strumień SSE wysyła od razu komentarz `: ping` i powtarza go co 15 s, więc proxy Vercel (120 s do pierwszego bajtu) nie zrywa połączenia. `COFFER_LLM_TIMEOUT_S=40` trzyma pojedyncze wywołanie wyraźnie poniżej tego limitu. Doradca inwestycyjny (zwykłe żądanie JSON, do 4 kroków) ma łączny budżet `COFFER_ADVISOR_TIMEOUT_S` (domyślnie 60 s, walidacja < 110): każde wywołanie modelu dostaje min(własny timeout, pozostały czas), a po wyczerpaniu budżetu doradca zwraca propozycje regułowe z `llm_used=false` i `ai_status: "timeout"` (przebieg w `agent_runs` ze statusem `timeout`); UI pokazuje wtedy komunikat „Model AI nie odpowiedział na czas…”.
+**Odporność.** Każde wywołanie ma budżet `COFFER_LLM_TIMEOUT_S` (z ponowieniami). Statusy 429/500/502/503/504 oraz błędy sieci i timeouty są ponawiane maks. 2 razy z wykładniczym backoffem z jitterem (1 s, 2 s, …), z poszanowaniem `Retry-After`; ponowienie, które nie zmieści się w budżecie, jest pomijane. 400/401/403/404 nie są ponawiane. Gdy model nadal jest niedostępny, aplikacja przechodzi do następnego wpisu z `COFFER_LLM_FALLBACKS` (pierwszy jest zawsze `COFFER_LLM_PROVIDER` + jego `*_MODEL`; duplikat jest pomijany). Strumień SSE wysyła od razu komentarz `: ping` i powtarza go co 15 s, więc proxy Vercel (120 s do pierwszego bajtu) nie zrywa połączenia. `COFFER_LLM_TIMEOUT_S=40` trzyma pojedyncze wywołanie wyraźnie poniżej tego limitu. Cała akcja (pętla narzędzi, do kilku kroków) ma łączny budżet `COFFER_AGENT_TIMEOUT_S` (domyślnie 60 s, walidacja < 110): każde wywołanie modelu dostaje min(własny timeout, pozostały czas), a po wyczerpaniu budżetu akcja zwraca wynik regułowy z `ai_status: "timeout"` (przebieg w `agent_runs` ze statusem `timeout`); UI pokazuje wtedy komunikat „Model AI nie odpowiedział na czas…”.
+
+**Ochrona przed nadużyciem.** Osobno od dziennego limitu modelu działa limit wywołań akcji w pamięci procesu: 20 na minutę, 200 na dobę i 2 równolegle na użytkownika; po przekroczeniu odpowiedź 429 z `Retry-After` (liczniki zerują się przy restarcie).
 
 **Przełączenie dostawcy (Render → serwis `coffer-api` → Environment):** zmień zmienne i kliknij *Save, rebuild and deploy* (albo *Save and deploy*; zmiana env wymaga restartu).
 
@@ -72,7 +75,14 @@ Lokalnie nic się nie zmienia: pusty `COFFER_OLLAMA_API_KEY` = brak nagłówka.
 - `status 503` / `ReadTimeout`: przeciążenie („high demand”, częste dla `gemini-3.8-flash`) → ponowienia + fallback; dlatego model główny to `gemini-3.5-flash-lite`, a `3.8-flash` jest tylko w łańcuchu.
 - `status 401`/`403`: zły lub nieaktywny klucz (Anthropic: brak kredytów) → popraw sekret.
 - `status 429`: limit dostawcy (RPM/dzienny limit darmowego klucza) → fallback na innego dostawcę.
-- Asystent: „Osiągnięto dzienny limit…”, doradca: `ai_status: "limited"` → wyczerpany `COFFER_AGENT_DAILY_LIMIT` (wspólny dla nadwyżki i doradcy, liczony od północy UTC; zapisy w `agent_runs`).
+- Akcja zwraca wynik regułowy z `ai_status: "limited"` → wyczerpany `COFFER_AGENT_DAILY_LIMIT` (wspólny dla wszystkich akcji, liczony od północy UTC; licznik w `llm_usage_daily`, przebiegi w `agent_runs`).
+- `429` na `/api/agent/actions/{id}/run` → ochrona przed nadużyciem (zob. wyżej), nie limit modelu.
+
+## Notowania (job cen)
+
+Notowania z Yahoo Finance są cache'owane w tabeli `market_quotes` (migracja `0009`), dzięki czemu akcje i portfel nie czekają na sieć. Dwie drogi odświeżania:
+- **Ręcznie / cron:** `make prices` (lokalnie) albo `python -m coffer.scripts.refresh_prices` w środowisku backendu; pobiera notowania wszystkich symboli z portfeli i pary walutowe `<waluta>PLN=X`, zapisuje je w jednej krótkiej transakcji (błędy pojedynczych symboli są tylko raportowane, kod wyjścia 0).
+- **W tle:** `COFFER_PRICE_REFRESH_HOURS=N` (1–24) uruchamia wątek w procesie API; `0` (domyślnie) wyłącza go. Na Render free zostaje `0`: instancja usypia po ~15 minutach bez ruchu, więc wątek i tak by nie działał, a budziłby się tylko po to, by pobierać dane. Wątek ma blokadę doradczą w bazie, więc przy kilku procesach tylko jeden zapisuje. Brakujące notowania są dociągane przy żądaniu.
 
 ## CORS i Origin
 

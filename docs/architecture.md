@@ -8,7 +8,7 @@ Dokument opisuje architekturę Coffer w formie diagramów [Mermaid](https://merm
 2. [Wdrożenie](#2-wdrożenie)
 3. [Moduły backendu i zależności](#3-moduły-backendu-i-zależności)
 4. [Frontend](#4-frontend)
-5. [Sekwencja: „Pobierz rekomendacje” w Portfelu](#5-sekwencja-pobierz-rekomendacje-w-portfelu)
+5. [Sekwencja: „Uruchom akcję” agenta](#5-sekwencja-uruchom-akcję-agenta)
 6. [Serwer MCP z danymi rynkowymi](#6-serwer-mcp-z-danymi-rynkowymi)
 7. [Model danych](#7-model-danych)
 8. [Pipeline CI/CD](#8-pipeline-cicd)
@@ -53,7 +53,7 @@ flowchart LR
     mcpsrv -->|"notowania, newsy"| yahoo
 ```
 
-Użytkownik korzysta z Coffer przez przeglądarkę: SPA rozmawia wyłącznie z API pod `/api/*`. API przechowuje dane w Postgresie (produkcyjnie Neon), pobiera dane rynkowe z Yahoo Finance przez `yfinance` i opcjonalnie woła dostawcę LLM wybranego zmienną `COFFER_LLM_PROVIDER` (`ollama | openai | gemini | anthropic | none`). Brak LLM (`none` albo błąd) nie psuje rdzenia: doradca i asystent mają ścieżki zastępcze. Osobny proces `coffer.market.mcp_server` udostępnia te same narzędzia rynkowe klientom MCP (Claude Desktop/Code) i nie dotyka bazy ani danych użytkownika.
+Użytkownik korzysta z Coffer przez przeglądarkę: SPA rozmawia wyłącznie z API pod `/api/*`. API przechowuje dane w Postgresie (produkcyjnie Neon), pobiera dane rynkowe z Yahoo Finance przez `yfinance` i opcjonalnie woła dostawcę LLM wybranego zmienną `COFFER_LLM_PROVIDER` (`ollama | openai | gemini | anthropic | none`). Brak LLM (`none`, błąd, limit) nie psuje rdzenia: każda akcja agenta ma wynik regułowy (fallback bez AI). Notowania są cache'owane w tabeli `market_quotes` i odświeżane jobem cen (opcjonalny wątek w API albo `make prices`). Osobny proces `coffer.market.mcp_server` udostępnia te same narzędzia rynkowe klientom MCP (Claude Desktop/Code) i nie dotyka bazy ani danych użytkownika.
 
 ---
 
@@ -72,7 +72,9 @@ flowchart TB
         start["CMD: alembic upgrade head"]
         uvicorn["uvicorn coffer.main:app<br/>--proxy-headers"]
         origin["OriginMiddleware<br/>COFFER_ALLOWED_ORIGINS"]
+        pricejob["wątek cen (opcjonalny)<br/>COFFER_PRICE_REFRESH_HOURS, domyślnie 0"]
         start --> uvicorn --> origin
+        uvicorn -.-> pricejob
     end
 
     neonprod[("Neon Postgres<br/>direct URL, sslmode=require")]
@@ -90,6 +92,7 @@ flowchart TB
         devapi["make dev-api (uvicorn :8000)"]
         pg[("Postgres 16 w Dockerze<br/>compose.yaml")]
         vite --> devapi --> pg
+        prices["make prices<br/>(coffer.scripts.refresh_prices)"]
     end
 
     browser -->|"https://*.vercel.app"| spa
@@ -99,13 +102,17 @@ flowchart TB
     uvicorn -->|"SQL"| neonprod
     uvicorn -.-> llmext
     uvicorn -.-> yahoo2
+    pricejob -.->|"UPSERT market_quotes"| neonprod
+    pricejob -.-> yahoo2
+    prices -.->|"CLI: notowania i kursy FX"| yahoo2
+    prices -.-> pg
     dependabot -.->|"PR"| ci
     ci -->|"workflow_run: success na main"| deploy
     deploy -->|"POST deploy hook ?ref=SHA"| render
     github -.->|"Git integration: push main = prod, PR = preview"| vercel
 ```
 
-Przeglądarka widzi tylko domenę Vercel: `vercel.json` przepisuje `/api/:path*` na `https://coffer-api-p9ku.onrender.com`, więc ciasteczko sesji `coffer_session` (`HttpOnly`, `SameSite=Lax`, `Secure` przez `COFFER_COOKIE_SECURE`) jest pierwszopartyjne i nie wymaga CORS. Dodatkowo `OriginMiddleware` odrzuca (403) żądania POST/PUT/PATCH/DELETE z nagłówkiem `Origin` spoza `COFFER_ALLOWED_ORIGINS`. Kontener Render (`src/backend/Dockerfile`) przy starcie wykonuje `alembic upgrade head`, potem uruchamia uvicorn; baza Neon jest podłączona direct URL-em (zalecenie z `docs/deploy/database.md`, pooled tylko z `-pooler` w hoście). Render ma `autoDeploy: false`: backend wdraża `deploy.yml` przez deploy hook, a frontend Vercel buduje sam z Git integration. Lokalnie Vite proxuje `/api` na `localhost:8000`, a Postgres działa w Dockerze z `compose.yaml`.
+Przeglądarka widzi tylko domenę Vercel: `vercel.json` przepisuje `/api/:path*` na `https://coffer-api-p9ku.onrender.com`, więc ciasteczko sesji `coffer_session` (`HttpOnly`, `SameSite=Lax`, `Secure` przez `COFFER_COOKIE_SECURE`) jest pierwszopartyjne i nie wymaga CORS. Dodatkowo `OriginMiddleware` odrzuca (403) żądania POST/PUT/PATCH/DELETE z nagłówkiem `Origin` spoza `COFFER_ALLOWED_ORIGINS`. Kontener Render (`src/backend/Dockerfile`) przy starcie wykonuje `alembic upgrade head`, potem uruchamia uvicorn; baza Neon jest podłączona direct URL-em (zalecenie z `docs/deploy/database.md`, pooled tylko z `-pooler` w hoście). Render ma `autoDeploy: false`: backend wdraża `deploy.yml` przez deploy hook, a frontend Vercel buduje sam z Git integration. Job cen odświeża tabelę `market_quotes` w tle co `COFFER_PRICE_REFRESH_HOURS` godzin (wątek w procesie API, blokada doradcza w bazie); na Render free zostaje wyłączony (`0`), bo instancja usypia. Ręcznie: `make prices`. Lokalnie Vite proxuje `/api` na `localhost:8000`, a Postgres działa w Dockerze z `compose.yaml`.
 
 ---
 
@@ -117,67 +124,78 @@ flowchart LR
     scripts["coffer.scripts<br/>(dump_openapi, seed_demo)"]
 
     subgraph agent_layer["Warstwa agenta (coffer.agent)"]
-        agent["coffer.agent<br/>api, service, llm, workflows.surplus,<br/>tools.registry, tools.user_data, validator"]
-        invest["coffer.agent.investment<br/>api, advisor, schemas"]
+        agent["coffer.agent<br/>api, service, runner, guard, trace, pricing,<br/>llm, validator, sse, schemas"]
+        actions["coffer.agent.actions<br/>base (Action), catalog, 6 akcji"]
+        tools["coffer.agent.tools<br/>registry, user_data, market_data, calc<br/>(22 narzędzia)"]
     end
 
     subgraph core_layer["Rdzeń (nie importuje coffer.agent)"]
         accounts["coffer.accounts<br/>(deps.CurrentUser)"]
         transactions["coffer.transactions"]
-        budget["coffer.budget"]
+        budget["coffer.budget<br/>limity, insights"]
+        cash["coffer.cash<br/>saldo początkowe"]
         imports["coffer.imports"]
         profile["coffer.profile"]
         portfolio["coffer.portfolio"]
-        market["coffer.market<br/>service, tools, mcp_server"]
-        analytics["coffer.analytics<br/>(czyste funkcje)"]
+        market["coffer.market<br/>service, scheduler, tools, mcp_server"]
+        analytics["coffer.analytics<br/>(czyste funkcje: month, compare, limits, spending,<br/>planning, allocation, simulate, market_stats, ...)"]
         core["coffer.core<br/>config, db, money, months, origin"]
     end
 
-    main --> accounts & transactions & budget & imports & profile & portfolio & market & agent & invest
+    main --> accounts & transactions & budget & cash & imports & profile & portfolio & market & agent
     main -->|"OriginMiddleware"| core
+    main -->|"start_price_scheduler"| market
     scripts --> main
     scripts -->|"models"| accounts
     scripts -->|"models"| transactions
+    scripts -->|"refresh_prices: quoted_symbols"| portfolio
+    scripts -->|"fetch, store"| market
 
     accounts --> core
     transactions -->|"api: CurrentUser"| accounts
     transactions -->|"TxView"| analytics
     transactions --> core
     budget -->|"service.list_views"| transactions
-    budget -->|"month_summary"| analytics
+    budget -->|"month_summary, compare, limit_status"| analytics
+    budget --> cash
+    budget --> portfolio
     budget --> accounts
     budget --> core
-    imports -->|"service + models.Transaction (!)"| transactions
+    cash --> accounts
+    cash --> core
+    imports -->|"service (dedup_keys, category_hints, ...)"| transactions
     imports --> accounts
     imports --> core
     profile --> accounts
     profile --> core
     portfolio -->|"portfolio_summary"| analytics
+    portfolio -.->|"wycena, ładowane dynamicznie"| market
     portfolio --> accounts
     portfolio --> core
     market -->|"money.quantize"| core
     market --> accounts
     analytics -->|"money, months"| core
 
-    agent -->|"service + schemas (!)"| budget
-    agent -->|"service"| profile
-    agent -->|"category_shares"| analytics
+    agent -->|"run_action"| actions
+    actions -->|"ctx.call"| tools
+    tools -->|"service"| budget
+    tools -->|"service"| profile
+    tools -->|"service"| portfolio
+    tools -->|"service"| market
+    tools -->|"service"| transactions
+    tools -->|"czyste funkcje"| analytics
+    actions -->|"czyste funkcje"| analytics
+    actions -->|"list_categories"| transactions
     agent --> accounts
     agent --> core
-    invest -->|"llm.LLMClient"| agent
-    invest -->|"service"| profile
-    invest -->|"portfolio_summary"| analytics
-    invest -->|"service + tools"| market
-    invest --> accounts
-    invest --> core
 
     classDef pure fill:#e8f5e9,stroke:#2e7d32
     classDef agentcls fill:#fff3e0,stroke:#ef6c00
     class analytics pure
-    class agent,invest agentcls
+    class agent,actions,tools agentcls
 ```
 
-Strzałka oznacza „importuje / używa” (na podstawie `grep "^from coffer"` w `src/backend/coffer`). Reguły z `CLAUDE.md` i `import-linter` (`src/backend/pyproject.toml`): kontrakt **„Core modules do not import the agent”** zabrania modułom z podgrupy „Rdzeń” importu `coffer.agent`, a **„Analytics is pure”** zabrania `coffer.analytics` importu `sqlalchemy`, `fastapi` i `coffer.core.db`; oba kontrakty są dziś spełnione (`lint-imports`: 2 kept, 0 broken). Moduły powinny używać siebie nawzajem przez `service.py` (lub publiczne dataclassy `analytics`); routery wszystkich modułów importują `coffer.accounts.deps.CurrentUser`, co jest przyjętą konwencją. Krawędzie oznaczone `(!)` wychodzą poza `service.py`: `imports.service` używa `transactions.models.Transaction`, a `agent.schemas` i `agent.workflows.surplus` używają `budget.schemas.MonthSummaryOut`; `agent.investment.advisor` korzysta z `market.tools`, czyli wspólnych definicji narzędzi (zamierzone, patrz diagram 6).
+Strzałka oznacza „importuje / używa” (na podstawie `grep "^from coffer"` w `src/backend/coffer`). Reguły z `CLAUDE.md` i `import-linter` (`src/backend/pyproject.toml`): kontrakt **„Core modules do not import the agent”** zabrania modułom z podgrupy „Rdzeń” importu `coffer.agent`, a **„Analytics is pure”** zabrania `coffer.analytics` importu `sqlalchemy`, `fastapi` i `coffer.core.db`; oba kontrakty są dziś spełnione (`lint-imports`: 2 kept, 0 broken). Moduły powinny używać siebie nawzajem przez `service.py` (lub publiczne dataclassy `analytics`); routery wszystkich modułów importują `coffer.accounts.deps.CurrentUser`, co jest przyjętą konwencją. Od E5-09 `imports` nie importuje już modeli `transactions` (deduplikacja i podpowiedzi kategorii idą przez `transactions.service`), więc żadna krawędź nie wychodzi poza `service.py`. Narzędzia agenta (`agent.tools.*`) wołają wyłącznie `service.py` innych modułów (`budget`, `profile`, `portfolio`, `market`, `transactions`); `portfolio` ładuje `market.service` dynamicznie, żeby działać bez danych rynkowych i czyste funkcje `analytics`; sumy i wyceny liczy rdzeń, nie agent. `market.tools` służy już tylko serwerowi MCP (patrz diagram 6).
 
 ---
 
@@ -190,11 +208,11 @@ flowchart LR
     subgraph pages["src/frontend/src/features (React Router, App.tsx)"]
         auth["auth<br/>AuthPage, useMe"]
         tx["transactions<br/>TransactionsPage, TransactionRow, TransactionForm"]
-        bud["budget<br/>SummaryPage, NetWorthCard"]
+        bud["budget<br/>SummaryPage, NetWorthCard, LimitsSection, InsightsCard"]
         imp["import<br/>ImportFlow (panel w TransactionsPage)"]
         prof["profile<br/>ProfileSection (w AccountPage)"]
         port["portfolio<br/>PortfolioPage"]
-        asst["assistant<br/>AssistantPage (AssistantPanel + AdvisorPanel), RunDetailPage"]
+        asst["assistant<br/>AssistantPage (ActionPanel, SuggestionHistory, RunsTable), RunDetailPage"]
     end
 
     subgraph apilayer["Warstwa API (TanStack Query w queries.ts)"]
@@ -209,12 +227,11 @@ flowchart LR
     subgraph endpoints["Backend /api/*"]
         e_auth["/api/auth/{register,login,logout,me}"]
         e_tx["/api/transactions (GET, POST, PATCH, DELETE),<br/>/api/categories"]
-        e_bud["/api/budget/{month}, /api/budget/net-worth"]
+        e_bud["/api/budget/{month}, /api/budget/{month}/insights,<br/>/api/budget/limits, /api/budget/net-worth"]
         e_imp["/api/imports, /api/imports/banks,<br/>/api/imports/{draft_id}/commit"]
         e_prof["/api/profile"]
         e_port["/api/portfolio/holdings, /api/portfolio/summary"]
-        e_adv["/api/agent/investment/advice"]
-        e_agent["/api/agent/status, /api/agent/surplus/stream,<br/>/api/agent/suggestions, /api/agent/runs"]
+        e_agent["/api/agent/{status,actions,tools},<br/>/api/agent/actions/{id}/run (JSON, SSE),<br/>/api/agent/suggestions, /api/agent/runs"]
     end
 
     openapi -->|"openapi-typescript"| schema
@@ -235,67 +252,99 @@ flowchart LR
     imp --> e_imp
     prof --> e_prof
     port --> e_port
-    port --> e_adv
     asst --> e_agent
 ```
 
-Każdy feature ma własne `queries.ts` (hooki TanStack Query), które wołają API przez typowany klient `openapi-fetch` z `api/client.ts`; typy `paths` pochodzą z `api/schema.d.ts`, generowanego z OpenAPI backendu przez `make openapi` (job `openapi-sync` w CI pilnuje, by był aktualny). Upload CSV, strumień SSE asystenta i część wywołań profilu idą przez `lib/apiFetch.ts`; oba klienty stosują tę samą politykę: 401 poza `/api/auth/*` wylogowuje lokalnie. Endpoint `/api/market/quotes` istnieje w backendzie, ale frontend go dziś nie używa.
+Każdy feature ma własne `queries.ts` (hooki TanStack Query), które wołają API przez typowany klient `openapi-fetch` z `api/client.ts`; typy `paths` pochodzą z `api/schema.d.ts`, generowanego z OpenAPI backendu przez `make openapi` (job `openapi-sync` w CI pilnuje, by był aktualny). Upload CSV, strumień SSE asystenta i część wywołań profilu idą przez `lib/apiFetch.ts`; oba klienty stosują tę samą politykę: 401 poza `/api/auth/*` wylogowuje lokalnie. Karta *Wnioski* i limity kategorii korzystają z `/api/budget/*`; akcja *Plan budżetu* pozwala zastosować proponowane limity (`ApplyLimits`). Endpoint `/api/market/quotes` istnieje w backendzie, ale frontend go dziś nie używa.
 
 ---
 
-## 5. Sekwencja: „Pobierz rekomendacje” w Portfelu
+## 5. Sekwencja: „Uruchom akcję” agenta
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor U as Użytkownik
-    participant PP as AssistantPage / AdvisorPanel
-    participant API as agent.investment.api
-    participant PS as profile.service
-    participant ADV as agent.investment.advisor
-    participant AN as analytics.portfolio
+    participant UI as AssistantPage (ActionPanel)
+    participant API as agent.api
+    participant G as agent.guard
+    participant R as agent.runner
+    participant A as Action (prepare, fallback, check)
+    participant T as ToolRegistry (agent.tools)
+    participant SV as service.py modułów + analytics
     participant LLM as LLMClient (agent.llm)
-    participant MT as market.tools
-    participant MS as market.service
-    participant Y as Yahoo Finance (yfinance)
+    participant DB as agent.service (agent_runs, suggestions, llm_usage_daily)
 
-    U->>PP: klik „Pobierz rekomendacje”
-    PP->>API: POST /api/agent/investment/advice {holdings: symbol, asset_class, quantity, current_value}
-    API->>API: CurrentUser (ciasteczko), get_llm_client()
-    API->>PS: get(db, user.id)
-    PS-->>API: InvestmentProfile albo None
-    API->>ADV: advise(holdings, RiskProfile, llm)
-    ADV->>AN: portfolio_summary(HoldingInput...)
-    AN-->>ADV: udziały klas aktywów (%)
-    opt llm nie jest None (COFFER_LLM_PROVIDER różny od none)
-        loop maks. MAX_STEPS = 4
-            ADV->>LLM: complete(system, messages, response_schema=RESPONSE_SCHEMA)
-            Note over ADV,LLM: Do LLM trafia tylko: profil ryzyka, udziały klas %, symbole tickerów, wyniki narzędzi. Bez e-maila, nazw pozycji, kwot i identyfikatorów.
-            LLM-->>ADV: JSON {action: call_tool | final}
-            alt action = call_tool
-                ADV->>MT: call_tool(name, args)
-                MT->>MS: get_quotes / get_market_tips / get_instrument_universe
-                MS->>Y: yf.Ticker(...).fast_info / get_news
-                Y-->>MS: dane rynkowe
-                MS-->>MT: Quote / MarketTip / Instrument
-                MT-->>ADV: JSON (kwoty jako stringi)
-            else action = final
-                ADV->>ADV: _validate_answer (uniwersum, max_risk, znane URL-e)
+    U->>UI: wybór akcji, parametry, „Uruchom”
+    UI->>API: POST /api/agent/actions/{id}/run {params}<br/>Accept: text/event-stream
+    API->>API: CurrentUser, 404 dla nieznanej akcji, walidacja params (422)
+    API->>R: run_action(db, user_id, action, params, llm, registry, on_event)
+    R->>G: acquire(user_id)
+    alt 20/min, 200/dobę albo 2 równolegle przekroczone
+        G-->>API: ActionRateLimited
+        API-->>UI: 429 (JSON) albo zdarzenie error (SSE)
+    end
+    R->>A: prepare(ctx, params)
+    A->>T: ctx.call(narzędzie, args)
+    T->>SV: odczyt danych użytkownika, notowania, obliczenia
+    SV-->>T: wynik (kwoty jako stringi)
+    T-->>A: wynik (krok trafia do śladu)
+    A-->>R: Prepared {facts, tables, sources, context, snapshot, no_data?}
+    alt no_data
+        R->>R: status no_data, bez modelu
+    else brak LLM
+        R->>R: status unavailable, wynik regułowy
+    else dzienny limit wyczerpany (reserve_run)
+        R->>R: status limited, wynik regułowy
+    else pętla modelu
+        Note over R,LLM: Do LLM trafia tylko Prepared.context (agregaty) i wyniki narzędzi z listy akcji. Bez e-maila, opisów transakcji i identyfikatorów.
+        R->>R: db.commit + db.close (zwolnienie połączenia na czas modelu)
+        loop maks. action.max_steps, jeden budżet COFFER_AGENT_TIMEOUT_S
+            R->>LLM: complete(system, messages, response_schema)
+            LLM-->>R: JSON {action: call_tool, tool, args | final, answer}
+            opt call_tool
+                R->>T: call(narzędzie z listy akcji, args)
+                T-->>R: wynik (dołączony do rozmowy i śladu)
             end
         end
+        R->>R: validate_draft + action.check (liczby i źródła tylko z wyników narzędzi), do 2 prób
     end
-    alt brak LLM, wyjątek albo niepoprawna odpowiedź
-        ADV->>MS: get_instrument_universe()
-        ADV->>ADV: fallback_picks (scoring regułowy)
+    opt invalid, timeout, unavailable, limited
+        R->>A: fallback(prepared, params)
+        A-->>R: ReportDraft regułowy
     end
-    ADV->>MS: get_market_tips(3)
-    MS->>Y: newsy
-    ADV-->>API: AdviceOut {top_picks, tips, llm_used}
-    API-->>PP: 200 JSON
-    PP-->>U: 3 propozycje + wskazówki rynkowe
+    R->>DB: add_run (ślad: kroki, narzędzia, tokeny, koszt), record_usage
+    opt źródło ai albo rules
+        R->>DB: add_suggestion (report, snapshoty)
+    end
+    R->>G: release(user_id)
+    R-->>API: ActionRunOut {ai_status, source, report, run_id, suggestion_id}
+    API-->>UI: JSON albo SSE: status, step, result
+    UI-->>U: fakty, tabele, rekomendacje, źródła, zastrzeżenie, link do śladu
 ```
 
-Frontend wysyła tylko zagregowane pozycje portfela (symbol, klasa, ilość, bieżąca wartość); profil ryzyka API czyta z `profile.service` (brak profilu oznacza domyślny `RiskProfile()`). Tool calling działa przez ustrukturyzowane wyjście: każdy krok `LLMClient.complete(response_schema=...)` zwraca albo `call_tool`, albo `final`, więc działa z każdym dostawcą (`OllamaClient`, `OpenAIClient`, `GeminiClient`, `AnthropicClient`). Odpowiedź modelu jest walidowana względem uniwersum instrumentów i maksymalnego ryzyka profilu; przy braku LLM, wyjątku lub złej odpowiedzi działa deterministyczny `fallback_picks`, a flaga `llm_used` mówi, która ścieżka zadziałała.
+Wszystkie akcje (`portfolio_review`, `investment_ideas`, `savings_analysis`, `purchase_impact`, `budget_plan`, `company_research`) przechodzą przez ten sam `runner`; różnią się tylko definicją `Action` (parametry, `prepare`, lista narzędzi dostępnych dla modelu, `fallback`, dodatkowe `check`). Fakty i tabele liczy `prepare` z rdzenia, model dopisuje opis i rekomendacje, a walidator odrzuca liczby spoza wyników narzędzi. Gdy model jest niedostępny, za wolny albo odpowiada błędnie, użytkownik i tak dostaje wynik regułowy (`source: "rules"`); `no_data` kończy przebieg komunikatem bez zapisu sugestii. Tool calling działa przez ustrukturyzowane wyjście, więc działa z każdym dostawcą (`OllamaClient`, `OpenAIClient`, `GeminiClient`, `AnthropicClient`). Przebieg zawsze trafia do `agent_runs` (także przy `error`), a do `llm_usage_daily` tylko zużycie rezerwacji z modelem.
+
+### 5.1 Katalog akcji, narzędzia, ślad i limity
+
+**Interfejs akcji** (`agent/actions/base.py`): `Action` to niezmienny opis akcji: `id` (snake_case, trafia do `agent_runs.task` i `suggestions.type`), nazwa i opis, `params_model` (Pydantic, walidacja wejścia) i `params_ui` (opis formularza), `prompt_version` (plik `agent/prompts/<wersja>.md`), `tools` (które narzędzia wolno wołać modelowi), `draft_model` (kształt odpowiedzi modelu), `disclaimer`, flagi `uses_user_data` / `uses_internet` (publiczne, widoczne w `GET /api/agent/actions`), funkcje `prepare` (część deterministyczna), `fallback` (wynik bez AI, zawsze możliwy) i opcjonalne `check`, oraz `max_steps`. Spójność katalogu (nieznane narzędzia, narzędzia danych użytkownika w akcji bez danych użytkownika, narzędzia internetowe w akcji offline) sprawdza `validate_catalog`.
+
+| Akcja (`id`) | Parametry | Narzędzia dla modelu |
+|---|---|---|
+| `portfolio_review` (Analiza portfela) | brak | `get_portfolio`, `get_investment_profile`, `get_net_worth`, `target_allocation`, `get_price_history` |
+| `investment_ideas` (Nowe możliwości inwestycyjne) | `month`, `amount`, `asset_class` (wszystkie opcjonalne) | `get_quotes`, `get_price_history`, `get_company_news`, `get_market_news`, `search_symbol`, `get_instrument_universe`, `simulate_purchase` |
+| `savings_analysis` (Gdzie zaoszczędzić) | `month`, `months_back` (1–6) | `get_month_analysis`, `get_spending_insights`, `get_transaction_stats`, `get_category_limits`, `get_months_overview` |
+| `purchase_impact` (Wpływ zakupu na portfel) | `asset_class`, `symbol`, `amount` albo `quantity`, `price`, `currency` | `simulate_purchase`, `get_portfolio`, `get_investment_profile`, `target_allocation`, `get_quotes`, `get_fx_rate`, `get_month_analysis`, `get_price_history` |
+| `budget_plan` (Plan budżetu) | `months_back` (1–6), `savings_target`, `target_months` | `get_months_overview`, `get_category_limits`, `propose_budget`, `savings_goal_plan`, `compound_interest` |
+| `company_research` (Informacje o spółce) | `query` | `get_company_news`, `get_price_history`, `get_wikipedia_summary`, `get_quotes` (bez danych użytkownika) |
+
+**Rejestr narzędzi** (`agent/tools/registry.py`, `default_registry()`): 22 narzędzia w trzech grupach, każde z modelem argumentów, opisem po polsku i polem `uses_internet`. Dane użytkownika (8): `get_month_analysis`, `get_investment_profile`, `get_portfolio`, `get_net_worth`, `get_months_overview`, `get_spending_insights`, `get_transaction_stats`, `get_category_limits`. Obliczenia (5): `target_allocation`, `simulate_purchase`, `compound_interest`, `savings_goal_plan`, `propose_budget`. Rynek (9): `get_quotes`, `get_fx_rate`, `get_price_history`, `get_company_profile`, `get_company_news`, `get_market_news`, `search_symbol`, `get_wikipedia_summary`, `get_instrument_universe`. `user_id` narzędzia dostają z kontekstu sesji, nie od modelu; błąd narzędzia nie przerywa przebiegu (model dostaje komunikat). Lista narzędzi: `GET /api/agent/tools`; katalog akcji: `GET /api/agent/actions`.
+
+**Ślad.** `RunTrace` zapisuje kroki przebiegu (`agent_runs.steps`): narzędzia z `prepare`, wywołania modelu (próba, tokeny, czas), narzędzia wołane przez model, walidację, fallback, limit i błąd. Wynik narzędzia w śladzie jest przycinany do 20 000 znaków. Postęp (`status`, `step`) płynie przez SSE na bieżąco; szczegóły przebiegu: `GET /api/agent/runs/{id}` i strona `/assistant/runs/:id`. Koszt (`cost_usd`) szacuje `agent/pricing.py`.
+
+**Limity.** (1) Dzienny limit przebiegów z modelem na użytkownika: `COFFER_AGENT_DAILY_LIMIT`, atomowy licznik `llm_usage_daily`; po wyczerpaniu akcja zwraca wynik regułowy (`ai_status: limited`). (2) Ochrona przed nadużyciem (`agent/guard.py`, pamięć procesu): 20 uruchomień akcji na minutę, 200 na dobę i 2 równolegle na użytkownika, także gdy model nie jest wołany; po przekroczeniu HTTP 429 z `Retry-After`. (3) Budżet czasu całej akcji: `COFFER_AGENT_TIMEOUT_S`; pojedyncze wywołanie modelu: `COFFER_LLM_TIMEOUT_S`.
+
+**Statusy przebiegu** (`ai_status`): `ok` (wynik z AI), `no_data` (brak danych, bez modelu, bez sugestii w historii), `unavailable` (brak LLM lub niedostępny), `limited` (dzienny limit), `timeout`, `invalid` (odpowiedź odrzucona po poprawce); dla czterech ostatnich użytkownik dostaje wynik regułowy (`source: "rules"`). Status `error` oznacza nieoczekiwany błąd serwera (HTTP 500, przebieg zapisany).
 
 ---
 
@@ -309,26 +358,25 @@ flowchart LR
         srv["MarketMCP (FastMCP, nazwa coffer-market)<br/>list_tools / call_tool"]
     end
 
-    subgraph shared["coffer.market.tools (wspólne definicje)"]
+    subgraph shared["coffer.market.tools (definicje narzędzi MCP)"]
         tools["MARKET_TOOLS:<br/>get_quotes, get_market_tips,<br/>get_instrument_universe"]
         calltool["call_tool(name, args)<br/>walidacja, ToolError"]
     end
 
     svc["coffer.market.service<br/>cache, Decimal, quantize"]
     yahoo3{{"Yahoo Finance (yfinance)"}}
-    advisor["coffer.agent.investment.advisor<br/>(w procesie API)"]
+    agenttools["coffer.agent.tools.market_data<br/>(w procesie API, bez MCP)"]
 
     client <-->|"JSON-RPC przez stdio"| srv
     srv -->|"list_tools: name, description, inputSchema"| tools
     srv -->|"anyio.to_thread"| calltool
-    advisor -->|"opis narzędzi w prompcie"| tools
-    advisor -->|"wywołania w pętli LLM"| calltool
+    agenttools -->|"service"| svc
     calltool --> tools
     tools --> svc
     svc --> yahoo3
 ```
 
-Serwer MCP to osobny proces uruchamiany przez klienta (np. `claude mcp add coffer-market -- uv run --directory .../src/backend python -m coffer.market.mcp_server`) i komunikuje się przez stdio. Nazwy, opisy, schematy argumentów i walidacja narzędzi pochodzą z jednego miejsca, `coffer.market.tools`, więc klient MCP i doradca inwestycyjny widzą te same narzędzia i limity. Serwer nie ma dostępu do bazy ani do danych użytkownika: tylko publiczne dane rynkowe z `market.service`. Pakiet `mcp` jest przypięty do `<2` (Dependabot ignoruje major), bo w 2.x zmieniło się API `FastMCP`.
+Serwer MCP to osobny proces uruchamiany przez klienta (np. `claude mcp add coffer-market -- uv run --directory .../src/backend python -m coffer.market.mcp_server`) i komunikuje się przez stdio. Nazwy, opisy, schematy argumentów i walidacja narzędzi pochodzą z jednego miejsca, `coffer.market.tools`, więc klienci MCP widzą spójne narzędzia i limity. Akcje agenta w API nie korzystają z `market.tools` ani z serwera MCP: ich narzędzia rynkowe (`agent/tools/market_data.py`, w tym wiadomości, wyszukiwanie symboli i Wikipedia) wołają `market.service` bezpośrednio. Serwer nie ma dostępu do bazy ani do danych użytkownika: tylko publiczne dane rynkowe z `market.service`. Pakiet `mcp` jest przypięty do `<2` (Dependabot ignoruje major), bo w 2.x zmieniło się API `FastMCP`.
 
 ---
 
@@ -345,12 +393,18 @@ erDiagram
     users ||--o{ agent_runs : "uruchamia"
     users ||--o{ suggestions : "otrzymuje"
     agent_runs |o--o{ suggestions : "wygenerował"
+    users ||--o{ llm_usage_daily : "dzienne zużycie"
+    users ||--o{ budget_limits : "ustawia limity"
+    categories ||--o{ budget_limits : "limit kategorii"
+    users ||--o| opening_balances : "saldo początkowe"
 
     users {
         int id PK
         varchar email UK "254"
         varchar password_hash
         timestamptz created_at
+        timestamptz password_changed_at
+        timestamptz last_login_at
     }
     auth_sessions {
         int id PK
@@ -411,10 +465,15 @@ erDiagram
     agent_runs {
         int id PK
         int user_id FK "CASCADE"
-        varchar task "np. surplus"
-        varchar prompt_version
+        varchar task "id akcji, np. budget_plan"
+        varchar prompt_version "np. budget_plan_v1"
         varchar model
-        varchar status "ok / no_surplus / unavailable / invalid / limited"
+        varchar provider "ollama / openai / gemini / anthropic"
+        varchar status "ok / no_data / unavailable / invalid / limited / timeout / error"
+        jsonb params
+        jsonb steps "ślad: kroki"
+        int llm_calls
+        numeric cost_usd "NUMERIC(12,6)"
         jsonb tool_calls
         jsonb messages
         jsonb raw_outputs
@@ -429,10 +488,15 @@ erDiagram
         int id PK
         int user_id FK "CASCADE"
         int agent_run_id FK "ON DELETE SET NULL"
-        varchar type "surplus"
-        varchar month "YYYY-MM"
+        varchar type "id akcji"
+        varchar month "YYYY-MM, opcjonalny"
+        varchar source "ai / rules"
+        varchar ai_status
+        jsonb params
+        varchar provider
+        jsonb report "pełny raport akcji"
         text summary
-        jsonb rationale
+        jsonb rationale "opcjonalne"
         jsonb risks
         jsonb sources
         text disclaimer
@@ -441,9 +505,38 @@ erDiagram
         jsonb data_snapshot
         timestamptz created_at
     }
+    llm_usage_daily {
+        int user_id PK, FK "CASCADE"
+        date day PK
+        int runs
+        int input_tokens
+        int output_tokens
+    }
+    budget_limits {
+        int user_id PK, FK "CASCADE"
+        int category_id PK, FK "RESTRICT"
+        numeric amount "NUMERIC(14,2)"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    opening_balances {
+        int user_id PK, FK "CASCADE, 1:1"
+        numeric amount "NUMERIC(14,2)"
+        date as_of
+        timestamptz updated_at
+    }
+    market_quotes {
+        varchar symbol PK "20"
+        date quote_date PK
+        numeric price "NUMERIC(20,8)"
+        varchar currency "3"
+        numeric change_pct "NUMERIC(9,4)"
+        varchar source "domyślnie yahoo"
+        timestamptz fetched_at
+    }
 ```
 
-Tabele pochodzą z modeli `coffer/*/models.py` i migracji `alembic/versions/0001_initial` (users, auth_sessions, categories, transactions), `0002_import_drafts`, `0003_profile_agent` (investment_profiles, agent_runs, suggestions) i `0004_portfolio` (holdings). Kwoty pieniężne to `NUMERIC(14,2)` mapowane na `Decimal`; jedynie `holdings.quantity` ma `NUMERIC(20,8)`, bo to ilość jednostek, nie kwota. Każda tabela danych użytkownika ma `user_id` z `ON DELETE CASCADE`, a zapytania w `service.py` filtrują po nim; `categories` są globalne (słownik), a `suggestions` przeżywają usunięcie przebiegu agenta (`SET NULL`). Doradca inwestycyjny (diagram 5) nie zapisuje niczego do bazy.
+Tabele pochodzą z modeli `coffer/*/models.py` i migracji `alembic/versions/0001_initial` (users, auth_sessions, categories, transactions), `0002_import_drafts`, `0003_profile_agent` (investment_profiles, agent_runs, suggestions), `0004_portfolio` (holdings), `0005_accounts` (kolumny `password_changed_at`, `last_login_at` w users), `0006_opening_balance` (opening_balances), `0007_agent_actions` (rozszerzenie agent_runs i suggestions, llm_usage_daily), `0008_budget_limits` i `0009_market_quotes`. `market_quotes` jest globalna (bez `user_id`): to cache publicznych notowań, a `budget_limits` ma klucz złożony `(user_id, category_id)`. Kwoty pieniężne to `NUMERIC(14,2)` mapowane na `Decimal`; `holdings.quantity` i `market_quotes.price` mają `NUMERIC(20,8)` (ilość jednostek i cena instrumentu, nie kwota). Każda tabela danych użytkownika ma `user_id` z `ON DELETE CASCADE`, a zapytania w `service.py` filtrują po nim; `categories` są globalne (słownik), a `suggestions` przeżywają usunięcie przebiegu agenta (`SET NULL`). Każde uruchomienie akcji (diagram 5) zapisuje wiersz `agent_runs`, a wynik z AI lub regułowy także wiersz `suggestions`.
 
 ---
 

@@ -59,12 +59,31 @@ Stan wyjściowy: nawigacja 5 zakładek, edycja transakcji (`PATCH`), karta „Ma
 |---|---|---|---|---|---|
 | [E4-01 Saldo początkowe](E4-01-opening-balance.md) | 1 | implementer + tester | — | done | zrealizowane poza falą: amount/as_of zamiast opening_balance/opening_date, dodany DELETE |
 | [E4-02 Transakcje: filtry i paginacja na serwerze](E4-02-transactions-server-filter.md) | 1 | implementer + tester | — | ready | zmiana kształtu odpowiedzi listy |
-| [E4-03 Data aktualizacji cen](E4-03-price-timestamps.md) | 1 | implementer + tester | — | ready | `prices_as_of` w podsumowaniu portfela |
+| [E4-03 Data aktualizacji cen](E4-03-price-timestamps.md) | 1 | implementer + tester | — | merged→E5 | `prices_as_of` w podsumowaniu portfela |
 | [E4-06 Dostępność UI kit](E4-06-a11y-ui-kit.md) | 1 | implementer + tester | — | ready | tylko `components/ui/**` |
 | [E4-04 Historia majątku (wykres)](E4-04-net-worth-history.md) | 2 | implementer + tester | E4-01 | todo | seria tylko dla środków na kontach |
 | [E4-05 Testy e2e (Playwright)](E4-05-e2e-playwright.md) | 3 | tester | E4-01, E4-02 | todo | po ustabilizowaniu UI |
 
 Dalsze pozycje Etapu 4 (agent z narzędziami sieciowymi, UC-07, N08/N09, F05/F07, F12–F15) oraz lista „Odłożone z przeglądu Etapów 2–3” wyżej czekają na własne karty.
+
+## Etap 5: jeden mechanizm akcji agenta, budżet F12–F15, job cen F25
+
+Decyzje i wspólny kontrakt: [E5-00](E5-00-architecture.md). Maks. 3 agentów na falę, pliki rozłączne. `make openapi` uruchamia tylko legolas (E5-06, E5-08) i orkiestrator na końcu fal ≥ 2; między falą 1 a 2 bez commita (E5-00 D12). E5-04 i E5-08 przejmują zakres E4-03.
+
+| Karta | Fala | Role | Zależności | Status | Notatka |
+|---|---|---|---|---|---|
+| [E5-00 Decyzje i kontrakt](E5-00-architecture.md) | — | architekt (gandalf) | — | done | interfejs akcji, raport, API, ślad, plan fal |
+| [E5-01 Migracje 0007–0009](E5-01-migrations.md) | 0 | migracje (gimli) | E5-00 | done | addytywne; backfill `report` starych sugestii |
+| [E5-02 Porównania miesięcy i limity (backend)](E5-02-budget-insights-limits.md) | 1 | backend (aragorn) | E5-01 | done | F12–F15; trasy limitów przed `/{month}` |
+| [E5-03 Silnik akcji, API, usunięcie nadwyżki/doradcy](E5-03-agent-engine.md) | 1 | AI (eowyn) | E5-01 | done | `portfolio_review` jako akcja referencyjna; `reserve_run` |
+| [E5-04 Dane rynkowe + job cen](E5-04-market-data-price-job.md) | 2 | backend (aragorn) | E5-01 | done | `market_quotes`, `make prices`, `prices_as_of` |
+| [E5-05 Akcje: oszczędności, wpływ zakupu, plan budżetu](E5-05-agent-budget-actions.md) | 2 | AI (eowyn) | E5-02, E5-03 | done | `analytics.simulate_purchase` |
+| [E5-06 Front asystenta](E5-06-assistant-ui.md) | 2 | frontend (legolas) | E5-03 | done | panel akcji, historia, przebiegi, oś śladu |
+| [E5-07 Akcje: możliwości inwestycyjne, spółka](E5-07-agent-market-actions.md) | 3 | AI (eowyn) | E5-04, E5-05 | done | źródła z datami (N07), UC-13 bez danych użytkownika |
+| [E5-08 Front: budżet, limity, data cen](E5-08-budget-portfolio-ui.md) | 3 | frontend (legolas) | E5-02, E5-04, E5-06 | done | deep link „Oceń zakup” |
+| [E5-09 Import: granice, kategoryzacja, N05](E5-09-import-gaps.md) | 3 | backend (aragorn) | E5-01 | done | luki z weryfikacji F05/F07 |
+| [E5-10 Testy przekrojowe](E5-10-cross-tests.md) | 4 | testy (samwise) | E5-01..09 | done | prywatność, izolacja, N08 dla 6 akcji |
+| [E5-11 Dokumentacja](E5-11-docs.md) | 5 | dokumentacja (bilbo) | E5-01..10 | done | wszystkie `.md` poza `docs/tasks/` |
 
 ## Etap 0: specyfikacja
 

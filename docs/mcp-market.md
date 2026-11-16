@@ -1,8 +1,10 @@
 # Serwer MCP danych rynkowych (`coffer-market`)
 
 Moduł `coffer.market` udostępnia dane z Yahoo Finance (biblioteka `yfinance`) jako serwer
-MCP po stdio. Te same narzędzia (wspólne definicje w `coffer/market/tools.py`) wykorzystuje
-doradca inwestycyjny `POST /api/agent/investment/advice`.
+MCP po stdio. Definicje narzędzi serwera MCP są w `coffer/market/tools.py`. Akcje agenta w API
+(`POST /api/agent/actions/{id}/run`) nie wołają serwera MCP: mają własne narzędzia w rejestrze
+`coffer/agent/tools/market_data.py` (m.in. `get_quotes`, `get_instrument_universe`), które korzystają
+z tego samego `coffer.market.service` (cache notowań w tabeli `market_quotes`, odświeżanie: `make prices`).
 
 | Narzędzie | Argumenty | Zwraca |
 |---|---|---|

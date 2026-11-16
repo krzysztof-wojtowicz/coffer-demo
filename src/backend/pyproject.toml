@@ -76,3 +76,59 @@ name = "Analytics is pure"
 type = "forbidden"
 source_modules = ["coffer.analytics"]
 forbidden_modules = ["sqlalchemy", "fastapi", "coffer.core.db"]
+
+[[tool.importlinter.contracts]]
+name = "accounts does not read other modules' models"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["coffer.accounts"]
+forbidden_modules = ["coffer.transactions.models", "coffer.budget.models", "coffer.cash.models", "coffer.imports.models", "coffer.profile.models", "coffer.portfolio.models", "coffer.market.models"]
+
+[[tool.importlinter.contracts]]
+name = "transactions does not read other modules' models"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["coffer.transactions"]
+forbidden_modules = ["coffer.accounts.models", "coffer.budget.models", "coffer.cash.models", "coffer.imports.models", "coffer.profile.models", "coffer.portfolio.models", "coffer.market.models"]
+
+[[tool.importlinter.contracts]]
+name = "budget does not read other modules' models"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["coffer.budget"]
+forbidden_modules = ["coffer.accounts.models", "coffer.transactions.models", "coffer.cash.models", "coffer.imports.models", "coffer.profile.models", "coffer.portfolio.models", "coffer.market.models"]
+
+[[tool.importlinter.contracts]]
+name = "cash does not read other modules' models"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["coffer.cash"]
+forbidden_modules = ["coffer.accounts.models", "coffer.transactions.models", "coffer.budget.models", "coffer.imports.models", "coffer.profile.models", "coffer.portfolio.models", "coffer.market.models"]
+
+[[tool.importlinter.contracts]]
+name = "imports does not read other modules' models"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["coffer.imports"]
+forbidden_modules = ["coffer.accounts.models", "coffer.transactions.models", "coffer.budget.models", "coffer.cash.models", "coffer.profile.models", "coffer.portfolio.models", "coffer.market.models"]
+
+[[tool.importlinter.contracts]]
+name = "profile does not read other modules' models"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["coffer.profile"]
+forbidden_modules = ["coffer.accounts.models", "coffer.transactions.models", "coffer.budget.models", "coffer.cash.models", "coffer.imports.models", "coffer.portfolio.models", "coffer.market.models"]
+
+[[tool.importlinter.contracts]]
+name = "portfolio does not read other modules' models"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["coffer.portfolio"]
+forbidden_modules = ["coffer.accounts.models", "coffer.transactions.models", "coffer.budget.models", "coffer.cash.models", "coffer.imports.models", "coffer.profile.models", "coffer.market.models"]
+
+[[tool.importlinter.contracts]]
+name = "market does not read other modules' models"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["coffer.market"]
+forbidden_modules = ["coffer.accounts.models", "coffer.transactions.models", "coffer.budget.models", "coffer.cash.models", "coffer.imports.models", "coffer.profile.models", "coffer.portfolio.models"]

@@ -1,6 +1,7 @@
 import importlib
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -81,9 +82,23 @@ def quote_ticker(symbol: str, asset_class: str) -> str:
 class Price:
     price: Decimal
     currency: str
+    as_of: datetime | None = None
 
 
-def fetch_prices(symbols: list[str]) -> dict[str, Price] | None:
+def quoted_symbols(db: Session) -> list[str]:
+    """Every Yahoo ticker held by any user (global, no user data), for the price job."""
+    rows = db.execute(
+        select(Holding.symbol, Holding.asset_class).where(Holding.symbol.is_not(None))
+    )
+    return sorted({quote_ticker(sym, asset_class) for sym, asset_class in rows if sym})
+
+
+def holding_currencies(db: Session) -> list[str]:
+    """Distinct holding currencies across users (global, no user data)."""
+    return sorted(set(db.scalars(select(Holding.currency).distinct())))
+
+
+def fetch_prices(symbols: list[str], db: Session | None = None) -> dict[str, Price] | None:
     """Market prices (with quote currency) by symbol; None when market data is unavailable.
 
     A missing module, MarketDataUnavailable or any other provider failure degrades to None.
@@ -94,32 +109,45 @@ def fetch_prices(symbols: list[str]) -> dict[str, Price] | None:
     if not symbols:
         return {}
     try:
-        quotes = market.get_quotes(symbols)
+        quotes = market.get_quotes(symbols, db=db)
     except Exception:  # MarketDataUnavailable or a provider bug: degrade to no prices
         log.warning("market data unavailable", exc_info=True)
         return None
     return {
-        sym: Price(Decimal(str(q.price)), str(q.currency or BASE_CURRENCY).upper())
+        sym: Price(
+            Decimal(str(q.price)),
+            str(q.currency or BASE_CURRENCY).upper(),
+            getattr(q, "as_of", None),
+        )
         for sym, q in quotes.items()
         if q is not None
     }
 
 
-def fetch_fx_rates(currencies: set[str]) -> dict[str, Decimal]:
-    """currency -> PLN rate; currencies without a rate are simply left out."""
+def fetch_fx_rates(
+    currencies: set[str],
+    db: Session | None = None,
+    as_of: dict[str, datetime] | None = None,
+) -> dict[str, Decimal]:
+    """currency -> PLN rate; currencies without a rate are simply left out.
+
+    When `as_of` is given it is filled with the timestamp of each rate.
+    """
     market = _market()
-    get_fx_rate = getattr(market, "get_fx_rate", None) if market is not None else None
+    get_fx_quote = getattr(market, "get_fx_quote", None) if market is not None else None
     rates: dict[str, Decimal] = {}
-    if get_fx_rate is None:
+    if get_fx_quote is None:
         return rates
     for ccy in sorted(currencies - {BASE_CURRENCY}):
         try:
-            rate = get_fx_rate(ccy, BASE_CURRENCY)
+            found = get_fx_quote(ccy, BASE_CURRENCY, db)
         except Exception:  # contract says it never raises; stay defensive
             log.warning("fx rate unavailable for %s", ccy, exc_info=True)
-            rate = None
-        if rate is not None and Decimal(str(rate)) > 0:
-            rates[ccy] = Decimal(str(rate))
+            continue
+        if found is not None and Decimal(str(found[0])) > 0:
+            rates[ccy] = Decimal(str(found[0]))
+            if as_of is not None:
+                as_of[ccy] = found[1]
     return rates
 
 
@@ -128,16 +156,20 @@ class SummaryResult:
     summary: PortfolioSummary
     currencies: dict[int, str]
     prices_available: bool
+    quote_times: dict[int, datetime]
+    prices_as_of: datetime | None
 
 
 def summary(db: Session, user_id: int) -> SummaryResult:
     holdings = list_for_user(db, user_id)
     tickers = {h.id: quote_ticker(h.symbol, h.asset_class) for h in holdings if h.symbol}
-    prices = fetch_prices(sorted(set(tickers.values())))
+    symbols = sorted(set(tickers.values()))
+    prices = fetch_prices(symbols, db)
     known = prices or {}
     quoted = {hid: known.get(t) for hid, t in tickers.items()}
     currencies = {h.currency for h in holdings} | {p.currency for p in known.values()}
-    rates = fetch_fx_rates(currencies)
+    fx_times: dict[str, datetime] = {}
+    rates = fetch_fx_rates(currencies, db, fx_times)
     inputs = []
     for h in holdings:
         q = quoted.get(h.id)
@@ -155,8 +187,13 @@ def summary(db: Session, user_id: int) -> SummaryResult:
                 price_currency=q.currency if q else None,
             )
         )
+    db.commit()  # persist quotes/FX stored by the market module (global table, no user data)
+    quote_times = {hid: q.as_of for hid, q in quoted.items() if q is not None and q.as_of}
+    used_times = list(quote_times.values()) + list(fx_times.values())
     return SummaryResult(
         summary=portfolio_summary(inputs, rates),
         currencies={h.id: h.currency for h in holdings},
         prices_available=prices is not None,
+        quote_times=quote_times,
+        prices_as_of=min(used_times) if used_times else None,
     )

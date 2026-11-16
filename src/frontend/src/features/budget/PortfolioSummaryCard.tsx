@@ -6,7 +6,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { pl } from '../../i18n/pl'
 import { cn } from '../../lib/cn'
 import { apiErrorMessage } from '../../lib/errors'
-import { usePortfolioSummary } from '../portfolio/queries'
+import { formatAsOf, purchaseImpactLink, usePortfolioSummary } from '../portfolio/queries'
 
 const TOP_N = 5
 
@@ -105,9 +105,17 @@ export function PortfolioSummaryCard() {
           </ul>
         </div>
       )}
-      <Link to="/portfolio" className={cn(linkCls, 'mt-4 inline-block')}>
-        {pl.summary.portfolioDetails}
-      </Link>
+      {data.prices_as_of && (
+        <p className="mt-4 text-xs text-muted">{pl.portfolio.pricesAsOf(formatAsOf(data.prices_as_of))}</p>
+      )}
+      <div className="mt-2 flex flex-wrap gap-4">
+        <Link to="/portfolio" className={linkCls}>
+          {pl.summary.portfolioDetails}
+        </Link>
+        <Link to={purchaseImpactLink()} className={linkCls}>
+          {pl.portfolio.assessPurchase}
+        </Link>
+      </div>
     </Card>
   )
 }

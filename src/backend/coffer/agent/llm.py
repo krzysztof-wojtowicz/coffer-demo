@@ -5,7 +5,7 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from email.utils import parsedate_to_datetime
 from typing import Any, ClassVar, Literal, Protocol, cast
 
@@ -28,6 +28,7 @@ class LLMResponse:
     model: str
     input_tokens: int | None
     output_tokens: int | None
+    provider: str | None = None  # client that actually answered (a FallbackLLM chain has several)
 
 
 LLMProvider = Literal["ollama", "openai", "gemini", "anthropic"]
@@ -123,6 +124,7 @@ class OllamaClient:
             model=data.get("model") or self.model,
             input_tokens=data.get("prompt_eval_count"),
             output_tokens=data.get("eval_count"),
+            provider=self.provider,
         )
 
 
@@ -141,7 +143,7 @@ _sleep = time.sleep
 _clock = time.monotonic
 
 # Absolute deadline (in _clock time) shared by every call made inside `llm_deadline(...)`,
-# e.g. the whole multi-step advisor run; each request gets min(own timeout, time left).
+# e.g. the whole multi-step agent action; each request gets min(own timeout, time left).
 _DEADLINE: ContextVar[float | None] = ContextVar("llm_deadline", default=None)
 
 
@@ -342,6 +344,7 @@ class OpenAIClient:
             model=data.get("model") or self.model,
             input_tokens=_int_or_none(usage.get("prompt_tokens")),
             output_tokens=_int_or_none(usage.get("completion_tokens")),
+            provider=self.provider,
         )
 
 
@@ -487,6 +490,7 @@ class GeminiClient:
             model=data.get("modelVersion") or self.model,
             input_tokens=_int_or_none(usage.get("promptTokenCount")),
             output_tokens=_int_or_none(usage.get("candidatesTokenCount")),
+            provider=self.provider,
         )
 
 
@@ -613,6 +617,7 @@ class AnthropicClient:
             model=data.get("model") or self.model,
             input_tokens=_int_or_none(usage.get("input_tokens")),
             output_tokens=_int_or_none(usage.get("output_tokens")),
+            provider=self.provider,
         )
 
 
@@ -674,7 +679,7 @@ class FallbackLLM:
                 error = exc
                 continue
             self._active = client
-            return resp
+            return resp if resp.provider else replace(resp, provider=provider_name(client))
         assert error is not None
         raise error
 
