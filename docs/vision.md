@@ -1,32 +1,40 @@
-# Wizja projektu 
+# Vision
 
 ## Problem
+Managing day-to-day and long-term finances is hard and scattered across many sources. Coffer brings them into one system that helps with analysis, forecasts, investment plans and asset purchases.
 
-Chcielibyśmy rozwiązać problem utrudnionego i  wieloźródłowego zarządzania codziennymi oraz długoterminowymi finansami. Co za tym idzie spróbować ujednolicić i skonstruować pewien system, który mógłby pomóc w analizie, prognozach, planach inwestycyjnych czy potencjalnych zakupach aktywów.
+## Users
+A person managing their own budget, with no expert financial knowledge, who wants to understand it. (Family and business budgets were considered and left out; see N2 below.)
 
-## Użytkownicy
+## Scenarios
+- **Monthly budget review:** what did I spend on and how much, can I save, where and how should I invest the surplus?
+- **Buying assets:** what do I already own, what fits my portfolio, what might interest me, and what can I find online about a company?
+- **Saving:** where can I stop spending, and how do I start saving month by month?
 
-Użytkownikiem miałby być człowiek zarządzający własnym budżetem lub może budżetem rodziny/małej firmy/ przedsiębiorstwa. Ktokolwiek o nie-eksperckiej wiedzy finansowej z chęcią analizy swojego budżetu.
+## Role of the AI agent
+Finding opportunities, analysing the portfolio in context, and showing suggestions about asset purchases. A chat assistant if time allows (F38, not done).
 
-## Scenariusze
+## Scope
+In: UI, database, task-specific AI agent actions, an engine that analyses the portfolio and purchases.
+Out: payments (W1), bank API integration (W2), autonomous purchases (W3), shared multi-user budgets (W4).
 
-- Analizy comiesięczne budżetu: na co wydałem, ile, czy mogę przyoszczędzić, gdzie i jak zainwestować nadwyżkę
-- chęci kupienia aktywów: ile i co już mam, co najlepiej pasuje do akurat mojego portfela?, co może mnie zainteresować, wyszukiwanie informacji w Internecie o spółkach do inwestycji.
-- próba oszczędzania: gdzie i na co moge przestać wydawać, jak zacząć oszczędzać w skali miesiaca
+## Clarified ambiguities
+| # | Vision phrase | Problem | Decision |
+|---|---|---|---|
+| N1 | "multi-source finance management" | Where does data come from if bank APIs are out of scope? | The **user** enters data manually or imports a bank-statement CSV. |
+| N2 | "family / small business / company budget" | Businesses need VAT, accounting and permissions. | Version 1 handles one person's **personal budget**. |
+| N3 | "where and how to invest", "what fits my portfolio" | Sounds like regulated investment advice. | The system shows informational **suggestions** with reasoning and a disclaimer, not recommendations. |
+| N4 | "forecasts" | Forecasts of what, over what horizon? | Budget and asset balance at the end of the current and next month (F18, not done). |
+| N5 | "assets / real estate" | Which asset classes? | Cash, deposits, stocks, ETFs, bonds, crypto, real estate. |
+| N6 | "opportunities" | No criterion for an opportunity. | An **opportunity** is an asset matching the user's **investment profile** that they don't hold yet. |
 
-## Rola agenta AI
+## Assumptions
+- **A1.** Users can get their transaction history (e.g. a bank CSV) and want to load it.
+- **A2.** Users know what their portfolio contains and enter it themselves.
+- **A3.** Users are online when using AI features.
+- **A4.** One base currency per user (PLN by default); other currencies convert at the daily rate (not implemented yet: only PLN is accepted).
+- **A5.** The system never executes financial operations; it only analyses and informs.
+- **A6.** Users accept that the system stores their financial data.
 
-Rola agenta AI w tym systemie polegałaby na wyszukiwaniach potencjalnych okazji, analizach kontekstowych portfela, wyświetlaniu sugestii w sprawie zakupu aktywów/nieruchomości. Dodatkowo być może jeżeli starczy czasu i zasobów: chat-pomocnik.
-
-## Zakres
-
-- UI
-- Baza danych
-- Agent lub agenci dostosowani do odpowiednich zadan
-- Potencjalny silnik analizujący portfel i zakupy (możliwe że też na bazie ai)
-
-Prawdopodobnie poza zasięgiem:
-
-- Bramka płatnicza
-- integracja z api banku
-- autonomiczne zakupy
+## Requirements
+Functional (F01–F38) and non-functional (N01–N09) requirements are specified as capabilities in [`openspec/specs/`](../openspec/specs): `accounts`, `transactions`, `budget`, `portfolio`, `ai-agent`. N06 (Polish UI) applies everywhere. Priorities follow MoSCoW (M/S/C/W); everything M and S is implemented, and the open C items are in the [roadmap](roadmap.md).

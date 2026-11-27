@@ -1,66 +1,51 @@
-# Serwer MCP danych rynkowych (`coffer-market`)
+# Market-data MCP server (`coffer-market`)
 
-Moduł `coffer.market` udostępnia dane z Yahoo Finance (biblioteka `yfinance`) jako serwer
-MCP po stdio. Definicje narzędzi serwera MCP są w `coffer/market/tools.py`. Akcje agenta w API
-(`POST /api/agent/actions/{id}/run`) nie wołają serwera MCP: mają własne narzędzia w rejestrze
-`coffer/agent/tools/market_data.py` (m.in. `get_quotes`, `get_instrument_universe`), które korzystają
-z tego samego `coffer.market.service` (cache notowań w tabeli `market_quotes`, odświeżanie: `make prices`).
+`coffer.market` exposes Yahoo Finance data (`yfinance`) as an MCP server over stdio. Tool definitions live in `coffer/market/tools.py`. Agent actions in the API (`POST /api/agent/actions/{id}/run`) do not use this server: they have their own tools in `coffer/agent/tools/market_data.py` (e.g. `get_quotes`, `get_instrument_universe`) built on the same `coffer.market.service` (quotes cached in `market_quotes`, refreshed by `make prices`).
 
-| Narzędzie | Argumenty | Zwraca |
+| Tool | Arguments | Returns |
 |---|---|---|
-| `get_quotes` | `symbols: list[str]` (maks. 20) | notowania: cena i zmiana % jako stringi, waluta, `as_of` |
-| `get_market_tips` | `limit: int = 5` | wiadomości rynkowe (tytuł, streszczenie, źródło, URL) |
-| `get_instrument_universe` | brak | kandydaci z różnych klas aktywów z poziomem ryzyka 1–5 |
+| `get_quotes` | `symbols: list[str]` (max 20) | quotes: price and % change as strings, currency, `as_of` |
+| `get_market_tips` | `limit: int = 5` | market news (title, summary, publisher, URL) |
+| `get_instrument_universe` | none | candidates across asset classes with a risk level 1–5 |
 
-Dane są cache'owane w pamięci przez ok. 5 minut. Narzędzia nie dostają żadnych danych
-użytkownika.
+Data is cached in memory for about 5 minutes. The tools receive no user data.
 
-## Uruchomienie
+## Running
 
 ```bash
-make setup          # instaluje yfinance i mcp
+make setup          # installs yfinance and mcp
 make mcp-market     # = cd src/backend && uv run python -m coffer.market.mcp_server
 ```
 
-Serwer komunikuje się przez stdin/stdout, więc sam w terminalu tylko czeka na klienta.
+The server talks over stdin/stdout, so on its own in a terminal it just waits for a client.
 
 ## Claude Code
 
-Z katalogu głównego repozytorium:
+From the repository root:
 
 ```bash
 claude mcp add coffer-market -- uv run --directory "$(pwd)/src/backend" python -m coffer.market.mcp_server
 ```
 
-Sprawdzenie: `claude mcp list` albo `/mcp` w sesji.
+Check with `claude mcp list` or `/mcp` in a session.
 
 ## Claude Desktop
 
-W `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`) dodaj
-(ścieżkę zastąp własną, absolutną):
+In `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`), add (with your own absolute path):
 
 ```json
 {
   "mcpServers": {
     "coffer-market": {
       "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "/ABSOLUTNA/ŚCIEŻKA/coffer-demo/src/backend",
-        "python",
-        "-m",
-        "coffer.market.mcp_server"
-      ]
+      "args": ["run", "--directory", "/ABSOLUTE/PATH/coffer/src/backend", "python", "-m", "coffer.market.mcp_server"]
     }
   }
 }
 ```
 
-Po restarcie Claude Desktop narzędzia pojawią się na liście narzędzi. Jeśli `uv` nie jest
-w `PATH` aplikacji, podaj pełną ścieżkę (`which uv`).
+Restart Claude Desktop and the tools appear in its tool list. If `uv` isn't on the app's `PATH`, give its full path (`which uv`).
 
-## Uwagi
-
-- Pakiet `mcp` jest przypięty do `<2` (w 2.x `FastMCP` zmieniło nazwę na `MCPServer`).
-- Dane rynkowe służą celom informacyjnym; to nie jest porada inwestycyjna.
+## Notes
+- The `mcp` package is pinned to `<2` (in 2.x `FastMCP` was renamed `MCPServer`).
+- Market data is informational only; it is not investment advice.

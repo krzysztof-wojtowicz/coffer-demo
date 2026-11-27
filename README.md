@@ -1,141 +1,123 @@
 # Coffer
 
-[![CI](https://github.com/krzysztof-wojtowicz/coffer-demo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/krzysztof-wojtowicz/coffer-demo/actions/workflows/ci.yml)
+Coffer is a personal-finance app. It gathers your transactions and investments in one place, works out how much you have left each month, and uses an AI assistant to analyse your budget and portfolio and suggest what to do with your money. The app's interface is in Polish.
 
-Coffer to aplikacja do finansów osobistych: zbiera Twoje transakcje i inwestycje w jednym miejscu, liczy, ile zostaje Ci co miesiąc, i z pomocą asystenta AI analizuje budżet i portfel oraz podpowiada, co dalej z pieniędzmi.
+> Coffer currently runs **locally only** (no hosted version) while the project is being refactored. See [Running locally](#running-locally).
 
-**[Otwórz aplikację](https://cofferai.vercel.app)**
+<!-- TODO: screenshots -->
 
-<!-- TODO: zrzuty ekranu -->
+## What Coffer does
 
-## Co potrafi Coffer
+**Transactions and bank import**
+- Add transactions by hand (date, amount, description, category) or import a bank-statement CSV. Both forms open as panels at the top of the *Transakcje* tab.
+- The list has filters (month, type, category, source) and sorting (date or amount). Each row shows the date, amount, description, a coloured category tag and the source.
+- *Edytuj* changes the date, amount, description and category inline (one transaction at a time); deleting asks for confirmation.
+- Before importing you see a preview: which rows are new, which duplicate saved transactions, and which have errors. You decide what to import.
+- Imported transactions are categorized automatically; ones that couldn't be matched are flagged "do sprawdzenia" (to review).
 
-**Transakcje i import z banku**
-- Dodajesz transakcje ręcznie (data, kwota, opis, kategoria) albo importujesz plik CSV z wyciągu. Oba formularze rozwijają się jako panele na górze zakładki *Transakcje*.
-- Lista ma filtry (miesiąc, typ, kategoria, źródło) i sortowanie (data lub kwota). Każdy wiersz pokazuje datę, kwotę, opis, kolorowy tag kategorii i źródło.
-- *Edytuj* zmienia datę, kwotę, opis i kategorię w wierszu (jedna transakcja naraz); usunięcie wymaga potwierdzenia w oknie dialogowym.
-- Przed importem widzisz podgląd: które wiersze są nowe, które to duplikaty już zapisanych transakcji, a które mają błędy. Sam decydujesz, co zaimportować.
-- Transakcje z importu dostają kategorię automatycznie; te, których nie udało się przypisać, są oznaczone „do sprawdzenia”.
+**Summary**
+- The *Majątek* (net worth) card shows cash on accounts, portfolio value and net worth. Cash is the opening balance you enter (amount and date) plus your transactions since that date. Without one, all transactions count from zero, so the result may not match your bank. The card flags a portfolio that isn't fully priced.
+- For the chosen month: income, expenses and balance tiles (all transactions). The surplus (budget categories only) is the default amount for *Nowe możliwości inwestycyjne*.
+- Expenses by category with shares, a comparison with the previous month, and an *Wnioski* (insights) card with the fastest-growing categories.
+- Monthly category limits, with usage shown in the list.
+- A short portfolio card.
 
-**Podsumowanie**
-- Karta *Majątek*: środki na kontach, wartość portfela i wartość netto. Środki na kontach to saldo początkowe, które podajesz (kwota i data), plus suma Twoich transakcji od tej daty do dziś. Bez podanego salda liczą się wszystkie transakcje od zera, więc wynik może nie zgadzać się ze stanem konta w banku. Gdy część portfela nie ma aktualnej wyceny, karta to zaznacza.
-- Dla wybranego miesiąca: kafelki przychodów, wydatków i balansu (wszystkie transakcje miesiąca). Nadwyżka (tylko kategorie budżetowe) jest domyślną kwotą w akcji *Nowe możliwości inwestycyjne*.
-- Wydatki według kategorii z udziałem procentowym, porównanie z poprzednim miesiącem i karta *Wnioski* (kategorie, które najbardziej urosły).
-- Miesięczne limity kategorii: ustawiasz kwotę dla kategorii, a lista pokazuje zużycie limitu.
-- Skrócona karta portfela.
+**AI Advisor** (*Doradca AI* tab) is a catalog of six actions. Pick one, fill in its parameters and run it. The result combines facts and tables computed by the app with a description and recommendations from the model.
+- *Analiza portfela*: assesses your portfolio's structure against your profile.
+- *Nowe możliwości inwestycyjne*: instrument ideas (amount defaults to the month's surplus; optional asset class).
+- *Gdzie zaoszczędzić*: expenses you could cut, based on recent months.
+- *Wpływ zakupu na portfel*: how a planned purchase changes allocation and concentration.
+- *Plan budżetu*: proposed category limits, optionally for a savings goal; apply them with one click.
+- *Informacje o spółce*: quotes, news and a company description by name or ticker.
+- Before running, you see exactly what data will be sent to the model. Progress streams live, and every run has a **trace**: steps, tools called, time and usage.
+- If the model is missing, unavailable or your limit is used up, you get a **rule-based result**: the computed facts and simple conclusions, labelled "bez AI". If there isn't enough data, the action says so and doesn't call the model.
+- Suggestion and run history covers all actions.
 
-**Doradca AI** (zakładka *Doradca AI*) to katalog sześciu akcji. Wybierasz akcję, wypełniasz parametry i uruchamiasz ją; wynik to fakty i tabele policzone przez aplikację oraz opis i rekomendacje od modelu.
-- *Analiza portfela*: ocena struktury portfela względem profilu, bez parametrów.
-- *Nowe możliwości inwestycyjne*: pomysły na instrumenty (kwota domyślnie z nadwyżki miesiąca, opcjonalnie klasa aktywów).
-- *Gdzie zaoszczędzić*: wydatki, które da się obciąć, na podstawie kilku ostatnich miesięcy.
-- *Wpływ zakupu na portfel*: jak planowany zakup zmieni alokację i koncentrację.
-- *Plan budżetu*: propozycja limitów kategorii, opcjonalnie pod cel oszczędnościowy; limity można zastosować jednym przyciskiem.
-- *Informacje o spółce*: notowania, wiadomości i opis firmy po nazwie lub symbolu.
-- Przed uruchomieniem widzisz, jakie dane trafią do modelu. Postęp przebiegu płynie na żywo, a każdy przebieg ma **ślad**: kroki, wywołane narzędzia, czas i zużycie.
-- Gdy modelu brakuje, jest niedostępny albo wyczerpałeś limit, dostajesz **wynik regułowy** (same policzone fakty i proste wnioski, oznaczony „bez AI”). Gdy brakuje danych do analizy, akcja mówi to wprost i nie angażuje modelu.
-- Historia sugestii i przebiegów obejmuje wszystkie akcje.
+**Investment profile** (top of the *Konto* tab)
+- Three questions: investment horizon, risk tolerance and preferred asset classes.
+- Coffer shows your profile (cautious, moderate, dynamic) with an indicative allocation, and the assistant's actions tailor their ideas to it.
 
-**Profil inwestycyjny** (na górze zakładki *Konto*)
-- Trzy pytania: horyzont inwestycyjny, tolerancja ryzyka i preferowane klasy aktywów.
-- Na tej podstawie Coffer pokazuje Twój profil (ostrożny, umiarkowany, dynamiczny) z orientacyjną alokacją, a akcje asystenta dopasowują do niego propozycje.
+**Portfolio**
+- Holdings: stocks, ETFs, bonds, commodities, crypto, real estate, cash and deposits, in any currency.
+- Holdings with a ticker (e.g. `AAPL`, `CDR.WA`, `BTC-USD`) are valued at current quotes, and foreign amounts are converted to PLN at the current rate. Assets without quotes (e.g. a flat) are valued by hand.
+- Portfolio value, cost, gain or loss, and allocation by asset class.
 
-**Portfel**
-- Pozycje inwestycyjne: akcje, ETF, obligacje, surowce, kryptowaluty, nieruchomości, gotówka i lokaty. Dodajesz, edytujesz i usuwasz je w dowolnej walucie.
-- Pozycje z symbolem giełdowym (np. `AAPL`, `CDR.WA`, `BTC-USD`) są wyceniane po bieżących notowaniach, a kwoty w walutach obcych przeliczane na PLN po aktualnym kursie. Aktywa bez notowań (np. mieszkanie) wyceniasz ręcznie.
-- Wartość portfela, koszt zakupu, zysk lub strata oraz alokacja według klas aktywów.
+**Account**
+- Register with e-mail and password, log in and out. Everyone sees only their own data.
+- The *Konto* page: the investment profile on top, then *Bezpieczeństwo konta* (change password, log out of all devices, permanently delete the account with all data).
+- Five tabs (*Podsumowanie*, *Transakcje*, *Portfel*, *Doradca AI*, *Konto*); the header has a light/dark theme switch, your e-mail and *Wyloguj*.
 
-**Konto**
-- Rejestracja e-mailem i hasłem, logowanie, wylogowanie. Każdy widzi wyłącznie własne dane.
-- Strona *Konto*: u góry profil inwestycyjny, niżej sekcja *Bezpieczeństwo konta* (zmiana hasła, wylogowanie ze wszystkich urządzeń, trwałe usunięcie konta razem ze wszystkimi danymi).
-- Nawigacja ma pięć zakładek (*Podsumowanie*, *Transakcje*, *Portfel*, *Doradca AI*, *Konto*); w nagłówku są też przełącznik motywu jasny/ciemny, Twój e-mail i *Wyloguj*.
+## Running locally
+```bash
+cp .env.example .env   # optional
+make setup && make db-up && make migrate && make seed
+make dev-api            # terminal 1, http://localhost:8000
+make dev-web            # terminal 2, http://localhost:5173
+```
+Demo account: `demo@coffer.local` / `coffer-demo-2026`. Requirements, AI model setup and troubleshooting: [docs/development.md](docs/development.md).
 
-## Jak zacząć
+## Getting started
+1. **Create an account** in your local app (<http://localhost:5173>): an e-mail and a password (at least 12 characters, not a common password or your e-mail).
+2. **Add transactions** in *Transakcje*, by hand or by CSV import ([supported format](docs/csv-format.md)).
+3. **Check the monthly summary** on the home page.
+4. **Fill in your investment profile** in *Konto*; without it, suggestions are less tailored.
+5. **Add your portfolio** in *Portfel*: holdings, quantities, purchase prices.
+6. **Run an action** in *Doradca AI*, e.g. a portfolio review, a budget plan or investment ideas.
 
-1. **Załóż konto** na [stronie aplikacji](https://cofferai.vercel.app): wystarczy e-mail i hasło (min. 12 znaków, nie może być popularnym hasłem ani Twoim e-mailem).
-2. **Dodaj transakcje.** Wpisz je ręcznie w zakładce *Transakcje* albo zaimportuj plik CSV w tej samej zakładce ([obsługiwany format](docs/csv-format.md)).
-3. **Sprawdź podsumowanie** miesiąca na stronie głównej.
-4. **Uzupełnij profil inwestycyjny** w zakładce *Konto*. Bez niego sugestie są mniej dopasowane.
-5. **Dodaj portfel** w zakładce *Portfel*: pozycje, ilości, ceny zakupu.
-6. **Uruchom akcję** w zakładce *Doradca AI*: np. analizę portfela, plan budżetu albo pomysły na inwestycję.
+## Privacy and security
+- **Only aggregates reach the AI model:** monthly totals and spending per category, asset-class shares, instrument symbols and your investment profile. Never your e-mail, transaction descriptions or identifiers.
+- **The app computes, the model describes.** All totals and valuations come from Coffer's code. If the model is unavailable, the rest of the app works normally.
+- **Local or cloud model.** By default the model runs locally in Ollama, so nothing leaves your machine. With a cloud provider (Gemini, OpenAI, Claude) the aggregates are processed under that provider's terms.
+- **Passwords** are stored only as Argon2 hashes.
+- **The session** lives in an `HttpOnly` cookie that page scripts can't read, and state-changing requests from other domains are rejected.
 
-## Prywatność i bezpieczeństwo
+## Disclaimer
+The assistant's results are informational and educational. **They are not investment advice.** Investing carries the risk of losing capital, and you make your own decisions. Quotes and exchange rates come from Yahoo Finance and may be delayed or temporarily unavailable.
 
-- **Do modelu AI trafiają tylko agregaty.** Akcje dostają sumy miesiąca i wydatki per kategoria, udziały procentowe klas aktywów, symbole instrumentów i profil inwestycyjny; narzędzia modelu zwracają tylko takie agregaty. Nigdy nie wysyłamy e-maila, opisów transakcji ani identyfikatorów.
-- **Liczy aplikacja, nie model.** Wszystkie sumy i wyceny wylicza kod Coffera; model tylko je opisuje i proponuje pomysły. Gdy model jest niedostępny, reszta aplikacji działa normalnie.
-- **Model w chmurze.** Wersja publiczna korzysta z zewnętrznego dostawcy modelu (Google Gemini), więc powyższe agregaty są przetwarzane przez niego zgodnie z jego regulaminem.
-- **Hasła** są przechowywane wyłącznie jako skrót Argon2.
-- **Sesja** jest trzymana w ciasteczku `HttpOnly` (niedostępnym dla skryptów strony); żądania zmieniające dane z obcych domen są odrzucane.
-- **Dane w UE:** baza danych (Neon) i serwer aplikacji (Render) działają we Frankfurcie.
-
-## Zastrzeżenie
-
-Wyniki akcji asystenta mają charakter informacyjny i edukacyjny. **Nie są poradą inwestycyjną**; inwestowanie wiąże się z ryzykiem utraty kapitału, a decyzję podejmujesz samodzielnie. Notowania i kursy walut pochodzą z Yahoo Finance i mogą być opóźnione lub chwilowo niedostępne.
-
-## Ograniczenia
-
-- **Pierwsze wejście bywa wolne.** Serwer działa na darmowym planie i usypia po ok. 15 minutach bez ruchu; pierwsze żądanie po przerwie może trwać ok. 50 s.
-- **Limity asystenta:** dzienny limit przebiegów z modelem na użytkownika (`COFFER_AGENT_DAILY_LIMIT`, domyślnie 50; na wersji publicznej 20) oraz ochrona przed nadużyciem: 20 uruchomień akcji na minutę, 200 na dobę i 2 równolegle (po przekroczeniu odpowiedź 429). Po wyczerpaniu limitu modelu dostajesz wynik regułowy.
-- **Import CSV** obsługuje na razie jeden format pliku (opisany w [docs/csv-format.md](docs/csv-format.md)), a nie wyciągi konkretnych banków.
-- **Kursy walut i notowania** pochodzą tylko z Yahoo Finance. Gdy są niedostępne, pozycje wyceniane są z wyceny ręcznej lub ceny zakupu, a pozycji, których nie da się przeliczyć na PLN, nie wliczamy do sumy.
-- Karta *Majątek* liczy środki od salda początkowego, które podajesz (kwota i data). Bez salda liczy od zera, więc wynik może nie być stanem z banku. Coffer nie obsługuje wielu kont ani przelewów między nimi.
-- Filtry i sortowanie listy transakcji działają po stronie przeglądarki, na transakcjach wczytanych dla jednego miesiąca.
+## Limitations
+- **Assistant limits:**
+  - a daily limit of model runs per user (`COFFER_AGENT_DAILY_LIMIT`, 50 by default); when it runs out you get rule-based results.
+  - abuse protection of 20 action runs per minute, 200 per day and 2 concurrent; beyond that the API returns 429.
+- **CSV import** supports one file format for now ([docs/csv-format.md](docs/csv-format.md)), not specific banks' statements.
+- **Quotes and FX rates** come only from Yahoo Finance. When they're unavailable, holdings use the manual value or purchase price, and holdings that can't be converted to PLN are left out of the total.
+- The *Majątek* card counts cash from the opening balance you enter. Without one it counts from zero. Multiple bank accounts and transfers between them aren't supported.
+- Transaction filters and sorting run in the browser, on one month's transactions.
 
 ## FAQ
+**Does Coffer connect to my bank?**
+No. You add transactions by hand or import a CSV file. Coffer never asks for your bank login.
 
-**Czy Coffer łączy się z moim bankiem?**
-Nie. Transakcje dodajesz ręcznie albo importujesz z pliku CSV. Coffer nie prosi o dane logowania do banku.
+**Does the AI model see my transactions?**
+No. It sees only aggregates: monthly totals, spending per category, your portfolio's percentage structure and instrument symbols. The assistant page shows exactly what will be sent.
 
-**Czy model AI widzi moje transakcje?**
-Nie. Widzi tylko agregaty: sumy miesiąca i wydatki per kategoria, procentową strukturę portfela i symbole instrumentów. Na stronie asystenta możesz podejrzeć dokładnie, co zostanie wysłane.
+**Will importing the same file twice duplicate transactions?**
+No. The import preview marks transactions already in Coffer (same date, amount and description) as duplicates and skips them by default.
 
-**Czy zaimportowanie tego samego pliku dwa razy zdubluje transakcje?**
-Nie. Podgląd importu oznacza transakcje, które już są w Coffer (ta sama data, kwota i opis), jako duplikaty i domyślnie ich nie importuje.
+**Why does the assistant say it's unavailable?**
+The model isn't responding right now, or you've used your daily limit. The action then shows a rule-based result, and the summary, transactions and portfolio keep working. Try again later.
 
-**Dlaczego asystent mówi, że jest niedostępny?**
-Model AI chwilowo nie odpowiada albo wyczerpałeś dzienny limit. Akcja pokazuje wtedy wynik regułowy (bez AI), a podsumowanie, transakcje i portfel działają dalej; spróbuj ponownie później.
+**Why does a holding show "cena zakupu" (purchase price) instead of "notowanie" (quote)?**
+The current quote couldn't be fetched: no symbol, an unknown symbol, or Yahoo Finance was briefly unavailable. The holding is then valued manually or at its purchase price.
 
-**Dlaczego wartość pozycji pokazuje „cena zakupu” zamiast „notowanie”?**
-Nie udało się pobrać bieżącego notowania (brak symbolu, nieznany symbol lub chwilowa niedostępność Yahoo Finance). Wtedy pozycja jest wyceniana ręcznie albo po cenie zakupu.
+## For developers
+A monorepo: a Python backend (FastAPI, PostgreSQL), a React + TypeScript frontend, and an AI assistant with a swappable model provider (Ollama locally, Gemini, OpenAI or Claude).
 
-**Dlaczego aplikacja długo się ładuje?**
-Darmowy serwer usypia przy braku ruchu. Pierwsze wejście po przerwie trwa do ok. minuty, kolejne działają już szybko.
+- [Development guide](docs/development.md): local setup, configuration, LLM providers, tests, code layout
+- [Architecture](docs/architecture.md) and [data model](docs/data-model.md)
+- [Specs](openspec/specs) (behaviour, source of truth) and [active changes](openspec/changes)
+- [Market-data MCP server](docs/mcp-market.md)
+- [Working with AI agents](docs/agents.md) and [CLAUDE.md](CLAUDE.md)
 
-## Dla deweloperów
+### Documentation
+- [Vision](docs/vision.md), [glossary](docs/glossary.md), [roadmap](docs/roadmap.md), [history](docs/history.md)
+- [CSV format](docs/csv-format.md)
 
-Coffer to monorepo: backend w Pythonie (FastAPI, PostgreSQL), frontend w React + TypeScript, asystent AI z wymiennym dostawcą modelu (Ollama lokalnie, Gemini, OpenAI lub Claude). Wersja publiczna działa na Vercel (frontend), Render (API) i Neon (baza).
+## About
+Coffer is built at Warsaw University of Technology for the courses _Software Engineering 1_ (specification) and _Building AI Agents in .NET_ (agent integration).
 
-- [Uruchomienie, konfiguracja i hosting](docs/hosting.md): instalacja lokalna, zmienne środowiskowe, dostawcy LLM, testy, struktura kodu
-- Zmienne dotyczące AI i cen: `COFFER_AGENT_TIMEOUT_S` (łączny czas akcji, domyślnie 60 s), `COFFER_AGENT_DAILY_LIMIT`, `COFFER_PRICE_REFRESH_HOURS` (odświeżanie cen w tle co N godzin, 0 = wyłączone)
-- `make prices`: jednorazowe pobranie notowań do tabeli `market_quotes` (`make prices` z katalogu głównego)
-- [Architektura systemu](docs/architecture.md)
-- [Wdrożenie produkcyjne: Neon, Render, Vercel, CI](docs/deploy/)
-- [Serwer MCP danych rynkowych](docs/mcp-market.md)
-- [Kontekst dla agentów AI (CLAUDE.md)](CLAUDE.md)
+## Authors
+© Bartłomiej Sokołowski, Konstanty Sobczyński, Krzysztof Wójtowicz, Krzysztof Wojczakowski @ Warsaw University of Technology
 
-### Dokumentacja
-
-- [Wizja](docs/vision.md)
-- [Wymagania](docs/requirements.md)
-- [Słownik](docs/glossary.md)
-- [Przypadki użycia](docs/use-cases/README.md)
-- [Plan techniczny](docs/plan.md)
-- [Architektura systemu (diagramy)](docs/architecture.md)
-- [Uruchomienie, konfiguracja i hosting](docs/hosting.md)
-- [Wdrożenie: baza, backend, frontend, CI](docs/deploy/)
-- [Serwer MCP danych rynkowych](docs/mcp-market.md)
-- [Format CSV](docs/csv-format.md)
-- [Praca z agentami](docs/agents.md)
-- [Karty zadań](docs/tasks/README.md)
-
-## O projekcie
-
-Coffer powstaje na Politechnice Warszawskiej w ramach przedmiotów _Inżynieria Oprogramowania 1_ (specyfikacja) i _Tworzenie Agentów AI w środowisku .NET_ (integracja z agentem).
-
-## Autorzy:
-
-© Bartłomiej Sokołowski, Konstanty Sobczyński, Krzysztof Wójtowicz, Krzysztof Wojczakowski @ Politechnika Warszawska
-
-### Grupy zajęciowe:
-
-- **IO1** _Grupa 31_ - Bartłomiej Sokołowski, Konstanty Sobczyński, Krzysztof Wójtowicz
-- **Agenci AI** _Grupa 4_ - Bartłomiej Sokołowski, Konstanty Sobczyński, Krzysztof Wójtowicz, Krzysztof Wojczakowski
+### Course groups
+- **IO1** _Group 31_: Bartłomiej Sokołowski, Konstanty Sobczyński, Krzysztof Wójtowicz
+- **AI Agents** _Group 4_: Bartłomiej Sokołowski, Konstanty Sobczyński, Krzysztof Wójtowicz, Krzysztof Wojczakowski

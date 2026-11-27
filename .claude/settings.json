@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(make lint)",
+      "Bash(make check)",
+      "Bash(make check-web)",
+      "Bash(make openapi)",
+      "Bash(make test-backend:*)",
+      "Bash(COFFER_TEST_DB=* make test-backend:*)",
+      "Bash(openspec list:*)",
+      "Bash(openspec show:*)",
+      "Bash(openspec validate:*)",
+      "Bash(openspec status:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ]
+  }
+}

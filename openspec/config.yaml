@@ -1,0 +1,24 @@
+schema: spec-driven
+
+# Project context for OpenSpec artifacts. Full rules: CLAUDE.md.
+context: |
+  Coffer is a personal-finance web app with an AI assistant (student project, 4 people).
+  Stack: Python 3 / FastAPI / SQLAlchemy / Alembic / PostgreSQL backend in src/backend,
+  React + TypeScript + Vite + Tailwind frontend in src/frontend, LLM via Ollama/OpenAI/Gemini/Anthropic.
+  Constraints an agent cannot infer:
+  - Money is Decimal only (NUMERIC(14,2) in DB, strings in JSON), rounded with coffer.core.money.quantize (ROUND_HALF_UP).
+  - Totals are computed only in coffer.analytics (pure functions, no DB, no FastAPI).
+  - Modules talk to each other only through their service.py; the core never imports coffer.agent.
+  - Every endpoint except /api/health and /api/auth/{register,login,logout} requires a session; another user's resource returns 404.
+  - Only aggregates reach the LLM: no e-mail, transaction descriptions or identifiers. The core works without an LLM (N08).
+  - The UI and all user-facing messages are in Polish (N06). Specs, code and docs are in English;
+    quote exact Polish UI strings where they matter.
+  - Requirement IDs (F01..F38, N01..N09) come from the original requirements and stay in requirement text.
+
+rules:
+  proposal:
+    - State what is out of scope.
+    - Reference the affected requirement IDs (Fxx/Nxx) when there are any.
+  tasks:
+    - Group tasks by owner (implementer, tester) so they can run in parallel on disjoint files.
+    - End with a verification task listing the make targets to run (make lint, make test-backend, make check-web, make openapi).
