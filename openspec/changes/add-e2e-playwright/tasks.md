@@ -6,7 +6,6 @@
 - [ ] 1.5 Flow: add a manual holding; the net worth card shows the total
 - [ ] 1.6 Flow: AI advisor with the model off shows the "bez AI" result; the rest of the app works
 - [ ] 1.7 Flow: logout, then `/import` and `/profile` redirect to login
-- [ ] 1.8 Optional CI job in `.github/workflows/ci.yml`
 
 ## 2. Verify
 - [ ] 2.1 `make e2e` passes on a clean test database in under 3 minutes and leaves no data outside its own users

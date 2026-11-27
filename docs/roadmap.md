@@ -33,4 +33,4 @@ What's left. Planned work with a spec lives in [`openspec/changes/`](../openspec
 
 **Release**
 - Manual pass over all six actions with and without a local model, and over limits and "Oceń zakup".
-- Redeploy the backend on Render with migrations `0007`–`0009` ([deploy/release-checklist.md](deploy/release-checklist.md)).
+- Decide on hosting again once the refactoring is done (the previous Vercel + Render + Neon setup was removed; see [history.md](history.md)).

@@ -1,6 +1,6 @@
 # Development guide
 
-How to run Coffer locally, configure the AI assistant, and test. The product from a user's point of view is in the [README](../README.md); production deployment is in [deploy/](deploy/README.md); the design is in [architecture.md](architecture.md). Commands run from the repository root.
+How to run Coffer locally, configure the AI assistant, and test. The app runs locally only; there is no production deployment. The product from a user's point of view is in the [README](../README.md); the design is in [architecture.md](architecture.md). Commands run from the repository root.
 
 Coffer is a personal-finance app with an AI assistant, built at Warsaw University of Technology for *Software Engineering 1* (specification) and *Building AI Agents in .NET* (agent integration; Python agreed with the lecturer).
 
@@ -78,7 +78,7 @@ Log in at <http://localhost:5173> with `demo@coffer.local` / `coffer-demo-2026`.
 coffer/
 ├── CLAUDE.md, .claude/   agent setup (see docs/agents.md)
 ├── openspec/             specs (source of truth for behaviour) and changes
-├── docs/                 architecture, data model, deploy, history
+├── docs/                 architecture, data model, roadmap, history
 ├── data/fixtures/        fictional test data (csv/testbank-2026-10.csv)
 ├── docker/               Postgres init (test database)
 ├── compose.yaml          Postgres 16
@@ -122,7 +122,15 @@ coffer/
 | `make openapi` | dump OpenAPI and regenerate TypeScript types |
 | `make prices` | fetch quotes into `market_quotes` once |
 
-Backend tests live in `src/backend/tests/<module>`, frontend tests next to the code (`*.test.ts(x)`). Tests use a separate database (`coffer_test` by default); set `COFFER_TEST_DB=coffer_test_<module>` so parallel runs don't wipe each other's data. The LLM is replaced with `FakeLLM` in tests; CI runs with `COFFER_LLM_PROVIDER=none`.
+Backend tests live in `src/backend/tests/<module>`, frontend tests next to the code (`*.test.ts(x)`). Tests use a separate database (`coffer_test` by default); set `COFFER_TEST_DB=coffer_test_<module>` so parallel runs don't wipe each other's data. The LLM is replaced with `FakeLLM` in tests and `yfinance` is mocked, so tests never hit the network.
 
-## 7. Working with AI agents
+## 7. Checks before pushing
+There is no CI: checks run locally. Before pushing, run:
+- `make check` (lint, backend tests, frontend checks);
+- `make openapi` if the API changed, and commit `schema.d.ts`;
+- the Alembic checks from [data-model.md](data-model.md#testing) if you added a migration.
+
+`make check-web-clean` reinstalls frontend dependencies from the lockfile before checking. Dependencies aren't updated automatically, so bump them deliberately.
+
+## 8. Working with AI agents
 See [agents.md](agents.md) and [`CLAUDE.md`](../CLAUDE.md).

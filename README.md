@@ -1,10 +1,8 @@
 # Coffer
 
-[![CI](https://github.com/krzysztof-wojtowicz/coffer-demo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/krzysztof-wojtowicz/coffer-demo/actions/workflows/ci.yml)
-
 Coffer is a personal-finance app. It gathers your transactions and investments in one place, works out how much you have left each month, and uses an AI assistant to analyse your budget and portfolio and suggest what to do with your money. The app's interface is in Polish.
 
-**[Open the app](https://cofferai.vercel.app)**
+> Coffer currently runs **locally only** (no hosted version) while the project is being refactored. See [Running locally](#running-locally).
 
 <!-- TODO: screenshots -->
 
@@ -49,8 +47,17 @@ Coffer is a personal-finance app. It gathers your transactions and investments i
 - The *Konto* page: the investment profile on top, then *Bezpieczeństwo konta* (change password, log out of all devices, permanently delete the account with all data).
 - Five tabs (*Podsumowanie*, *Transakcje*, *Portfel*, *Doradca AI*, *Konto*); the header has a light/dark theme switch, your e-mail and *Wyloguj*.
 
+## Running locally
+```bash
+cp .env.example .env   # optional
+make setup && make db-up && make migrate && make seed
+make dev-api            # terminal 1, http://localhost:8000
+make dev-web            # terminal 2, http://localhost:5173
+```
+Demo account: `demo@coffer.local` / `coffer-demo-2026`. Requirements, AI model setup and troubleshooting: [docs/development.md](docs/development.md).
+
 ## Getting started
-1. **Create an account** on the [app](https://cofferai.vercel.app): an e-mail and a password (at least 12 characters, not a common password or your e-mail).
+1. **Create an account** in your local app (<http://localhost:5173>): an e-mail and a password (at least 12 characters, not a common password or your e-mail).
 2. **Add transactions** in *Transakcje*, by hand or by CSV import ([supported format](docs/csv-format.md)).
 3. **Check the monthly summary** on the home page.
 4. **Fill in your investment profile** in *Konto*; without it, suggestions are less tailored.
@@ -60,18 +67,16 @@ Coffer is a personal-finance app. It gathers your transactions and investments i
 ## Privacy and security
 - **Only aggregates reach the AI model:** monthly totals and spending per category, asset-class shares, instrument symbols and your investment profile. Never your e-mail, transaction descriptions or identifiers.
 - **The app computes, the model describes.** All totals and valuations come from Coffer's code. If the model is unavailable, the rest of the app works normally.
-- **Cloud model.** The public version uses an external provider (Google Gemini), which processes those aggregates under its own terms.
+- **Local or cloud model.** By default the model runs locally in Ollama, so nothing leaves your machine. With a cloud provider (Gemini, OpenAI, Claude) the aggregates are processed under that provider's terms.
 - **Passwords** are stored only as Argon2 hashes.
 - **The session** lives in an `HttpOnly` cookie that page scripts can't read, and state-changing requests from other domains are rejected.
-- **Data in the EU:** the database (Neon) and the app server (Render) run in Frankfurt.
 
 ## Disclaimer
 The assistant's results are informational and educational. **They are not investment advice.** Investing carries the risk of losing capital, and you make your own decisions. Quotes and exchange rates come from Yahoo Finance and may be delayed or temporarily unavailable.
 
 ## Limitations
-- **The first visit can be slow.** The server runs on a free plan and sleeps after about 15 idle minutes; the first request after that can take about 50 s.
 - **Assistant limits:**
-  - a daily limit of model runs per user (`COFFER_AGENT_DAILY_LIMIT`, 50 by default and 20 in the public version); when it runs out you get rule-based results.
+  - a daily limit of model runs per user (`COFFER_AGENT_DAILY_LIMIT`, 50 by default); when it runs out you get rule-based results.
   - abuse protection of 20 action runs per minute, 200 per day and 2 concurrent; beyond that the API returns 429.
 - **CSV import** supports one file format for now ([docs/csv-format.md](docs/csv-format.md)), not specific banks' statements.
 - **Quotes and FX rates** come only from Yahoo Finance. When they're unavailable, holdings use the manual value or purchase price, and holdings that can't be converted to PLN are left out of the total.
@@ -94,16 +99,12 @@ The model isn't responding right now, or you've used your daily limit. The actio
 **Why does a holding show "cena zakupu" (purchase price) instead of "notowanie" (quote)?**
 The current quote couldn't be fetched: no symbol, an unknown symbol, or Yahoo Finance was briefly unavailable. The holding is then valued manually or at its purchase price.
 
-**Why is the app slow to load?**
-The free server sleeps when idle. The first visit after a break takes up to a minute; after that it's fast.
-
 ## For developers
-A monorepo: a Python backend (FastAPI, PostgreSQL), a React + TypeScript frontend, and an AI assistant with a swappable model provider (Ollama locally, Gemini, OpenAI or Claude). Production runs on Vercel (frontend), Render (API) and Neon (database).
+A monorepo: a Python backend (FastAPI, PostgreSQL), a React + TypeScript frontend, and an AI assistant with a swappable model provider (Ollama locally, Gemini, OpenAI or Claude).
 
 - [Development guide](docs/development.md): local setup, configuration, LLM providers, tests, code layout
 - [Architecture](docs/architecture.md) and [data model](docs/data-model.md)
 - [Specs](openspec/specs) (behaviour, source of truth) and [active changes](openspec/changes)
-- [Deployment: Neon, Render, Vercel, CI](docs/deploy/README.md)
 - [Market-data MCP server](docs/mcp-market.md)
 - [Working with AI agents](docs/agents.md) and [CLAUDE.md](CLAUDE.md)
 

@@ -1,19 +1,18 @@
 # Coffer architecture
 
-How Coffer is built: key decisions, stack, modules, the AI agent, deployment and CI. The diagrams use [Mermaid](https://mermaid.js.org/) (GitHub renders them) and were drawn from the code: imports in `src/backend/coffer`, `coffer/main.py`, the `import-linter` contracts in `src/backend/pyproject.toml`, models and Alembic migrations, `src/frontend/src`, `render.yaml`, `vercel.json`, `compose.yaml` and `.github/`. Behaviour is specified in [`openspec/specs/`](../openspec/specs); the data model in detail is in [data-model.md](data-model.md).
+How Coffer is built: key decisions, stack, modules, the AI agent and the local runtime. The diagrams use [Mermaid](https://mermaid.js.org/) (GitHub renders them) and were drawn from the code: imports in `src/backend/coffer`, `coffer/main.py`, the `import-linter` contracts in `src/backend/pyproject.toml`, models and Alembic migrations, `src/frontend/src`, `compose.yaml` and `.github/`. Behaviour is specified in [`openspec/specs/`](../openspec/specs); the data model in detail is in [data-model.md](data-model.md).
 
 **Guiding principle: the core computes, the agent interprets.** Every number the user sees (totals, shares, gains, purchase simulation) comes from `coffer.analytics`. The agent gets finished results through tools and writes the narrative. This makes exact totals (N04) and working without AI (N08) true by construction.
 
 ## Contents
 1. [Decisions and stack](#1-decisions-and-stack)
 2. [System context](#2-system-context)
-3. [Deployment](#3-deployment)
+3. [Local runtime](#3-local-runtime)
 4. [Backend modules and dependencies](#4-backend-modules-and-dependencies)
 5. [Frontend](#5-frontend)
 6. [Agent: running an action](#6-agent-running-an-action)
 7. [MCP market-data server](#7-mcp-market-data-server)
 8. [Data model](#8-data-model)
-9. [CI/CD pipeline](#9-cicd-pipeline)
 
 Legend: rectangle = Coffer component; rounded `( )` = person or external client; cylinder = database; hexagon `{{ }}` = external service; solid arrow = calls/uses; dashed arrow = optional, configuration or trigger; `subgraph` = boundary.
 
@@ -25,12 +24,12 @@ Legend: rectangle = Coffer component; rounded `( )` = person or external client;
 |---|---|
 | App type | Web, client–server, API-first. Accounts, sessions (N02) and keeping the LLM key off the client (N03) require a server. |
 | Backend | Python 3.12, FastAPI with sync `def` endpoints, Pydantic v2, SQLAlchemy 2 (sync), Alembic, psycopg 3. Sync keeps the code simple; SSE uses a generator in `StreamingResponse`. |
-| Frontend | React + TypeScript SPA (Vite), React Router, TanStack Query, Tailwind with semantic theme tokens. API types are generated from OpenAPI (`openapi-typescript` + `openapi-fetch`); CI checks they are current. |
+| Frontend | React + TypeScript SPA (Vite), React Router, TanStack Query, Tailwind with semantic theme tokens. API types are generated from OpenAPI (`openapi-typescript` + `openapi-fetch`); regenerate them with `make openapi` after API changes. |
 | Database | PostgreSQL 16: `NUMERIC` for money, `ON DELETE CASCADE` for account deletion (N09), transactions for atomic import commits, `JSONB` for document-like data (import drafts, agent traces). |
 | Auth | `argon2-cffi`, a session table, an HttpOnly + SameSite=Lax cookie. Deleting the session row revokes access immediately, which JWTs can't do. |
 | AI agent | A module in the same backend behind `LLMClient`, with a rule-based fallback for every action. Own tool loop, no agent framework. Providers: Ollama (local default, `qwen3:8b`), OpenAI, Gemini, Anthropic, or `none`. |
 | Market data | Yahoo Finance via `yfinance`, plus the Wikipedia REST API. No keys or paid services. |
-| Hosting | Vercel (SPA) + Render (API, Docker) + Neon (Postgres). Vercel rewrites `/api/*` to Render, so the browser sees one origin. See [deploy/](deploy/README.md). |
+| Runtime | Local development only for now: Postgres in Docker (`compose.yaml`), API and Vite dev server run natively. Vite proxies `/api/*`, so the browser sees one origin. A production deployment was removed during the refactoring (see [history.md](history.md)). |
 | Quality | `uv`, `ruff`, `pyright`, `pytest`, `hypothesis`, `import-linter`; `tsc`, `vitest`. |
 | Repository | Monorepo: `docs/`, `openspec/`, `src/backend/`, `src/frontend/`, `data/fixtures/`, `.claude/`. |
 
@@ -55,79 +54,43 @@ flowchart LR
         mcpsrv["coffer.market.mcp_server<br/>(stdio process)"]
     end
 
-    neon[("Neon Postgres")]
+    pg[("PostgreSQL 16")]
     yahoo{{"Yahoo Finance<br/>(yfinance)"}}
     llm{{"LLM provider<br/>Ollama / OpenAI / Gemini / Anthropic"}}
 
     user -->|"HTTPS"| web
     web -->|"JSON /api/*, session cookie"| api
-    api -->|"SQL (psycopg)"| neon
+    api -->|"SQL (psycopg)"| pg
     api -->|"quotes, news, FX rates"| yahoo
     api -.->|"aggregates only (optional)"| llm
     mcpclient -->|"MCP over stdio"| mcpsrv
     mcpsrv -->|"quotes, news"| yahoo
 ```
 
-The SPA talks only to the API under `/api/*`. The API stores data in Postgres (Neon in production), fetches market data from Yahoo Finance, and optionally calls the LLM chosen by `COFFER_LLM_PROVIDER` (`ollama | openai | gemini | anthropic | none`). No LLM (`none`, an error, a limit) never breaks the core: every agent action has a rule-based result. Quotes are cached in `market_quotes` and refreshed by the price job. A separate `coffer.market.mcp_server` process exposes market tools to MCP clients and never touches the database or user data.
+The SPA talks only to the API under `/api/*`. The API stores data in Postgres, fetches market data from Yahoo Finance, and optionally calls the LLM chosen by `COFFER_LLM_PROVIDER` (`ollama | openai | gemini | anthropic | none`). No LLM (`none`, an error, a limit) never breaks the core: every agent action has a rule-based result. Quotes are cached in `market_quotes` and refreshed by the price job. A separate `coffer.market.mcp_server` process exposes market tools to MCP clients and never touches the database or user data.
 
 ---
 
-## 3. Deployment
+## 3. Local runtime
 
 ```mermaid
-flowchart TB
+flowchart LR
     browser("Browser")
+    vite["Vite dev server :5173<br/>proxy /api to localhost:8000"]
+    api["make dev-api<br/>uvicorn coffer.main:app :8000"]
+    pg[("Postgres 16 in Docker<br/>compose.yaml :5432")]
+    ollama{{"Ollama :11434<br/>(or a cloud LLM, optional)"}}
+    yahoo{{"Yahoo Finance"}}
+    prices["make prices<br/>(coffer.scripts.refresh_prices)"]
 
-    subgraph vercel["Vercel (root: src/frontend)"]
-        spa["Static SPA (vite build, dist/)"]
-        rewrite["Rewrite /api/:path* to Render<br/>other paths to /index.html"]
-    end
-
-    subgraph render["Render: Web Service coffer-api (Docker, free, Frankfurt)"]
-        start["CMD: alembic upgrade head"]
-        uvicorn["uvicorn coffer.main:app<br/>--proxy-headers"]
-        origin["OriginMiddleware<br/>COFFER_ALLOWED_ORIGINS"]
-        pricejob["price thread (optional)<br/>COFFER_PRICE_REFRESH_HOURS, default 0"]
-        start --> uvicorn --> origin
-        uvicorn -.-> pricejob
-    end
-
-    neonprod[("Neon Postgres<br/>direct URL, sslmode=require")]
-    llmext{{"LLM API (COFFER_LLM_PROVIDER=gemini)"}}
-    yahoo2{{"Yahoo Finance"}}
-
-    subgraph github["GitHub"]
-        ci["Actions: ci.yml"]
-        deploy["Actions: deploy.yml"]
-        dependabot["Dependabot"]
-    end
-
-    subgraph local["Local dev"]
-        vite["Vite dev server :5173<br/>proxy /api to localhost:8000"]
-        devapi["make dev-api (uvicorn :8000)"]
-        pg[("Postgres 16 in Docker<br/>compose.yaml")]
-        vite --> devapi --> pg
-        prices["make prices<br/>(coffer.scripts.refresh_prices)"]
-    end
-
-    browser -->|"https://*.vercel.app"| spa
-    browser -->|"/api/* + coffer_session cookie<br/>(same-origin via rewrite)"| rewrite
-    rewrite -->|"https://coffer-api-p9ku.onrender.com/api/*"| uvicorn
-    start -->|"migrations"| neonprod
-    uvicorn -->|"SQL"| neonprod
-    uvicorn -.-> llmext
-    uvicorn -.-> yahoo2
-    pricejob -.->|"UPSERT market_quotes"| neonprod
-    pricejob -.-> yahoo2
-    prices -.->|"CLI: quotes and FX rates"| yahoo2
+    browser --> vite --> api --> pg
+    api -.-> ollama
+    api -.-> yahoo
+    prices -.-> yahoo
     prices -.-> pg
-    dependabot -.->|"PR"| ci
-    ci -->|"workflow_run: success on main"| deploy
-    deploy -->|"POST deploy hook ?ref=SHA"| render
-    github -.->|"Git integration: push main = prod, PR = preview"| vercel
 ```
 
-The browser sees only the Vercel domain: `vercel.json` rewrites `/api/:path*` to Render, so the `coffer_session` cookie (`HttpOnly`, `SameSite=Lax`, `Secure` via `COFFER_COOKIE_SECURE`) is first-party and needs no CORS. `OriginMiddleware` also rejects (403) POST/PUT/PATCH/DELETE requests whose `Origin` is not in `COFFER_ALLOWED_ORIGINS`. The Render container runs `alembic upgrade head` on start, then uvicorn; Neon is connected with the direct URL. Render has `autoDeploy: false`: `deploy.yml` deploys the backend through a deploy hook, while Vercel builds the frontend from Git. The price thread is off on Render free (`0`) because the instance sleeps; use `make prices` instead.
+The Vite proxy keeps the API on the same origin as the SPA, so the `coffer_session` cookie (`HttpOnly`, `SameSite=Lax`) needs no CORS. `OriginMiddleware` rejects (403) POST/PUT/PATCH/DELETE requests whose `Origin` is not in `COFFER_ALLOWED_ORIGINS`. Migrations run with `make migrate`; quotes are refreshed with `make prices` or the optional in-process thread (`COFFER_PRICE_REFRESH_HOURS`). Setup: [development.md](development.md).
 
 ---
 
@@ -560,52 +523,3 @@ erDiagram
 ```
 
 Money is `NUMERIC(14,2)` mapped to `Decimal`; `holdings.quantity` and `market_quotes.price` are `NUMERIC(20,8)` (units and instrument prices, not amounts). Every user-data table has `user_id` with `ON DELETE CASCADE`, so deleting an account is one `DELETE FROM users`. `categories` and `market_quotes` are global and hold no personal data. Suggestions survive deletion of their run (`SET NULL`). Migrations, known issues and the planned direction: [data-model.md](data-model.md).
-
----
-
-## 9. CI/CD pipeline
-
-```mermaid
-flowchart TB
-    push(["push to main"])
-    pr(["pull request to main"])
-    sched(["cron: Monday 05:00 UTC"])
-    dep(["Dependabot: uv, npm, github-actions<br/>weekly, minor/patch groups"])
-
-    subgraph ciwf["ci.yml (CI)"]
-        be["backend<br/>Postgres 16 service, uv sync --locked,<br/>make lint (ruff, pyright, import-linter),<br/>pytest + coverage (artifact)"]
-        fe["frontend<br/>npm ci, tsc --noEmit, vitest run, vite build"]
-        oas["openapi-sync<br/>make openapi + git diff schema.d.ts"]
-    end
-
-    subgraph migwf["migrations.yml"]
-        heads["exactly one Alembic head"]
-        up["alembic upgrade head"]
-        chk["alembic check (models = migrations)"]
-        rt["downgrade base + upgrade head"]
-        heads --> up --> chk --> rt
-    end
-
-    subgraph depwf["deploy.yml (workflow_run after CI)"]
-        cond{"CI success<br/>and event = push?"}
-        hook["curl POST RENDER_DEPLOY_HOOK_URL&ref=SHA"]
-        skip["skipped"]
-        cond -->|"yes"| hook
-        cond -->|"no"| skip
-    end
-
-    renderbuild["Render: docker build (src/backend)<br/>alembic upgrade head, uvicorn"]
-    vercelbuild["Vercel: build src/frontend<br/>main = production, PR = preview"]
-
-    push --> ciwf
-    pr --> ciwf
-    pr -->|"changes in alembic/** or models.py"| migwf
-    sched --> migwf
-    dep -->|"opens PR"| pr
-    ciwf -->|"completed"| cond
-    hook --> renderbuild
-    push -.->|"Git integration (outside Actions)"| vercelbuild
-    pr -.->|"preview"| vercelbuild
-```
-
-`ci.yml` runs three parallel jobs (backend, frontend, openapi-sync) for pushes and PRs to `main`, with `COFFER_LLM_PROVIDER=none`. `deploy.yml` deploys only after a successful push-triggered CI run, and deploys exactly the tested commit (`ref=SHA`); without the `RENDER_DEPLOY_HOOK_URL` secret it is skipped. `migrations.yml` is the Alembic safety net. Dependabot ignores major versions of `mcp` and `typescript`. Details: [deploy/ci.md](deploy/ci.md).

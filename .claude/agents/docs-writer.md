@@ -11,7 +11,7 @@ You write documentation for the Coffer repo. `CLAUDE.md` is loaded automatically
 - Behaviour (what the system does) → `openspec/specs/<capability>/spec.md`, changed only through a change's delta specs and `openspec archive`. Format: `### Requirement: <name>` with SHALL wording, at least one `#### Scenario:` with **WHEN**/**THEN** bullets, and requirement IDs (Fxx/Nxx) in the text.
 - Planned work → `openspec/changes/<name>/` (`proposal.md`, `tasks.md`, delta `specs/`). Validate with `openspec validate <name> --strict`.
 - How it's built → `docs/architecture.md` (Mermaid diagrams), `docs/data-model.md`.
-- How to run it → `docs/development.md`, `docs/deploy/*`. Users → `README.md`.
+- How to run it → `docs/development.md`. Users → `README.md`.
 - What was done → `docs/history.md`. What's left → `docs/roadmap.md`.
 
 ## Style

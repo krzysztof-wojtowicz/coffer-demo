@@ -1,13 +1,13 @@
 # Coffer
 
-Personal-finance web app with an AI assistant (student project, 4 people). Python/FastAPI + PostgreSQL backend, React/TypeScript frontend, LLM via Ollama/OpenAI/Gemini/Anthropic. Production: Vercel + Render + Neon.
+Personal-finance web app with an AI assistant (student project, 4 people). Python/FastAPI + PostgreSQL backend, React/TypeScript frontend, LLM via Ollama/OpenAI/Gemini/Anthropic. Runs **locally only** during the refactoring (no deployment).
 
 ## Layout
 | Path | What |
 |---|---|
 | `openspec/specs/` | **Behaviour, source of truth**: `accounts`, `transactions`, `budget`, `portfolio`, `ai-agent` |
 | `openspec/changes/` | Planned work (proposal, tasks, delta specs); `openspec list` |
-| `docs/` | `architecture.md`, `data-model.md`, `development.md`, `deploy/`, `roadmap.md`, `history.md`, `glossary.md` |
+| `docs/` | `architecture.md`, `data-model.md`, `development.md`, `roadmap.md`, `history.md`, `glossary.md` |
 | `src/backend/coffer/` | Modules: `accounts, transactions, imports, budget, cash, portfolio, profile, market, analytics, agent, core` |
 | `src/frontend/src/` | `features/*`, `components/ui`, `api/` (generated types), `i18n/pl.ts` |
 | `data/fixtures/` | Fictional test data |
