@@ -1,5 +1,6 @@
 """Migrations: round trip, single head, CHECK and FK behaviour, e-mail normalization (0005)."""
 
+import importlib.util
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -42,7 +43,11 @@ def mig() -> Iterator[tuple[Config, Engine]]:
 
 def _user(conn, email: str = "u@example.com") -> int:
     return conn.scalar(
-        text("INSERT INTO users (email, password_hash) VALUES (:e, 'x') RETURNING id"), {"e": email}
+        text(
+            "INSERT INTO users (email, display_name, password_hash) VALUES (:e, 'Jan', 'x') "
+            "RETURNING id"
+        ),
+        {"e": email},
     )
 
 
@@ -64,6 +69,11 @@ def test_round_trip(mig) -> None:
     command.downgrade(cfg, "0006")
     assert not {"llm_usage_daily", "budget_limits", "market_quotes"} & tables()
     command.upgrade(cfg, "head")
+    assert "budget_limits" not in tables()
+    command.downgrade(cfg, "0011")
+    assert "budget_limits" in tables()
+    command.downgrade(cfg, "0006")
+    command.upgrade(cfg, "head")
     command.check(cfg)
     command.downgrade(cfg, "base")
     assert tables() <= {"alembic_version"}
@@ -77,32 +87,16 @@ def test_single_head() -> None:
 def test_checks(mig) -> None:
     cfg, engine = mig
     command.upgrade(cfg, "head")
-    with engine.begin() as conn:
-        uid = _user(conn)
-        cat = conn.scalar(
-            text(
-                "INSERT INTO categories (name, in_budget, is_default) "
-                "VALUES ('Test', true, false) RETURNING id"
-            )
-        )
-    bad = [
-        lambda c: c.execute(
-            text("INSERT INTO budget_limits (user_id, category_id, amount) VALUES (:u, :c, 0)"),
-            {"u": uid, "c": cat},
-        ),
-        lambda c: c.execute(
+    with pytest.raises(IntegrityError), engine.begin() as conn:
+        conn.execute(
             text(
                 "INSERT INTO market_quotes (symbol, quote_date, price, currency, fetched_at) "
                 "VALUES ('X', '2026-11-16', 0, 'PLN', now())"
             )
-        ),
-    ]
-    for stmt in bad:
-        with pytest.raises(IntegrityError), engine.begin() as conn:
-            stmt(conn)
+        )
 
 
-def test_cascade_and_restrict(mig) -> None:
+def test_category_delete_is_restricted_while_in_use(mig) -> None:
     cfg, engine = mig
     command.upgrade(cfg, "head")
     with engine.begin() as conn:
@@ -114,14 +108,18 @@ def test_cascade_and_restrict(mig) -> None:
             )
         )
         conn.execute(
-            text("INSERT INTO budget_limits (user_id, category_id, amount) VALUES (:u, :c, 10)"),
+            text(
+                "INSERT INTO transactions "
+                "(user_id, category_id, date, amount, description, source) "
+                "VALUES (:u, :c, '2026-11-01', 1, 'x', 'manual')"
+            ),
             {"u": uid, "c": cat},
         )
     with pytest.raises(IntegrityError), engine.begin() as conn:
         conn.execute(text("DELETE FROM categories WHERE id = :c"), {"c": cat})
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM users WHERE id = :u"), {"u": uid})
-        assert conn.scalar(text("SELECT count(*) FROM budget_limits")) == 0
+        assert conn.scalar(text("SELECT count(*) FROM transactions")) == 0
 
 
 # --- 0005: case-insensitive e-mails ---
@@ -189,3 +187,49 @@ def test_every_fk_to_users_cascades(db) -> None:
     ).all()
     assert rows
     assert {table for table, action in rows if action != "c"} == set()
+
+
+# --- 0012: display names, shared classes, no limits ---
+
+
+def test_0012_deletes_accounts_and_maps_classes(mig) -> None:
+    cfg, engine = mig
+    command.upgrade(cfg, "0011")
+    _insert(engine, "old@example.com")
+    with engine.begin() as c:
+        c.execute(
+            text(
+                "INSERT INTO investment_profiles (user_id, horizon, risk, preferred_classes) "
+                "SELECT id, 'long', 'low', '[\"deposit\", \"cash\", \"stocks\"]' FROM users"
+            )
+        )
+    command.upgrade(cfg, "head")
+    assert _emails(engine) == []  # accounts from before display names are gone
+    with engine.connect() as c:
+        assert c.scalar(text("SELECT count(*) FROM investment_profiles")) == 0
+        nullable = c.scalar(
+            text(
+                "SELECT is_nullable FROM information_schema.columns "
+                "WHERE table_name='users' AND column_name='display_name'"
+            )
+        )
+    assert nullable == "NO"
+    command.downgrade(cfg, "0011")
+    assert _version(engine) == "0011"
+    command.upgrade(cfg, "head")
+
+
+def test_0012_class_mapping() -> None:
+    spec = importlib.util.spec_from_file_location(
+        "m0012", BACKEND_DIR / "alembic" / "versions" / "0012_ui_upgrades.py"
+    )
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.map_classes(["deposit", "cash", "stocks"], mod.UP) == ["cash", "stock"]
+    assert mod.map_classes(["stock", "bond", "commodity", "etf"], mod.DOWN) == [
+        "stocks",
+        "bonds",
+        "etf",
+    ]
+    assert mod.map_classes(["commodity"], mod.DOWN, ["deposit"]) == ["deposit"]

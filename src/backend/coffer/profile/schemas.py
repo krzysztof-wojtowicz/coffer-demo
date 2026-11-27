@@ -3,9 +3,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from coffer.analytics.allocation import AssetClass
+
 Horizon = Literal["short", "medium", "long"]
 Risk = Literal["low", "medium", "high"]
-AssetClass = Literal["cash", "deposit", "stocks", "etf", "bonds", "crypto", "real_estate"]
 
 
 class ProfileIn(BaseModel):
@@ -21,10 +22,14 @@ class ProfileIn(BaseModel):
         return v
 
 
+class TargetShareOut(BaseModel):
+    asset_class: AssetClass
+    share_pct: int
+
+
 class ProfileOut(BaseModel):
     horizon: Horizon
     risk: Risk
     preferred_classes: list[AssetClass]
     updated_at: dt.datetime
-
-    model_config = {"from_attributes": True}
+    target: list[TargetShareOut]

@@ -1,7 +1,7 @@
 # budget Specification
 
 ## Purpose
-Monthly budget analysis, month-over-month comparisons, category spending limits, and net worth (cash plus portfolio). Covers F10–F15, F17, F26 and N04 (former UC-11). All totals are computed in `coffer.analytics`.
+Monthly budget analysis, month-over-month comparisons, and net worth (cash plus portfolio). Covers F10–F12, F15, F17, F26 and N04 (former UC-11). All totals are computed in `coffer.analytics`.
 
 ## Requirements
 
@@ -45,21 +45,6 @@ All totals SHALL equal the sum of source transactions to the grosz. Money SHALL 
 #### Scenario: Fewer than 3 prior months
 - **WHEN** fewer than 3 earlier months have data
 - **THEN** the average uses the months that are available
-
-### Requirement: Category limits (F13, F14)
-A user SHALL be able to set one fixed monthly spending limit per in-budget category (`PUT /api/budget/limits/{category_id}`), list (`GET /api/budget/limits`) and remove it (`DELETE`). The insights SHALL report for each limit the amount spent, the amount remaining, the percent used, and whether it was exceeded.
-
-#### Scenario: Limit exceeded
-- **WHEN** a category's expenses in the month exceed its limit
-- **THEN** the limit status has `exceeded: true` and the UI marks the category
-
-#### Scenario: Limit on a non-budget category
-- **WHEN** the user sets a limit on "Przelewy własne" or "Inwestycje"
-- **THEN** the system responds 422 "Limit można ustawić tylko dla kategorii budżetowej"
-
-#### Scenario: Removing a missing limit
-- **WHEN** the user deletes a limit that is not set
-- **THEN** the system responds 404 "Nie ustawiono limitu dla tej kategorii"
 
 ### Requirement: Opening balance
 A user SHALL be able to set, read and delete an opening cash balance as an amount with an `as_of` date (`/api/cash/opening-balance`).

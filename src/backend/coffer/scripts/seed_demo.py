@@ -1,7 +1,7 @@
-"""Demo data: the demo@coffer.local account with made-up transactions.
+"""Demo data: the demo@coffer.local account with made-up transactions and holdings.
 
-Covers 3 full months back plus the current month up to today.
-Idempotent: the demo account's transactions are deleted and recreated.
+Fixed dates (not relative to today): opening balance on 2026-09-01, transactions from
+September to DEMO_END. Idempotent: the demo account's data is deleted and recreated.
 
 Run with `make seed` (after `make migrate`).
 """
@@ -17,13 +17,104 @@ from sqlalchemy.orm import Session
 
 from coffer.accounts.models import User
 from coffer.accounts.service import hash_password, register
-from coffer.budget.models import BudgetLimit
+from coffer.cash import service as cash_service
+from coffer.cash.schemas import OpeningBalanceIn
 from coffer.core.db import SessionLocal
+from coffer.portfolio import service as portfolio_service
+from coffer.portfolio.schemas import HoldingCreate
+from coffer.profile import service as profile_service
+from coffer.profile.schemas import ProfileIn
 from coffer.transactions.models import Category, Transaction
 
 DEMO_EMAIL = "demo@coffer.local"
 DEMO_PASSWORD = "coffer-demo-2026"
+DEMO_NAME = "Demo"
 SEED = 42
+OPENING = OpeningBalanceIn(amount=Decimal("5000.00"), as_of=dt.date(2026, 9, 1))
+MONTHS = ((2026, 9), (2026, 10), (2026, 11))
+DEMO_END = dt.date(2026, 11, 27)  # no transactions after this day
+
+# Purchase prices are real daily closes from Yahoo Finance (yfinance, fetched 2026-11-27),
+# in each instrument's quote currency. Current values come from live quotes, not from here.
+HOLDINGS = [
+    HoldingCreate(
+        name="Vanguard FTSE All-World",
+        symbol="VWCE.DE",
+        asset_class="etf",
+        quantity=Decimal("20"),
+        purchase_price=Decimal("166.62"),
+        currency="EUR",
+        purchase_date=dt.date(2026, 9, 1),
+    ),
+    HoldingCreate(
+        name="iShares Core MSCI World",
+        symbol="EUNL.DE",
+        asset_class="etf",
+        quantity=Decimal("30"),
+        purchase_price=Decimal("128.81"),
+        currency="EUR",
+        purchase_date=dt.date(2026, 10, 1),
+    ),
+    HoldingCreate(
+        name="PKO BP",
+        symbol="PKO.WA",
+        asset_class="stock",
+        quantity=Decimal("100"),
+        purchase_price=Decimal("120.30"),
+        currency="PLN",
+        purchase_date=dt.date(2026, 9, 15),
+    ),
+    HoldingCreate(
+        name="CD Projekt",
+        symbol="CDR.WA",
+        asset_class="stock",
+        quantity=Decimal("15"),
+        purchase_price=Decimal("254.50"),
+        currency="PLN",
+        purchase_date=dt.date(2026, 10, 1),
+    ),
+    HoldingCreate(
+        name="Apple",
+        symbol="AAPL",
+        asset_class="stock",
+        quantity=Decimal("8"),
+        purchase_price=Decimal("342.00"),
+        currency="USD",
+        purchase_date=dt.date(2026, 10, 15),
+    ),
+    HoldingCreate(
+        name="Bitcoin",
+        symbol="BTC-USD",
+        asset_class="crypto",
+        quantity=Decimal("0.05"),
+        purchase_price=Decimal("84853.10"),
+        currency="USD",
+        purchase_date=dt.date(2026, 10, 1),
+    ),
+    HoldingCreate(
+        name="SPDR Gold Shares",
+        symbol="GLD",
+        asset_class="commodity",
+        quantity=Decimal("6"),
+        purchase_price=Decimal("394.15"),
+        currency="USD",
+        purchase_date=dt.date(2026, 9, 15),
+    ),
+    HoldingCreate(  # no market quote: valued by hand
+        name="Obligacje skarbowe EDO",
+        asset_class="bond",
+        quantity=Decimal("10"),
+        purchase_price=Decimal("100.00"),
+        currency="PLN",
+        purchase_date=dt.date(2026, 9, 1),
+        manual_value=Decimal("1030.00"),
+    ),
+]
+PROFILE = ProfileIn(
+    horizon="long",
+    risk="medium",
+    preferred_classes=["stock", "etf", "bond", "commodity", "crypto", "cash"],
+)
 
 GROCERY_SHOPS = [
     "BIEDRONKA 1234 KRAKÓW",
@@ -44,11 +135,6 @@ class _Draft:
 
 def _random_amount(rng: random.Random, low_cents: int, high_cents: int) -> Decimal:
     return Decimal(rng.randint(low_cents, high_cents)).scaleb(-2)
-
-
-def _shift_month(year: int, month: int, delta: int) -> tuple[int, int]:
-    year_offset, month_index = divmod(year * 12 + (month - 1) + delta, 12)
-    return year_offset, month_index + 1
 
 
 def _month_drafts(rng: random.Random, year: int, month: int) -> list[_Draft]:
@@ -143,21 +229,24 @@ def _month_drafts(rng: random.Random, year: int, month: int) -> list[_Draft]:
     return drafts
 
 
-def generate(today: dt.date) -> list[_Draft]:
+def generate() -> list[_Draft]:
     rng = random.Random(SEED)
     drafts: list[_Draft] = []
-    for back in (3, 2, 1):
-        year, month = _shift_month(today.year, today.month, -back)
+    for year, month in MONTHS:
         drafts.extend(_month_drafts(rng, year, month))
-    drafts.extend(_month_drafts(rng, today.year, today.month))
-    return sorted((d for d in drafts if d.date <= today), key=lambda d: d.date)
+    drafts.append(
+        _Draft(dt.date(2026, 10, 5), Decimal("-1299.00"), "ZAKUP KARTĄ MEDIA EXPERT", "Zakupy")
+    )
+    drafts.append(_Draft(dt.date(2026, 11, 10), Decimal("420.00"), "PRZELEW ZWROT PODATKU", "Inne"))
+    return sorted((d for d in drafts if d.date <= DEMO_END), key=lambda d: d.date)
 
 
 def _demo_user(db: Session) -> User:
     user = db.scalar(select(User).where(User.email == DEMO_EMAIL))
     if user is None:
-        return register(db, DEMO_EMAIL, DEMO_PASSWORD)
+        return register(db, DEMO_EMAIL, DEMO_PASSWORD, DEMO_NAME)
     user.password_hash = hash_password(DEMO_PASSWORD)
+    user.display_name = DEMO_NAME
     return user
 
 
@@ -168,13 +257,13 @@ def _category_id(categories: dict[str, int], name: str) -> int:
         raise RuntimeError(f"Brak kategorii {name!r} w bazie; uruchom `make migrate`.") from None
 
 
-def seed_demo(db: Session, today: dt.date | None = None) -> int:
-    today = today or dt.date.today()
+def seed_demo(db: Session) -> int:
     user = _demo_user(db)
     categories = {c.name: c.id for c in db.scalars(select(Category))}
     db.execute(delete(Transaction).where(Transaction.user_id == user.id))
-    db.execute(delete(BudgetLimit).where(BudgetLimit.user_id == user.id))
-    drafts = generate(today)
+    for holding in portfolio_service.list_for_user(db, user.id):
+        db.delete(holding)
+    drafts = generate()
     db.add_all(
         Transaction(
             user_id=user.id,
@@ -186,11 +275,11 @@ def seed_demo(db: Session, today: dt.date | None = None) -> int:
         )
         for d in drafts
     )
-    db.add_all(
-        BudgetLimit(user_id=user.id, category_id=_category_id(categories, name), amount=Decimal(a))
-        for name, a in (("Jedzenie", "1200.00"), ("Transport", "400.00"))
-    )
     db.commit()
+    cash_service.upsert(db, user.id, OPENING)
+    profile_service.upsert(db, user.id, PROFILE)
+    for holding in HOLDINGS:
+        portfolio_service.create(db, user.id, holding)
     return len(drafts)
 
 

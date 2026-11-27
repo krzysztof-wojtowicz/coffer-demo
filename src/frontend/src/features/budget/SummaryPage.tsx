@@ -3,7 +3,6 @@ import { MonthPicker } from '../../components/MonthPicker'
 import { pl } from '../../i18n/pl'
 import { currentMonth } from '../../lib/month'
 import { InsightsCard } from './InsightsCard'
-import { LimitsSection } from './LimitsSection'
 import { NetWorthCard } from './NetWorthCard'
 import { PortfolioSummaryCard } from './PortfolioSummaryCard'
 import { SummaryTiles } from './SummaryTiles'
@@ -24,7 +23,6 @@ export function SummaryPage() {
         </header>
         <SummaryTiles month={month} />
         <InsightsCard month={month} />
-        <LimitsSection />
       </section>
     </>
   )

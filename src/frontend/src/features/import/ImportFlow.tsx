@@ -233,6 +233,7 @@ function PreviewStep({
         </label>
         <Select
           id="import-filter"
+          variant="ghost"
           className="w-auto"
           value={filter}
           onChange={(e) => setFilter(e.target.value as Filter)}

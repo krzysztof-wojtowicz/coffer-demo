@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from coffer.analytics.allocation import AllocationGap, allocation_gap
 from coffer.analytics.portfolio import (
     BASE_CURRENCY,
     HoldingInput,
@@ -16,6 +17,7 @@ from coffer.core.db import get_owned
 from coffer.market import service as market
 from coffer.portfolio.models import Holding
 from coffer.portfolio.schemas import HoldingCreate, HoldingUpdate
+from coffer.profile import service as profile_service
 
 log = logging.getLogger(__name__)
 
@@ -141,6 +143,7 @@ class SummaryResult:
     prices_available: bool
     quote_times: dict[int, datetime]
     prices_as_of: datetime | None
+    target: AllocationGap | None
 
 
 def summary(db: Session, user_id: int) -> SummaryResult:
@@ -173,10 +176,14 @@ def summary(db: Session, user_id: int) -> SummaryResult:
     db.commit()  # persist quotes/FX stored by the market module (global table, no user data)
     quote_times = {hid: q.as_of for hid, q in quoted.items() if q is not None and q.as_of}
     used_times = list(quote_times.values()) + list(fx_times.values())
+    result = portfolio_summary(inputs, rates)
+    profile = profile_service.get(db, user_id)
+    target = allocation_gap(result.allocation, profile_service.target(profile)) if profile else None
     return SummaryResult(
-        summary=portfolio_summary(inputs, rates),
+        summary=result,
         currencies={h.id: h.currency for h in holdings},
         prices_available=prices is not None,
         quote_times=quote_times,
         prices_as_of=min(used_times) if used_times else None,
+        target=target,
     )

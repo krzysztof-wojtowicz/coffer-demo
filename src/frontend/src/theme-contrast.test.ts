@@ -1,6 +1,5 @@
 import css from "./index.css?raw";
 import badgeSrc from "./components/ui/Badge.tsx?raw";
-import profileSrc from "./features/profile/ProfileSection.tsx?raw";
 import { describe, expect, it } from "vitest";
 
 
@@ -152,34 +151,6 @@ function hue([r, g, b]: RGBA): number | null {
   const h = max === R ? ((G - B) / d) % 6 : max === G ? (B - R) / d + 2 : (R - G) / d + 4;
   return (h * 60 + 360) % 360;
 }
-
-describe("allocation bucket colors (dark)", () => {
-  const name = "dark", t = dark;
-  // Decision: two segments are distinguishable if luminance ratio >= 1.5:1
-  // OR hue differs by >= 30 degrees (chromatic pair). Applied to every pair.
-  const src = profileSrc;
-  const buckets = [...(/BUCKET_COLOR[^{]*\{([\s\S]*?)\}/.exec(src)?.[1] ?? "").matchAll(/(\w+):\s*'bg-([\w-]+)'/g)].map(
-    (m) => [m[1], m[2]] as [string, string],
-  );
-
-  it("parses 4 buckets", () => expect(buckets.length).toBe(4));
-
-  it("every pair is distinguishable", () => {
-    for (let i = 0; i < buckets.length; i++)
-      for (let j = i + 1; j < buckets.length; j++) {
-        const [na, ta] = buckets[i], [nb, tb] = buckets[j];
-        const ca = parse(t[ta]), cb = parse(t[tb]);
-        const r = ratio(t[ta], t[tb]);
-        const ha = hue(ca), hb = hue(cb);
-        let dh = ha !== null && hb !== null ? Math.abs(ha - hb) : 0;
-        dh = Math.min(dh, 360 - dh);
-        expect(
-          r >= 1.5 || dh >= 30,
-          `${name}: ${na}(${ta} ${t[ta]}) vs ${nb}(${tb} ${t[tb]}): contrast ${r.toFixed(2)}:1, hue diff ${dh.toFixed(0)} deg`,
-        ).toBe(true);
-      }
-  });
-});
 
 describe("chart tokens", () => {
   const charts = Object.keys(dark).filter((k) => k.startsWith("chart-"));

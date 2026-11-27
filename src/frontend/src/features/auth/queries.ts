@@ -18,6 +18,7 @@ export function useMe() {
 
 const FIELD_NAMES: Record<string, string> = {
   email: pl.auth.email,
+  display_name: pl.auth.displayName,
   password: pl.auth.password,
   current_password: pl.auth.currentPassword,
   new_password: pl.auth.newPassword,
@@ -33,8 +34,10 @@ function fail(error: unknown, response: Response): never {
   if (typeof detail === 'string' && detail) throw { detail }
   if (Array.isArray(detail)) {
     const text = detail
-      .map((d: { loc?: (string | number)[]; type?: string }) => {
+      .map((d: { loc?: (string | number)[]; type?: string; msg?: string }) => {
         const field = String(d.loc?.[d.loc.length - 1] ?? '')
+        // The server's display-name message is already Polish and specific.
+        if (field === 'display_name' && d.msg) return d.msg
         const name = FIELD_NAMES[field] ?? 'Pole'
         const what = d.type?.includes('missing') ? pl.validation.required : pl.validation.invalid
         return `${name}: ${what}`
@@ -49,12 +52,23 @@ function fail(error: unknown, response: Response): never {
 export function useAuth(mode: 'login' | 'register') {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { email: string; password: string }) => {
+    mutationFn: async (body: { display_name?: string; email: string; password: string }) => {
       // Register also logs in (the server sets the session cookie): no second request.
       const res =
         mode === 'login'
           ? await api.POST('/api/auth/login', { body })
-          : await api.POST('/api/auth/register', { body })
+          : await api.POST('/api/auth/register', { body: { ...body, display_name: body.display_name ?? '' } })
+      if (!res.response.ok) fail(res.error, res.response)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+  })
+}
+
+export function useUpdateName() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (display_name: string) => {
+      const res = await api.PATCH('/api/auth/me', { body: { display_name } })
       if (!res.response.ok) fail(res.error, res.response)
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),

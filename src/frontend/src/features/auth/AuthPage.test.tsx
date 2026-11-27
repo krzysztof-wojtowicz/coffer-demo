@@ -55,6 +55,7 @@ function renderPage(mode: 'login' | 'register') {
 describe('AuthPage: rejestracja', () => {
   it('pokazuje niespełnione zasady i nie wysyła słabego hasła', async () => {
     const user = renderPage('register')
+    await user.type(await screen.findByLabelText('Imię'), 'Jan')
     await user.type(await screen.findByLabelText('E-mail'), 'jan@example.com')
     await user.type(screen.getByLabelText('Hasło'), 'password1234')
     await user.click(screen.getByRole('checkbox'))
@@ -65,6 +66,7 @@ describe('AuthPage: rejestracja', () => {
 
   it('wymaga akceptacji przechowywania danych', async () => {
     const user = renderPage('register')
+    await user.type(await screen.findByLabelText('Imię'), 'Jan')
     await user.type(await screen.findByLabelText('E-mail'), 'jan@example.com')
     await user.type(screen.getByLabelText('Hasło'), 'Kot-w-butach-42')
     await user.click(screen.getByRole('button', { name: 'Załóż konto' }))
@@ -76,6 +78,7 @@ describe('AuthPage: rejestracja', () => {
 
   it('pokazuje siłę hasła i rejestruje jednym żądaniem', async () => {
     const user = renderPage('register')
+    await user.type(await screen.findByLabelText('Imię'), 'Jan')
     await user.type(await screen.findByLabelText('E-mail'), 'jan@example.com')
     await user.type(screen.getByLabelText('Hasło'), 'Kot-w-butach-42-i-pies')
     expect(screen.getByRole('meter').getAttribute('aria-valuetext')).toBe('Silne')
@@ -83,6 +86,7 @@ describe('AuthPage: rejestracja', () => {
     await user.click(screen.getByRole('button', { name: 'Załóż konto' }))
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     expect(new URL(calls[0].url).pathname).toBe('/api/auth/register')
+    expect(await calls[0].clone().json()).toMatchObject({ display_name: 'Jan', email: 'jan@example.com' })
   })
 })
 
@@ -116,7 +120,10 @@ const fill = async (
   email: string,
   password: string,
 ) => {
-  await user.type(await screen.findByLabelText("E-mail"), email);
+  await screen.findByLabelText('E-mail')
+  const name = screen.queryByLabelText('Imię')
+  if (name) await user.type(name, 'Jan')
+  await user.type(await screen.findByLabelText('E-mail'), email);
   await user.type(screen.getByLabelText("Hasło"), password);
 };
 

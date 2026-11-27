@@ -75,6 +75,7 @@ export function TransactionsPage() {
           <Field label={pl.transactions.filterType}>
             <Select
               aria-label={pl.transactions.filterType}
+              variant="ghost"
               className="w-full"
               value={opts.type}
               onChange={(e) => set({ type: e.target.value as TypeFilter })}
@@ -87,6 +88,7 @@ export function TransactionsPage() {
           <Field label={pl.transactions.filterCategory}>
             <Select
               aria-label={pl.transactions.filterCategory}
+              variant="ghost"
               className="w-full"
               value={opts.categoryId ?? ''}
               onChange={(e) => set({ categoryId: e.target.value ? Number(e.target.value) : null })}
@@ -102,6 +104,7 @@ export function TransactionsPage() {
           <Field label={pl.transactions.filterSource}>
             <Select
               aria-label={pl.transactions.filterSource}
+              variant="ghost"
               className="w-full"
               value={opts.source ?? ''}
               onChange={(e) => set({ source: e.target.value || null })}
@@ -117,6 +120,7 @@ export function TransactionsPage() {
           <Field label={pl.transactions.sortBy}>
             <Select
               aria-label={pl.transactions.sortBy}
+              variant="ghost"
               className="w-full"
               value={opts.sortKey}
               onChange={(e) => set({ sortKey: e.target.value as SortKey })}
@@ -128,6 +132,7 @@ export function TransactionsPage() {
           <Field label={pl.transactions.sortDir}>
             <Select
               aria-label={pl.transactions.sortDir}
+              variant="ghost"
               className="w-full"
               value={opts.sortDir}
               onChange={(e) => set({ sortDir: e.target.value as SortDir })}

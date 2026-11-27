@@ -22,7 +22,6 @@ from coffer.accounts.models import AuthSession, User
 from coffer.accounts.policy import common_passwords, password_problems
 from coffer.accounts.ratelimit import SlidingWindowLimiter
 from coffer.accounts.tokens import SESSION_COOKIE, hash_token
-from coffer.budget.models import BudgetLimit
 from coffer.cash.models import OpeningBalance
 from coffer.core.config import Settings, get_settings
 from coffer.imports.models import ImportDraft
@@ -40,12 +39,16 @@ FRONT_LIST = Path(__file__).resolve().parents[3] / "frontend/src/features/auth/c
 
 
 def _creds(email: str = EMAIL, password: str = PASSWORD) -> dict[str, str]:
+    return {"display_name": "Jan", "email": email, "password": password}
+
+
+def _lcreds(email: str = EMAIL, password: str = PASSWORD) -> dict[str, str]:
     return {"email": email, "password": password}
 
 
 def _login(email: str = EMAIL, password: str = PASSWORD, **kw: object) -> TestClient:
     c = TestClient(app, **kw)  # pyright: ignore[reportArgumentType]
-    r = c.post("/api/auth/login", json=_creds(email, password))
+    r = c.post("/api/auth/login", json=_lcreds(email, password))
     assert r.status_code == 200, r.text
     return c
 
@@ -95,7 +98,8 @@ def test_register_creates_user_and_logs_in(client: TestClient, db: Session) -> N
     r = client.post("/api/auth/register", json=_creds())
     assert r.status_code == 201
     body = r.json()
-    assert set(body) == {"id", "email"}
+    assert set(body) == {"id", "email", "display_name"}
+    assert body["display_name"] == "Jan"
     assert body["email"] == "jan@example.com"
     assert SESSION_COOKIE in client.cookies
     me = client.get("/api/auth/me")
@@ -220,7 +224,7 @@ def test_validation_errors_do_not_echo_password(client: TestClient) -> None:
     assert all(
         e["msg"] in ("Pole jest wymagane", "Niepoprawna wartość") for e in r.json()["detail"]
     )
-    r = client.post("/api/auth/login", json=_creds(password=secret))
+    r = client.post("/api/auth/login", json=_lcreds(password=secret))
     assert r.status_code == 422
     assert secret not in r.text and "najwyżej 128" in r.json()["detail"]
 
@@ -235,23 +239,29 @@ def test_login_any_case(client: TestClient, variant: str) -> None:
     assert (
         client.post("/api/auth/register", json=_creds(email="Jan@Example.com ")).status_code == 201
     )
-    assert TestClient(app).post("/api/auth/login", json=_creds(email=variant)).status_code == 200
+    assert TestClient(app).post("/api/auth/login", json=_lcreds(email=variant)).status_code == 200
     r = TestClient(app).post("/api/auth/register", json=_creds(email=variant))
     assert r.status_code == 409
 
 
 def test_login_case_insensitive_for_legacy_mixed_case_row(client: TestClient, db: Session) -> None:
-    db.add(User(email="Jan@Example.com", password_hash=PasswordHasher().hash(PASSWORD)))
+    db.add(
+        User(
+            email="Jan@Example.com",
+            display_name="Jan",
+            password_hash=PasswordHasher().hash(PASSWORD),
+        )
+    )
     db.commit()
-    assert client.post("/api/auth/login", json=_creds(email="jan@example.com")).status_code == 200
+    assert client.post("/api/auth/login", json=_lcreds(email="jan@example.com")).status_code == 200
     r = TestClient(app).post("/api/auth/register", json=_creds(email="JAN@example.com"))
     assert r.status_code == 409
 
 
 def test_db_unique_index_on_email_is_case_insensitive(db: Session) -> None:
-    db.add(User(email="jan@example.com", password_hash="x"))
+    db.add(User(email="jan@example.com", display_name="Jan", password_hash="x"))
     db.commit()
-    db.add(User(email="JAN@example.com", password_hash="x"))
+    db.add(User(email="JAN@example.com", display_name="Jan", password_hash="x"))
     with pytest.raises(IntegrityError):
         db.commit()
     db.rollback()
@@ -338,7 +348,7 @@ def test_login_keeps_current_hash(make_user, db: Session) -> None:
 
 def test_failed_login_does_not_rehash(client: TestClient, make_user, db: Session) -> None:
     user = make_user(email="jan@example.com", password=PASSWORD)
-    client.post("/api/auth/login", json=_creds(password="zle-haslo-123"))
+    client.post("/api/auth/login", json=_lcreds(password="zle-haslo-123"))
     db.expire_all()
     assert db.get(User, user.id).password_hash == user.password_hash
 
@@ -362,21 +372,23 @@ def test_hash_concurrency_capped_by_setting(monkeypatch) -> None:
 
 def test_login_success(client: TestClient, make_user) -> None:
     user = make_user(email="jan@example.com", password=PASSWORD)
-    r = client.post("/api/auth/login", json=_creds())
+    r = client.post("/api/auth/login", json=_lcreds())
     assert r.status_code == 200
-    assert r.json() == {"id": user.id, "email": "jan@example.com"}
+    assert r.json()["id"] == user.id and r.json()["email"] == "jan@example.com"
+    assert r.json()["display_name"]
     assert SESSION_COOKIE in client.cookies
     header = r.headers["set-cookie"].lower()
     assert "httponly" in header
     assert "samesite=lax" in header
     assert f"max-age={get_settings().session_ttl_days * 86400}" in header
-    assert client.get("/api/auth/me").json() == {"id": user.id, "email": "jan@example.com"}
+    me = client.get("/api/auth/me").json()
+    assert me["id"] == user.id and me["email"] == "jan@example.com" and me["display_name"]
 
 
 def test_login_wrong_and_unknown_same_message(client: TestClient, make_user) -> None:
     make_user(email="jan@example.com", password=PASSWORD)
-    wrong = client.post("/api/auth/login", json=_creds(password="zlehaslo12345"))
-    unknown = client.post("/api/auth/login", json=_creds(email="nikt@example.com"))
+    wrong = client.post("/api/auth/login", json=_lcreds(password="zlehaslo12345"))
+    unknown = client.post("/api/auth/login", json=_lcreds(email="nikt@example.com"))
     assert wrong.status_code == unknown.status_code == 401
     assert wrong.json() == unknown.json() == {"detail": "Nieprawidłowy e-mail lub hasło"}
     assert SESSION_COOKIE not in client.cookies
@@ -401,15 +413,15 @@ def test_login_rejects_129_chars_without_hashing_or_counting(make_user, monkeypa
     monkeypatch.setattr(service, "verify_password", lambda *a: called.append(1) or False)
     c = TestClient(app)
     for _ in range(ratelimit.LOGIN_FAILS_PER_EMAIL[0] + 2):
-        assert c.post("/api/auth/login", json=_creds(password="x" * 129)).status_code == 422
+        assert c.post("/api/auth/login", json=_lcreds(password="x" * 129)).status_code == 422
     assert called == []
     monkeypatch.undo()
-    assert c.post("/api/auth/login", json=_creds()).status_code == 200  # not locked out
+    assert c.post("/api/auth/login", json=_lcreds()).status_code == 200  # not locked out
 
 
 def test_login_accepts_128_chars_input(make_user) -> None:
     make_user(email=EMAIL, password=PASSWORD)
-    r = TestClient(app).post("/api/auth/login", json=_creds(password="x" * 128))
+    r = TestClient(app).post("/api/auth/login", json=_lcreds(password="x" * 128))
     assert r.status_code == 401
 
 
@@ -431,8 +443,8 @@ def test_delete_account_rejects_129_chars(make_user) -> None:
 def test_login_creates_independent_sessions(client: TestClient, make_user, db: Session) -> None:
     make_user(email="jan@example.com", password=PASSWORD)
     other = TestClient(client.app)
-    client.post("/api/auth/login", json=_creds())
-    other.post("/api/auth/login", json=_creds())
+    client.post("/api/auth/login", json=_lcreds())
+    other.post("/api/auth/login", json=_lcreds())
     assert client.cookies[SESSION_COOKIE] != other.cookies[SESSION_COOKIE]
     assert len(db.scalars(select(AuthSession)).all()) == 2
     assert client.get("/api/auth/me").status_code == 200
@@ -475,8 +487,8 @@ def test_logout_without_session_204(client: TestClient) -> None:
 def test_logout_only_current_session(client: TestClient, make_user, db: Session) -> None:
     make_user(email="jan@example.com", password=PASSWORD)
     other = TestClient(client.app)
-    client.post("/api/auth/login", json=_creds())
-    other.post("/api/auth/login", json=_creds())
+    client.post("/api/auth/login", json=_lcreds())
+    other.post("/api/auth/login", json=_lcreds())
     client.post("/api/auth/logout")
     assert client.get("/api/auth/me").status_code == 401
     assert other.get("/api/auth/me").status_code == 200
@@ -486,14 +498,14 @@ def test_logout_only_current_session(client: TestClient, make_user, db: Session)
 def test_failed_login_keeps_existing_session(make_user) -> None:
     make_user(email=EMAIL, password=PASSWORD)
     c = _login()
-    assert c.post("/api/auth/login", json=_creds(password=WRONG)).status_code == 401
+    assert c.post("/api/auth/login", json=_lcreds(password=WRONG)).status_code == 401
     assert c.get("/api/auth/me").status_code == 200
 
 
 def test_login_rotates_existing_session(make_user, db: Session) -> None:
     c, _ = _logged_in(make_user)
     first = c.cookies[SESSION_COOKIE]
-    assert c.post("/api/auth/login", json=_creds()).status_code == 200
+    assert c.post("/api/auth/login", json=_lcreds()).status_code == 200
     assert c.cookies[SESSION_COOKIE] != first
     assert db.scalar(select(func.count()).select_from(AuthSession)) == 1
     replay = TestClient(app)
@@ -506,7 +518,7 @@ def test_login_rotation_does_not_touch_other_devices(make_user, db: Session) -> 
     phone = _login()
     laptop = _login()
     old = laptop.cookies[SESSION_COOKIE]
-    assert laptop.post("/api/auth/login", json=_creds()).status_code == 200
+    assert laptop.post("/api/auth/login", json=_lcreds()).status_code == 200
     assert laptop.cookies[SESSION_COOKIE] != old
     assert phone.get("/api/auth/me").status_code == 200
     assert _sessions(db) == 2
@@ -530,7 +542,7 @@ def test_register_purges_expired_sessions_and_creates_exactly_one(
 def test_logout_all(make_user) -> None:
     a, _ = _logged_in(make_user)
     b = TestClient(app)
-    b.post("/api/auth/login", json=_creds())
+    b.post("/api/auth/login", json=_lcreds())
     other, _ = _logged_in(make_user, email="ola@example.com")
     r = a.post("/api/auth/logout-all")
     assert r.status_code == 204
@@ -591,7 +603,7 @@ def test_cookie_attributes_on_every_set_and_clear(make_user, monkeypatch, samesi
         assert ("max-age=0" in h) is cleared
 
     c = TestClient(app, base_url="https://testserver")
-    check(c.post("/api/auth/login", json=_creds()).headers["set-cookie"], cleared=False)
+    check(c.post("/api/auth/login", json=_lcreds()).headers["set-cookie"], cleared=False)
     body = {"current_password": PASSWORD, "new_password": NEW_PASSWORD}
     check(c.post("/api/auth/password", json=body).headers["set-cookie"], cleared=False)
     check(c.post("/api/auth/logout-all").headers["set-cookie"], cleared=True)
@@ -611,23 +623,23 @@ def test_login_rate_limit_per_email(client: TestClient, make_user) -> None:
     make_user(email="jan@example.com", password=PASSWORD)
     limit, window = ratelimit.LOGIN_FAILS_PER_EMAIL
     for _ in range(limit):
-        r = client.post("/api/auth/login", json=_creds(password="zle-haslo-123"))
+        r = client.post("/api/auth/login", json=_lcreds(password="zle-haslo-123"))
         assert r.status_code == 401
-    r = client.post("/api/auth/login", json=_creds())  # even the right password
+    r = client.post("/api/auth/login", json=_lcreds())  # even the right password
     assert r.status_code == 429
     assert "Zbyt wiele prób" in r.json()["detail"]
     assert 0 < int(r.headers["Retry-After"]) <= window
     # another account from the same IP is not locked yet
     make_user(email="ola@example.com", password=PASSWORD)
-    assert client.post("/api/auth/login", json=_creds(email="ola@example.com")).status_code == 200
+    assert client.post("/api/auth/login", json=_lcreds(email="ola@example.com")).status_code == 200
 
 
 def test_login_rate_limit_per_ip(client: TestClient) -> None:
     limit, _ = ratelimit.LOGIN_FAILS_PER_IP
     for i in range(limit):
-        r = client.post("/api/auth/login", json=_creds(email=f"u{i}@example.com"))
+        r = client.post("/api/auth/login", json=_lcreds(email=f"u{i}@example.com"))
         assert r.status_code == 401
-    r = client.post("/api/auth/login", json=_creds(email="new@example.com"))
+    r = client.post("/api/auth/login", json=_lcreds(email="new@example.com"))
     assert r.status_code == 429
     assert "Retry-After" in r.headers
 
@@ -636,11 +648,11 @@ def test_successful_login_resets_email_counter(client: TestClient, make_user) ->
     make_user(email="jan@example.com", password=PASSWORD)
     limit, _ = ratelimit.LOGIN_FAILS_PER_EMAIL
     for _ in range(limit - 1):
-        client.post("/api/auth/login", json=_creds(password="zle-haslo-123"))
-    assert client.post("/api/auth/login", json=_creds()).status_code == 200
+        client.post("/api/auth/login", json=_lcreds(password="zle-haslo-123"))
+    assert client.post("/api/auth/login", json=_lcreds()).status_code == 200
     for _ in range(limit - 1):
-        client.post("/api/auth/login", json=_creds(password="zle-haslo-123"))
-    assert client.post("/api/auth/login", json=_creds()).status_code == 200
+        client.post("/api/auth/login", json=_lcreds(password="zle-haslo-123"))
+    assert client.post("/api/auth/login", json=_lcreds()).status_code == 200
 
 
 def test_sliding_window_expires() -> None:
@@ -676,9 +688,10 @@ def test_rate_limit_key_is_case_insensitive(make_user) -> None:
     for i in range(ratelimit.LOGIN_FAILS_PER_EMAIL[0]):
         variant = EMAIL.upper() if i % 2 else f"  {EMAIL}"
         assert (
-            c.post("/api/auth/login", json=_creds(email=variant, password=WRONG)).status_code == 401
+            c.post("/api/auth/login", json=_lcreds(email=variant, password=WRONG)).status_code
+            == 401
         )
-    assert c.post("/api/auth/login", json=_creds()).status_code == 429
+    assert c.post("/api/auth/login", json=_lcreds()).status_code == 429
 
 
 def test_wrong_password_on_delete_counts_towards_login_limit(make_user, db: Session) -> None:
@@ -688,7 +701,7 @@ def test_wrong_password_on_delete_counts_towards_login_limit(make_user, db: Sess
     for _ in range(limit):
         assert c.request("DELETE", "/api/auth/account", json={"password": WRONG}).status_code == 403
     _assert_429(c.request("DELETE", "/api/auth/account", json={"password": PASSWORD}))
-    _assert_429(TestClient(app).post("/api/auth/login", json=_creds()))
+    _assert_429(TestClient(app).post("/api/auth/login", json=_lcreds()))
     assert db.scalar(select(func.count()).select_from(User)) == 1
 
 
@@ -698,11 +711,11 @@ def test_mixed_failures_share_one_counter(make_user) -> None:
     limit, _ = ratelimit.LOGIN_FAILS_PER_EMAIL
     half = limit // 2
     for _ in range(half):
-        TestClient(app).post("/api/auth/login", json=_creds(password=WRONG))
+        TestClient(app).post("/api/auth/login", json=_lcreds(password=WRONG))
     for _ in range(limit - half):
         body = {"current_password": WRONG, "new_password": NEW_PASSWORD}
         assert c.post("/api/auth/password", json=body).status_code == 403
-    _assert_429(TestClient(app).post("/api/auth/login", json=_creds()))
+    _assert_429(TestClient(app).post("/api/auth/login", json=_lcreds()))
 
 
 def test_parallel_failed_logins_cannot_exceed_limit(make_user, monkeypatch) -> None:
@@ -740,11 +753,11 @@ def test_spoofed_forwarded_for_ignored_without_trusted_hops(monkeypatch) -> None
     for i in range(limit):
         h = {"X-Forwarded-For": f"10.9.{i}.1"}
         assert (
-            c.post("/api/auth/login", json=_creds(f"u{i}@example.com"), headers=h).status_code
+            c.post("/api/auth/login", json=_lcreds(f"u{i}@example.com"), headers=h).status_code
             == 401
         )
     r = c.post(
-        "/api/auth/login", json=_creds("x@example.com"), headers={"X-Forwarded-For": "1.1.1.1"}
+        "/api/auth/login", json=_lcreds("x@example.com"), headers={"X-Forwarded-For": "1.1.1.1"}
     )
     _assert_429(r)
 
@@ -756,13 +769,13 @@ def test_one_trusted_hop_uses_last_forwarded_entry(monkeypatch) -> None:
     for i in range(limit):
         # the client-controlled left part changes, the proxy-appended right part does not
         h = {"X-Forwarded-For": f"6.6.6.{i}, 1.2.3.4"}
-        c.post("/api/auth/login", json=_creds(f"u{i}@example.com"), headers=h)
+        c.post("/api/auth/login", json=_lcreds(f"u{i}@example.com"), headers=h)
     blocked = c.post(
-        "/api/auth/login", json=_creds("x@example.com"), headers={"X-Forwarded-For": "1.2.3.4"}
+        "/api/auth/login", json=_lcreds("x@example.com"), headers={"X-Forwarded-For": "1.2.3.4"}
     )
     _assert_429(blocked)
     other = c.post(
-        "/api/auth/login", json=_creds("x@example.com"), headers={"X-Forwarded-For": "1.2.3.5"}
+        "/api/auth/login", json=_lcreds("x@example.com"), headers={"X-Forwarded-For": "1.2.3.5"}
     )
     assert other.status_code == 401
 
@@ -799,7 +812,7 @@ def test_key_flood_does_not_reset_email_lockout(make_user, monkeypatch) -> None:
 def test_change_password_revokes_other_sessions(make_user, db: Session) -> None:
     a, user = _logged_in(make_user)
     b = TestClient(app)
-    b.post("/api/auth/login", json=_creds())
+    b.post("/api/auth/login", json=_lcreds())
     old_token = a.cookies[SESSION_COOKIE]
     r = a.post(
         "/api/auth/password",
@@ -813,8 +826,8 @@ def test_change_password_revokes_other_sessions(make_user, db: Session) -> None:
     db.expire_all()
     assert db.get(User, user.id).password_changed_at is not None
     fresh = TestClient(app)
-    assert fresh.post("/api/auth/login", json=_creds()).status_code == 401
-    assert fresh.post("/api/auth/login", json=_creds(password=NEW_PASSWORD)).status_code == 200
+    assert fresh.post("/api/auth/login", json=_lcreds()).status_code == 401
+    assert fresh.post("/api/auth/login", json=_lcreds(password=NEW_PASSWORD)).status_code == 200
 
 
 def test_change_password_wrong_current_403(make_user) -> None:
@@ -867,7 +880,6 @@ def _seed_everything(db: Session, uid: int, category_id: int) -> None:
         )
     )
     db.add(InvestmentProfile(user_id=uid, horizon="long", risk="low", preferred_classes=["etf"]))
-    db.add(BudgetLimit(user_id=uid, category_id=category_id, amount=Decimal("100.00")))
     db.add(OpeningBalance(user_id=uid, amount=Decimal("1000.00"), as_of=dt.date(2026, 1, 1)))
     db.add(
         ImportDraft(
@@ -896,7 +908,6 @@ def test_delete_account_removes_data_of_every_module(make_user, db: Session, cat
         Transaction,
         Holding,
         InvestmentProfile,
-        BudgetLimit,
         OpeningBalance,
         ImportDraft,
         AuthSession,
@@ -905,7 +916,7 @@ def test_delete_account_removes_data_of_every_module(make_user, db: Session, cat
         owners = set(db.scalars(select(model.user_id)).all())
         assert owners == {uid_b}, model.__name__
     assert b.get("/api/auth/me").status_code == 200
-    assert TestClient(app).post("/api/auth/login", json=_creds()).status_code == 401
+    assert TestClient(app).post("/api/auth/login", json=_lcreds()).status_code == 401
 
     # same address can register again and starts with an empty account
     fresh = TestClient(app)
@@ -925,3 +936,91 @@ def test_delete_account_wrong_password(make_user, db: Session) -> None:
     assert r.status_code == 403
     assert db.get(User, user.id) is not None
     assert a.get("/api/auth/me").status_code == 200
+
+
+# --- Display name ---
+
+NAME_MSG = "Imię musi mieć od 1 do 50 znaków"
+
+
+def test_register_stores_trimmed_display_name(client: TestClient, db: Session) -> None:
+    r = client.post("/api/auth/register", json={**_creds(), "display_name": "  Ola  "})
+    assert r.status_code == 201
+    assert r.json()["display_name"] == "Ola"
+    assert client.get("/api/auth/me").json()["display_name"] == "Ola"
+
+
+def test_register_name_50_chars_ok(client: TestClient) -> None:
+    r = client.post("/api/auth/register", json={**_creds(), "display_name": "a" * 50})
+    assert r.status_code == 201
+
+
+@pytest.mark.parametrize("name", [None, "", "   ", "a" * 51, "Jan\x00"])
+def test_register_bad_display_name_422(client: TestClient, db: Session, name) -> None:
+    body = _creds()
+    if name is None:
+        del body["display_name"]
+    else:
+        body["display_name"] = name
+    r = client.post("/api/auth/register", json=body)
+    assert r.status_code == 422
+    if name is not None and "\x00" not in name:
+        assert NAME_MSG in r.text
+    assert db.scalars(select(User)).all() == []
+
+
+def test_login_does_not_need_display_name(make_user) -> None:
+    make_user(email=EMAIL, password=PASSWORD)
+    r = TestClient(app).post("/api/auth/login", json={"email": EMAIL, "password": PASSWORD})
+    assert r.status_code == 200
+    assert r.json()["display_name"]
+
+
+def test_patch_me_changes_name(make_user) -> None:
+    c, _ = _logged_in(make_user)
+    r = c.patch("/api/auth/me", json={"display_name": " Nowe "})
+    assert r.status_code == 200
+    assert r.json()["display_name"] == "Nowe"
+    assert c.get("/api/auth/me").json()["display_name"] == "Nowe"
+
+
+@pytest.mark.parametrize("name", ["", "   ", "a" * 51])
+def test_patch_me_invalid_keeps_old_name(make_user, name) -> None:
+    c, _ = _logged_in(make_user)
+    before = c.get("/api/auth/me").json()["display_name"]
+    r = c.patch("/api/auth/me", json={"display_name": name})
+    assert r.status_code == 422
+    assert NAME_MSG in r.text
+    assert c.get("/api/auth/me").json()["display_name"] == before
+
+
+def test_patch_me_missing_field_422(make_user) -> None:
+    c, _ = _logged_in(make_user)
+    assert c.patch("/api/auth/me", json={}).status_code == 422
+
+
+def test_patch_me_without_session_401(client: TestClient) -> None:
+    assert client.patch("/api/auth/me", json={"display_name": "X"}).status_code == 401
+
+
+def test_patch_me_affects_only_own_user(make_user) -> None:
+    a, _ = _logged_in(make_user)
+    make_user(email="ola@example.com", password=PASSWORD)
+    b = _login("ola@example.com")
+    before = b.get("/api/auth/me").json()["display_name"]
+    a.patch("/api/auth/me", json={"display_name": "Zmienione"})
+    assert b.get("/api/auth/me").json()["display_name"] == before
+
+
+@pytest.mark.parametrize("name", ["Jan\nKowalski", "Jan‮Kowalski"])
+def test_display_name_control_or_bidi_chars_422(make_user, client: TestClient, name) -> None:
+    body = {**_creds(), "display_name": name}
+    r = client.post("/api/auth/register", json=body)
+    assert r.status_code == 422
+    assert NAME_MSG in r.text
+    c, _ = _logged_in(make_user, email="ola@example.com")
+    before = c.get("/api/auth/me").json()["display_name"]
+    r = c.patch("/api/auth/me", json={"display_name": name})
+    assert r.status_code == 422
+    assert NAME_MSG in r.text
+    assert c.get("/api/auth/me").json()["display_name"] == before

@@ -1,4 +1,4 @@
-"""Pure analytics functions (no DB, no FastAPI): month summary, comparison, limits, net worth,
+"""Pure analytics functions (no DB, no FastAPI): month summary, comparison, net worth,
 portfolio valuation."""
 
 from datetime import date
@@ -8,8 +8,12 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from coffer.analytics.allocation import (
+    ASSET_CLASSES,
+    allocation_gap,
+    target_allocation,
+)
 from coffer.analytics.compare import compare_months, top_growth
-from coffer.analytics.limits import limit_status
 from coffer.analytics.month import CategoryTotal, MonthSummary, TxView, month_summary
 from coffer.analytics.net_worth import net_worth, portfolio_is_complete
 from coffer.analytics.portfolio import (
@@ -262,31 +266,6 @@ def test_top_growth_limited_and_budget_only(cur, hist):
     assert all(g.category_id != 3 and g.increase > 0 for g in result)
 
 
-# --- limit_status ---
-
-
-@pytest.mark.parametrize(
-    ("spent", "limit", "exceeded", "remaining", "used_pct"),
-    [
-        ("150.00", "100.00", True, "-50.00", "150.0"),
-        ("100.00", "100.00", False, "0.00", "100.0"),
-        ("12.25", "100.00", False, "87.75", "12.3"),
-        ("0.00", "50.00", False, "50.00", "0.0"),
-    ],
-)
-def test_limit_status(spent, limit, exceeded, remaining, used_pct):
-    by = [CategoryTotal(1, "A", D(spent))] if D(spent) else []
-    [s] = limit_status(by, {1: ("A", D(limit))})
-    assert s.exceeded is exceeded
-    assert (s.spent, s.limit, s.remaining, s.used_pct) == (
-        D(spent),
-        D(limit),
-        D(remaining),
-        D(used_pct),
-    )
-    assert s.category_name == "A"
-
-
 # --- net_worth ---
 
 
@@ -470,3 +449,154 @@ def test_monthly_balances_sum_to_all_transactions_n04(txs):
     inside = [t for t in txs if t.date.strftime("%Y-%m") in months]
     total = sum((month_summary(m, txs).balance for m in months), D("0.00"))
     assert total == sum((t.amount for t in inside), D("0.00"))
+
+
+# --- target allocation and gap ---
+
+HORIZONS = ("short", "medium", "long")
+RISKS = ("low", "medium", "high")
+ALL = list(ASSET_CLASSES)
+BASE = {
+    ("low", "short"): dict(stock=1, etf=9, bond=70, cash=20),
+    ("low", "medium"): dict(stock=3, etf=22, bond=60, cash=10, commodity=5),
+    ("low", "long"): dict(stock=4, etf=31, bond=55, cash=5, commodity=5),
+    ("medium", "short"): dict(stock=6, etf=19, bond=55, cash=20),
+    ("medium", "medium"): dict(stock=11, etf=34, bond=40, cash=10, commodity=5),
+    ("medium", "long"): dict(
+        stock=15, etf=45, bond=22, cash=5, crypto=3, commodity=5, real_estate=5
+    ),
+    ("high", "short"): dict(stock=16, etf=24, bond=40, cash=20),
+    ("high", "medium"): dict(stock=26, etf=39, bond=15, cash=10, crypto=5, commodity=5),
+    ("high", "long"): dict(stock=30, etf=45, bond=3, cash=5, crypto=7, commodity=5, real_estate=5),
+}
+
+
+def _t(risk, horizon, preferred):
+    return {x.asset_class: x.share_pct for x in target_allocation(horizon, risk, preferred)}
+
+
+def test_asset_classes_shared_list():
+    assert list(ASSET_CLASSES) == [
+        "stock",
+        "etf",
+        "bond",
+        "real_estate",
+        "commodity",
+        "crypto",
+        "cash",
+    ]
+
+
+@pytest.mark.parametrize(("risk", "horizon"), list(BASE))
+def test_base_table_row_sums_to_100_and_matches(risk, horizon):
+    got = _t(risk, horizon, ALL)
+    assert got == BASE[(risk, horizon)]
+    assert sum(got.values()) == 100
+
+
+def test_target_output_in_list_order():
+    out = [x.asset_class for x in target_allocation("long", "medium", ALL)]
+    assert out == [c for c in ASSET_CLASSES if c in out]
+
+
+def test_unselected_stock_goes_to_etf():
+    assert _t("medium", "medium", [c for c in ALL if c != "stock"]) == dict(
+        etf=45, bond=40, cash=10, commodity=5
+    )
+
+
+@pytest.mark.parametrize(
+    ("dropped", "expected"),
+    [
+        ("commodity", dict(stock=11, etf=34, bond=45, cash=10)),
+        ("bond", dict(stock=11, etf=34, cash=50, commodity=5)),
+        ("cash", dict(stock=11, etf=34, bond=50, commodity=5)),
+    ],
+)
+def test_redistribution_chains(dropped, expected):
+    assert _t("medium", "medium", [c for c in ALL if c != dropped]) == expected
+
+
+def test_redistribution_crypto_and_real_estate_to_etf():
+    got = _t("medium", "long", ["stock", "etf", "bond", "cash", "commodity"])
+    assert got == dict(stock=15, etf=53, bond=22, cash=5, commodity=5)
+
+
+def test_single_class_gets_everything():
+    assert _t("high", "long", ["crypto"]) == {"crypto": 100}
+
+
+def test_chain_without_selected_goes_to_largest_base():
+    # commodity -> bond -> cash; neither selected, so the largest base share (etf 34) wins
+    got = _t("medium", "medium", ["stock", "etf", "crypto"])
+    assert sum(got.values()) == 100 and set(got) <= {"stock", "etf", "crypto"}
+    assert got["etf"] > got["stock"]
+
+
+@given(
+    risk=st.sampled_from(RISKS),
+    preferred=st.sets(st.sampled_from(ALL), min_size=1),
+)
+def test_target_sums_to_100_only_selected_positive(risk, preferred):
+    for horizon in HORIZONS:
+        got = _t(risk, horizon, list(preferred))
+        assert sum(got.values()) == 100
+        assert set(got) <= preferred
+        assert all(isinstance(v, int) and v > 0 for v in got.values())
+
+
+def _equity(risk, horizon, preferred):
+    t = _t(risk, horizon, preferred)
+    return t.get("stock", 0) + t.get("etf", 0)
+
+
+@given(
+    risk=st.sampled_from(RISKS),
+    preferred=st.sets(st.sampled_from(ALL), min_size=1).filter(
+        lambda p: p & {"stock", "etf"} and p & {"bond", "cash"}
+    ),
+)
+def test_longer_horizon_equity_not_lower(risk, preferred):
+    p = list(preferred)
+    assert _equity(risk, "short", p) <= _equity(risk, "medium", p) <= _equity(risk, "long", p)
+
+
+def test_bond_cash_chains_end_in_stock():
+    assert _t("low", "medium", ["stock", "commodity"]) == {"stock": 95, "commodity": 5}
+
+
+def _cur(**shares):
+    return [ClassAllocation(k, D(v), D(v)) for k, v in shares.items()]
+
+
+def test_gap_scenario_total_36():
+    target = target_allocation("medium", "medium", ALL)
+    gap = allocation_gap(_cur(etf="52", bond="20", cash="28"), target)
+    by = {c.asset_class: c.gap_pp for c in gap.classes}
+    assert by == {
+        "etf": D("18"),
+        "bond": D("-20"),
+        "cash": D("18"),
+        "stock": D("-11"),
+        "commodity": D("-5"),
+    }
+    assert gap.total_gap_pp == D("36")
+
+
+def test_gap_class_only_in_current_has_zero_target():
+    target = target_allocation("medium", "medium", ["etf", "bond"])
+    gap = allocation_gap(_cur(etf="50", crypto="50"), target)
+    crypto = next(c for c in gap.classes if c.asset_class == "crypto")
+    assert crypto.target_pct == 0 and crypto.gap_pp == D("50")
+
+
+def test_gap_empty_portfolio_is_null():
+    target = target_allocation("medium", "medium", ALL)
+    gap = allocation_gap([], target)
+    assert gap is None or (gap.total_gap_pp is None and all(c.gap_pp is None for c in gap.classes))
+
+
+def test_gap_all_zero_shares_is_null():
+    target = target_allocation("medium", "medium", ALL)
+    gap = allocation_gap(_cur(etf="0", bond="0"), target)
+    assert gap is None or (gap.total_gap_pp is None and all(c.gap_pp is None for c in gap.classes))

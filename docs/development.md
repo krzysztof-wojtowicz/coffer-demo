@@ -41,7 +41,7 @@ Log in at <http://localhost:5173> with `demo@coffer.local` / `coffer-demo-2026`.
 | `COFFER_SESSION_TTL_DAYS` | `14` | session lifetime |
 | `COFFER_COOKIE_SECURE` | `false` | `true` behind HTTPS |
 | `COFFER_COOKIE_SAMESITE` | `lax` | `lax` or `strict` |
-| `COFFER_PRICE_REFRESH_HOURS` | `0` | background quote refresh every N hours (1–24); `0` = off; manual: `make prices` |
+| `COFFER_PRICE_REFRESH_MINUTES` | `0` | background quote refresh every N minutes (1–1440); `0` = off; manual: `make prices` |
 
 ## 4. Troubleshooting
 
@@ -72,7 +72,7 @@ coffer/
     │       ├── accounts/     registration, login, sessions, CurrentUser
     │       ├── transactions/ transactions and categories
     │       ├── imports/      CSV import: parser, banks, categorization, de-duplication
-    │       ├── budget/       month view, limits, insights, net worth
+    │       ├── budget/       month view, insights, net worth
     │       ├── cash/         opening balance
     │       ├── analytics/    pure functions for totals and shares
     │       ├── profile/      investment profile

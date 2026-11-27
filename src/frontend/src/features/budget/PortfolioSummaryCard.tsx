@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { AllocationChart } from '../portfolio/AllocationChart'
+import { AllocationChart, targetSlices } from '../portfolio/AllocationChart'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { Money } from '../../components/Money'
 import { Signed } from '../../components/Signed'
@@ -19,6 +19,17 @@ export function PortfolioSummaryCard() {
   if (error) return <ErrorMessage message={apiErrorMessage(error)} />
   if (!data) return null
   const linkCls = 'text-sm font-medium text-accent hover:underline'
+  // Profile but nothing valued yet: show the target alone, without a comparison.
+  const targetOnly = data.target ? (
+    <div className="mt-4">
+      <div className="mb-2 text-sm text-muted">{pl.profile.targetTitle}</div>
+      <AllocationChart
+        compact
+        targetOnly
+        allocation={targetSlices(data.target.classes.map((c) => ({ asset_class: c.asset_class, share_pct: c.target_pct })))}
+      />
+    </div>
+  ) : null
   if (data.holdings.length === 0) {
     return (
       <Card title={pl.summary.portfolioTitle}>
@@ -26,6 +37,7 @@ export function PortfolioSummaryCard() {
         <Link to="/portfolio" className={linkCls}>
           {pl.summary.portfolioAdd}
         </Link>
+        {targetOnly}
       </Card>
     )
   }
@@ -53,10 +65,11 @@ export function PortfolioSummaryCard() {
           }
         />
       </div>
+      {data.allocation.length === 0 && targetOnly}
       {data.allocation.length > 0 && (
         <div className="mt-4">
           <div className="mb-2 text-sm text-muted">{pl.portfolio.allocation}</div>
-          <AllocationChart allocation={data.allocation} compact />
+          <AllocationChart allocation={data.allocation} target={data.target ?? null} compact />
         </div>
       )}
       {top.length > 0 && (
@@ -66,7 +79,7 @@ export function PortfolioSummaryCard() {
             {top.map((h) => (
               <li key={h.id} className="flex justify-between gap-3 text-sm">
                 <span>
-                  {h.name} <span className="text-muted">({pl.portfolio.classes[h.asset_class]})</span>
+                  {h.name} <span className="text-muted">({pl.assetClass[h.asset_class]})</span>
                 </span>
                 <span className="flex gap-3 tabular-nums">
                   <span className="text-muted">{formatPct(h.share_pct)}</span>

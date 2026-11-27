@@ -22,18 +22,18 @@ from coffer.transactions.api import router as transactions_router
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    refresh_hours = settings.price_refresh_hours
+    refresh_minutes = settings.price_refresh_minutes
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         scheduler = (
             start_price_scheduler(
                 SessionLocal,
-                refresh_hours,
-                lambda factory: fetch_stale(factory, refresh_hours),
+                refresh_minutes,
+                lambda factory: fetch_stale(factory, refresh_minutes),
                 store,
             )
-            if refresh_hours > 0
+            if refresh_minutes > 0
             else None
         )
         try:

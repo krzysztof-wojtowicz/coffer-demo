@@ -128,16 +128,15 @@ def test_month_balances_sum_to_cash_balance(auth_client, db, user, category_id, 
 # --- Requirement: Month comparison and top growth ---
 
 
-def test_insights_comparison_growth_and_limits(auth_client, db, user, category_id):
+def test_insights_comparison_and_growth(auth_client, db, user, category_id):
     food, tr = category_id("Jedzenie"), category_id("Transport")
     add_tx(db, user, date(2026, 3, 2), "-300.00", food)
     add_tx(db, user, date(2026, 3, 3), "-50.00", tr)
     add_tx(db, user, date(2026, 2, 3), "-100.00", food)
     add_tx(db, user, date(2026, 1, 3), "-100.00", food)
     add_tx(db, user, date(2025, 12, 3), "-100.00", food)
-    auth_client.put(f"/api/budget/limits/{food}", json={"amount": "250.00"})
-    auth_client.put(f"/api/budget/limits/{tr}", json={"amount": "250.00"})
     body = auth_client.get("/api/budget/2026-03/insights").json()
+    assert "limits" not in body
     assert body["previous_month"] == "2026-02"
     assert body["comparison"][0] == {
         "category_id": food,
@@ -155,12 +154,6 @@ def test_insights_comparison_growth_and_limits(auth_client, db, user, category_i
     assert growth["Jedzenie"]["average_3m"] == "100.00"
     assert growth["Transport"]["average_3m"] == "0.00"
     assert growth["Transport"]["increase_pct"] is None
-    lim = {x["category_name"]: x for x in body["limits"]}
-    assert lim["Jedzenie"]["exceeded"] is True and lim["Jedzenie"]["used_pct"] == "120.0"
-    assert lim["Jedzenie"]["remaining"] == "-50.00"
-    assert lim["Jedzenie"]["spent"] == "300.00" and lim["Jedzenie"]["limit"] == "250.00"
-    assert lim["Transport"]["exceeded"] is False
-    assert lim["Transport"]["remaining"] == "200.00"
 
 
 def test_insights_fewer_than_three_prior_months_uses_available(auth_client, db, user, category_id):
@@ -180,73 +173,24 @@ def test_insights_empty_and_previous_month_crosses_year(auth_client):
         "previous_month": "2025-12",
         "comparison": [],
         "top_growth": [],
-        "limits": [],
     }
 
 
 def test_insights_are_per_user(auth_client, other_auth_client, db, make_user, category_id):
     food = category_id("Jedzenie")
-    auth_client.put(f"/api/budget/limits/{food}", json={"amount": "10.00"})
     add_tx(db, make_user(email="third@example.com"), date(2025, 3, 5), "-999.00", food)
     body = other_auth_client.get("/api/budget/2025-03/insights").json()
-    assert body["comparison"] == [] and body["top_growth"] == [] and body["limits"] == []
+    assert body["comparison"] == [] and body["top_growth"] == []
 
 
-# --- Requirement: Category limits ---
+# --- Requirement: Category limits (removed) ---
 
 
-def test_limit_put_upsert_list_delete(auth_client, category_id):
-    food, tr = category_id("Jedzenie"), category_id("Transport")
-    r = auth_client.put(f"/api/budget/limits/{food}", json={"amount": "500.00"})
-    assert r.status_code == 200
-    assert r.json() == {"category_id": food, "category_name": "Jedzenie", "amount": "500.00"}
-    auth_client.put(f"/api/budget/limits/{food}", json={"amount": "600.5"})
-    auth_client.put(f"/api/budget/limits/{tr}", json={"amount": "999999999999.99"})
-    items = auth_client.get("/api/budget/limits").json()
-    assert [i["category_name"] for i in items] == ["Jedzenie", "Transport"]
-    assert [i["amount"] for i in items] == ["600.50", "999999999999.99"]
-    assert auth_client.delete(f"/api/budget/limits/{food}").status_code == 204
-    assert len(auth_client.get("/api/budget/limits").json()) == 1
-
-
-def test_limit_on_non_budget_category_422(auth_client, category_id):
-    for name in ("Przelewy własne", "Inwestycje"):
-        r = auth_client.put(f"/api/budget/limits/{category_id(name)}", json={"amount": "5"})
-        assert r.status_code == 422
-        assert r.json()["detail"] == "Limit można ustawić tylko dla kategorii budżetowej"
-
-
-def test_limit_unknown_category_404(auth_client):
-    r = auth_client.put("/api/budget/limits/999999", json={"amount": "5.00"})
-    assert (r.status_code, r.json()["detail"]) == (404, "Nie znaleziono kategorii")
-
-
-@pytest.mark.parametrize("amount", ["0", "-5.00", "10.123", "1000000000000.00", "abc", "", None])
-def test_limit_invalid_amount_422(auth_client, category_id, amount):
-    r = auth_client.put(f"/api/budget/limits/{category_id('Jedzenie')}", json={"amount": amount})
-    assert r.status_code == 422
-
-
-def test_removing_missing_limit_404(auth_client, category_id):
-    r = auth_client.delete(f"/api/budget/limits/{category_id('Jedzenie')}")
-    assert (r.status_code, r.json()["detail"]) == (404, "Nie ustawiono limitu dla tej kategorii")
-
-
-def test_limits_are_per_user(auth_client, other_auth_client, category_id):
-    food = category_id("Jedzenie")
-    auth_client.put(f"/api/budget/limits/{food}", json={"amount": "500.00"})
-    assert other_auth_client.get("/api/budget/limits").json() == []
-    assert other_auth_client.delete(f"/api/budget/limits/{food}").status_code == 404
-    other_auth_client.put(f"/api/budget/limits/{food}", json={"amount": "5.00"})
-    assert [i["amount"] for i in auth_client.get("/api/budget/limits").json()] == ["500.00"]
-
-
-def test_limit_exactly_reached_is_not_exceeded(auth_client, db, user, category_id):
-    food = category_id("Jedzenie")
-    add_tx(db, user, date(2025, 3, 5), "-100.00", food)
-    auth_client.put(f"/api/budget/limits/{food}", json={"amount": "100.00"})
-    [row] = auth_client.get("/api/budget/2025-03/insights").json()["limits"]
-    assert row["exceeded"] is False and row["remaining"] == "0.00"
+@pytest.mark.parametrize("method", ["get", "put", "delete"])
+def test_limits_endpoints_removed(auth_client, category_id, method):
+    r = getattr(auth_client, method)(f"/api/budget/limits/{category_id('Jedzenie')}")
+    assert r.status_code in (404, 405)
+    assert auth_client.get("/api/budget/limits").status_code in (404, 405, 422)  # /{month}
 
 
 # --- Requirement: Net worth ---

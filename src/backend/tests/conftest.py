@@ -95,7 +95,7 @@ def client(test_engine) -> TestClient:
 @pytest.fixture
 def make_user(db: Session) -> Callable[..., User]:
     def _make(email: str = "user@example.com", password: str = "haslo12345") -> User:
-        user = User(email=email.lower(), password_hash=_hasher.hash(password))
+        user = User(email=email.lower(), display_name="Jan", password_hash=_hasher.hash(password))
         db.add(user)
         db.commit()
         return user

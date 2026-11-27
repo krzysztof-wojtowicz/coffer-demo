@@ -128,8 +128,3 @@ def test_oversized_or_non_finite_values_are_422(
     auth_client: TestClient, path: str, base: dict, field: str, value: str
 ) -> None:
     assert auth_client.post(path, json=base | {field: value}).status_code == 422
-
-
-def test_huge_budget_limit_is_422(auth_client: TestClient, category_id) -> None:
-    r = auth_client.put(f"/api/budget/limits/{category_id('Jedzenie')}", json={"amount": HUGE})
-    assert r.status_code == 422

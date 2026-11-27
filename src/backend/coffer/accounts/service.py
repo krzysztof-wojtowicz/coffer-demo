@@ -71,18 +71,24 @@ def _find_user(db: Session, email: str) -> User | None:
     return db.scalar(select(User).where(func.lower(User.email) == normalize_email(email)))
 
 
-def register(db: Session, email: str, password: str) -> User:
+def register(db: Session, email: str, password: str, display_name: str) -> User:
     """Create an account. The password policy is enforced by the API (check_password_policy)."""
     email = normalize_email(email)
     if _find_user(db, email) is not None:
         raise EmailTaken
-    user = User(email=email, password_hash=hash_password(password))
+    user = User(email=email, display_name=display_name, password_hash=hash_password(password))
     db.add(user)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
         raise EmailTaken from None
+    return user
+
+
+def set_display_name(db: Session, user: User, display_name: str) -> User:
+    user.display_name = display_name
+    db.commit()
     return user
 
 

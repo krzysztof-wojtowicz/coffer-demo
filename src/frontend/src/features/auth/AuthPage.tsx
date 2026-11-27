@@ -13,6 +13,7 @@ import { passwordProblems } from './password'
 import { useAuth, useMe } from './queries'
 
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
+  const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [consent, setConsent] = useState(false)
@@ -29,17 +30,28 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     e.preventDefault()
     setSubmitted(true)
     if (blocked) return
-    auth.mutate({ email, password }, { onSuccess: () => navigate('/') })
+    auth.mutate({ display_name: displayName.trim(), email, password }, { onSuccess: () => navigate('/') })
   }
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-4">
-        <p className="flex items-center justify-center gap-3 text-3xl font-bold text-accent">
+        <p className="flex items-center justify-center gap-3 text-3xl font-bold text-white">
           <Logo className="size-10" />
           {pl.appName}
         </p>
         <Card title={isLogin ? pl.auth.loginTitle : pl.auth.registerTitle}>
           <form onSubmit={submit} className="flex flex-col gap-3">
+            {!isLogin && (
+              <Field label={pl.auth.displayName}>
+                <Input
+                  autoComplete="given-name"
+                  required
+                  maxLength={50}
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                />
+              </Field>
+            )}
             <Field label={pl.auth.email}>
               <Input
                 type="email"

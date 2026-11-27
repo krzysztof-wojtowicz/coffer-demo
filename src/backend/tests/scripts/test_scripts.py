@@ -1,3 +1,4 @@
+import datetime as dt
 import threading
 from decimal import Decimal
 
@@ -5,11 +6,14 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.orm import sessionmaker
 
+from coffer.accounts.models import User
 from coffer.accounts.policy import password_problems
+from coffer.cash import service as cash_service
 from coffer.market import scheduler
 from coffer.market.models import MarketQuote
 from coffer.portfolio import service as portfolio_service
 from coffer.portfolio.models import Holding
+from coffer.profile import service as profile_service
 from coffer.scripts import refresh_prices, seed_demo
 
 pytestmark = pytest.mark.usefixtures("fake_yf")
@@ -56,7 +60,7 @@ def _noop_fetch(factory):
     return None
 
 
-def test_scheduler_disabled_when_zero_hours():
+def test_scheduler_disabled_when_zero_minutes():
     assert scheduler.start_price_scheduler(lambda: None, 0, _noop_fetch, lambda d, x: None) is None  # type: ignore[arg-type]
 
 
@@ -105,16 +109,28 @@ def test_fetch_stale_skips_fresh_and_refreshes_old(db, user, test_engine, fake_y
         refresh_prices.store(session, fetched)
         session.commit()
     calls = len(fake_yf.quote_calls)
-    again = refresh_prices.fetch_stale(factory, 1)
+    again = refresh_prices.fetch_stale(factory, 60)
     assert again.quotes == [] and again.failed == []
     assert len(fake_yf.quote_calls) == calls
     # age the rows: they must be refreshed even though they are from today
     db.execute(text("UPDATE market_quotes SET fetched_at = fetched_at - interval '3 hours'"))
     db.commit()
-    assert len(refresh_prices.fetch_stale(factory, 1).quotes) == 2
-    assert refresh_prices.fetch_stale(factory, 6).quotes == []
+    assert len(refresh_prices.fetch_stale(factory, 60).quotes) == 2
+    assert refresh_prices.fetch_stale(factory, 360).quotes == []
 
 
 # Seed
 def test_demo_password_satisfies_policy() -> None:
     assert password_problems(seed_demo.DEMO_PASSWORD, seed_demo.DEMO_EMAIL) == []
+
+
+def test_seed_creates_demo_data_and_is_idempotent(db) -> None:
+    n = seed_demo.seed_demo(db)
+    assert seed_demo.seed_demo(db) == n  # second run recreates, never duplicates
+    user = db.scalar(select(User).where(User.email == seed_demo.DEMO_EMAIL))
+    assert user is not None and user.display_name == "Demo"
+    dates = [d.date for d in seed_demo.generate()]
+    assert min(dates) >= dt.date(2026, 9, 1) and max(dates) <= seed_demo.DEMO_END
+    assert len(portfolio_service.list_for_user(db, user.id)) == len(seed_demo.HOLDINGS)
+    assert cash_service.get(db, user.id).as_of == dt.date(2026, 9, 1)
+    assert profile_service.get(db, user.id) is not None

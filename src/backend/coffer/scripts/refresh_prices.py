@@ -47,9 +47,9 @@ def fetch_all(session_factory: SessionFactory, max_age: timedelta | None = None)
     return Fetched(first.quotes + second.quotes, first.failed + second.failed)
 
 
-def fetch_stale(session_factory: SessionFactory, hours: float) -> Fetched:
-    """Scheduler fetch phase: only quotes older than `hours` (or missing today)."""
-    return fetch_all(session_factory, max_age=timedelta(hours=hours))
+def fetch_stale(session_factory: SessionFactory, minutes: float) -> Fetched:
+    """Scheduler fetch phase: only quotes older than `minutes` (or missing today)."""
+    return fetch_all(session_factory, max_age=timedelta(minutes=minutes))
 
 
 def store(db: Session, fetched: Fetched) -> None:
