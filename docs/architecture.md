@@ -188,7 +188,7 @@ flowchart LR
         e_bud["/api/budget/{month}, /api/budget/{month}/trend?months=3, 6 or 12,<br/>/api/budget/net-worth"]
         e_imp["/api/imports, /api/imports/banks,<br/>/api/imports/{draft_id}/commit"]
         e_prof["/api/profile"]
-        e_port["/api/portfolio/holdings, /api/portfolio/summary"]
+        e_port["/api/portfolio/holdings, /api/portfolio/summary<br/>(holdings + positions with lots)"]
     end
 
     openapi -->|"openapi-typescript"| schema

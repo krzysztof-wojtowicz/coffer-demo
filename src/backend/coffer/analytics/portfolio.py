@@ -13,6 +13,7 @@ Every amount is converted to the base currency (PLN) with rates passed in by the
 Each currency without a rate is listed in `PortfolioSummary.fx_missing`.
 """
 
+import datetime as dt
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal, localcontext
@@ -40,6 +41,8 @@ class HoldingInput:
     market_price: Decimal | None = None  # per unit, in `price_currency`
     currency: str = BASE_CURRENCY
     price_currency: str | None = None  # None = same as `currency`
+    purchase_date: dt.date | None = None
+    created_at: dt.datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -69,8 +72,44 @@ class ClassAllocation:
 
 
 @dataclass(frozen=True)
+class PositionLot:
+    """One holding inside a position; amounts in the holding's own currency."""
+
+    holding_id: int
+    purchase_date: dt.date | None
+    quantity: Decimal
+    purchase_price: Decimal
+    currency: str
+    cost: Decimal
+    value: Decimal
+    value_source: ValueSource
+    gain: Decimal
+    gain_pct: Decimal | None
+
+
+@dataclass(frozen=True)
+class PositionValuation:
+    """Holdings sharing a ticker. PLN amounts are None when any lot has no FX rate."""
+
+    key: str
+    symbol: str | None
+    name: str
+    asset_class: str
+    quantity: Decimal
+    cost: Decimal | None
+    value: Decimal | None
+    gain: Decimal | None
+    gain_pct: Decimal | None
+    share_pct: Decimal | None
+    avg_price: Decimal | None
+    latest_purchase_date: dt.date | None
+    lots: list[PositionLot]
+
+
+@dataclass(frozen=True)
 class PortfolioSummary:
     holdings: list[HoldingValuation]
+    positions: list[PositionValuation]
     allocation: list[ClassAllocation]
     total_value: Decimal
     total_cost: Decimal
@@ -128,6 +167,89 @@ def value_holding(h: HoldingInput, fx_to_pln: Mapping[str, Decimal] | None = Non
             cost, quantize(h.manual_value * rate), "manual", converted, frozenset(missing)
         )
     return _Valued(cost, cost, "cost", converted, frozenset(missing))
+
+
+def value_holding_native(
+    h: HoldingInput, fx_to_pln: Mapping[str, Decimal] | None = None
+) -> tuple[Decimal, Decimal, ValueSource]:
+    """Cost, value and value source of one holding in its own currency."""
+    fx = fx_to_pln or {}
+    cost = quantize(h.purchase_price * h.quantity)
+    if h.market_price is not None:
+        price_ccy = h.price_currency or h.currency
+        if price_ccy == h.currency:
+            return cost, quantize(h.market_price * h.quantity), "market"
+        price_rate, own_rate = fx_rate(price_ccy, fx), fx_rate(h.currency, fx)
+        if price_rate is not None and own_rate is not None:
+            value = quantize(h.market_price * h.quantity * price_rate / own_rate)
+            return cost, value, "market"
+    if h.manual_value is not None:
+        return cost, quantize(h.manual_value), "manual"
+    return cost, cost, "cost"
+
+
+def _position(
+    key: str,
+    group: Sequence[tuple[HoldingInput, _Valued]],
+    total_value: Decimal,
+    fx: Mapping[str, Decimal] | None,
+) -> PositionValuation:
+    newest = max(
+        (h for h, _ in group),
+        key=lambda h: (
+            h.purchase_date is not None,
+            h.purchase_date or dt.date.min,
+            h.created_at is not None,
+            h.created_at.timestamp() if h.created_at else 0,
+            h.id,
+        ),
+    )
+    lots = []
+    for h, _ in sorted(
+        group,
+        key=lambda hv: (hv[0].purchase_date is None, hv[0].purchase_date or dt.date.min, hv[0].id),
+    ):
+        cost, value, source = value_holding_native(h, fx)
+        lots.append(
+            PositionLot(
+                holding_id=h.id,
+                purchase_date=h.purchase_date,
+                quantity=h.quantity,
+                purchase_price=h.purchase_price,
+                currency=h.currency,
+                cost=cost,
+                value=value,
+                value_source=source,
+                gain=value - cost,
+                gain_pct=gain_pct(value - cost, cost),
+            )
+        )
+    quantity = sum((h.quantity for h, _ in group), ZERO)
+    dates = [h.purchase_date for h, _ in group if h.purchase_date]
+    cost = value = gain = pct = share = avg = None
+    if all(v.converted for _, v in group):
+        cost = sum((v.cost for _, v in group), ZERO)
+        value = sum((v.value for _, v in group), ZERO)
+        gain = value - cost
+        pct = gain_pct(gain, cost)
+        if total_value != 0:
+            share = (value * 100 / total_value).quantize(TENTH, rounding=ROUND_HALF_UP)
+        avg = quantize(cost / quantity)
+    return PositionValuation(
+        key=key,
+        symbol=(newest.symbol or "").strip().upper() or None,
+        name=newest.name,
+        asset_class=newest.asset_class,
+        quantity=quantity,
+        cost=cost,
+        value=value,
+        gain=gain,
+        gain_pct=pct,
+        share_pct=share,
+        avg_price=avg,
+        latest_purchase_date=max(dates) if dates else None,
+        lots=lots,
+    )
 
 
 # Valid inputs reach ~1e24 per holding; the default 28-digit context overflows on sums.
@@ -189,8 +311,18 @@ def _portfolio_summary(
         for (cls, v), s in zip(ordered, class_shares, strict=True)
     ]
 
+    groups: dict[str, list[tuple[HoldingInput, _Valued]]] = {}
+    for h, v in valued:
+        sym = (h.symbol or "").strip().upper()
+        groups.setdefault(sym or f"id:{h.id}", []).append((h, v))
+    positions = sorted(
+        (_position(k, g, total_value, fx_to_pln) for k, g in groups.items()),
+        key=lambda p: (p.value is None, -(p.value or ZERO), p.key),
+    )
+
     return PortfolioSummary(
         holdings=holdings,
+        positions=positions,
         allocation=allocation,
         total_value=total_value,
         total_cost=total_cost,

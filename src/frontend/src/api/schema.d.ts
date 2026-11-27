@@ -813,6 +813,8 @@ export interface components {
         PortfolioSummaryOut: {
             /** Holdings */
             holdings: components["schemas"]["HoldingValuationOut"][];
+            /** Positions */
+            positions: components["schemas"]["PositionOut"][];
             /** Allocation */
             allocation: components["schemas"]["AllocationOut"][];
             /** Total Value */
@@ -830,6 +832,66 @@ export interface components {
             /** Prices As Of */
             prices_as_of?: string | null;
             target?: components["schemas"]["TargetOut"] | null;
+        };
+        /** PositionLotOut */
+        PositionLotOut: {
+            /** Holding Id */
+            holding_id: number;
+            /** Purchase Date */
+            purchase_date: string | null;
+            /** Quantity */
+            quantity: string;
+            /** Purchase Price */
+            purchase_price: string;
+            /** Currency */
+            currency: string;
+            /** Cost */
+            cost: string;
+            /** Value */
+            value: string;
+            /**
+             * Value Source
+             * @enum {string}
+             */
+            value_source: "market" | "manual" | "cost";
+            /** Gain */
+            gain: string;
+            /** Gain Pct */
+            gain_pct: string | null;
+            /** As Of */
+            as_of?: string | null;
+        };
+        /** PositionOut */
+        PositionOut: {
+            /** Key */
+            key: string;
+            /** Symbol */
+            symbol: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Asset Class
+             * @enum {string}
+             */
+            asset_class: "stock" | "etf" | "bond" | "real_estate" | "commodity" | "crypto" | "cash";
+            /** Quantity */
+            quantity: string;
+            /** Cost */
+            cost: string | null;
+            /** Value */
+            value: string | null;
+            /** Gain */
+            gain: string | null;
+            /** Gain Pct */
+            gain_pct: string | null;
+            /** Share Pct */
+            share_pct: string | null;
+            /** Avg Price */
+            avg_price: string | null;
+            /** Latest Purchase Date */
+            latest_purchase_date: string | null;
+            /** Lots */
+            lots: components["schemas"]["PositionLotOut"][];
         };
         /** ProfileIn */
         ProfileIn: {

@@ -660,3 +660,126 @@ def test_gap_all_zero_shares_is_null():
     target = target_allocation("medium", "medium", ALL)
     gap = allocation_gap(_cur(etf="0", bond="0"), target)
     assert gap is None or (gap.total_gap_pp is None and all(c.gap_pp is None for c in gap.classes))
+
+
+# ---- grouped positions (wallet-grouped-positions) ----
+
+
+def _lot(
+    id: int,
+    symbol: str | None = "AAPL",
+    name: str = "Apple",
+    qty: str = "1",
+    price: str = "100",
+    **kw,
+):
+    kw.setdefault("asset_class", "stock")
+    return HoldingInput(
+        id=id, name=name, symbol=symbol, quantity=Decimal(qty), purchase_price=Decimal(price), **kw
+    )
+
+
+def test_positions_same_ticker_grouped():
+    items = [
+        _lot(1),
+        _lot(2),
+        _lot(3),
+        _lot(4, symbol="VWCE.DE", name="VWCE", asset_class="etf"),
+    ]
+    pos = {p.symbol: p for p in portfolio_summary(items).positions}
+    assert set(pos) == {"AAPL", "VWCE.DE"}
+    assert [lot.holding_id for lot in pos["AAPL"].lots] == [1, 2, 3]
+    assert len(pos["VWCE.DE"].lots) == 1
+
+
+def test_positions_ticker_case_and_spaces_ignored():
+    items = [_lot(1, symbol="aapl"), _lot(2, symbol=" AAPL ")]
+    positions = portfolio_summary(items).positions
+    assert len(positions) == 1
+    assert positions[0].symbol == "AAPL"
+    assert len(positions[0].lots) == 2
+
+
+def test_positions_without_ticker_are_separate():
+    items = [
+        _lot(1, symbol=None, name="Flat A", asset_class="real_estate"),
+        _lot(2, symbol=None, name="Flat B", asset_class="real_estate"),
+    ]
+    positions = portfolio_summary(items).positions
+    assert len(positions) == 2
+    assert all(len(p.lots) == 1 for p in positions)
+
+
+def test_positions_different_currencies_grouped():
+    items = [_lot(1, currency="USD"), _lot(2, currency="PLN")]
+    positions = portfolio_summary(items, {"USD": Decimal("4")}).positions
+    assert len(positions) == 1
+    assert {lot.currency for lot in positions[0].lots} == {"USD", "PLN"}
+
+
+def test_positions_newest_name_and_class():
+    items = [
+        _lot(1, name="Apple", asset_class="stock", purchase_date=date(2024, 1, 1)),
+        _lot(2, name="Apple Inc.", asset_class="etf", purchase_date=date(2025, 1, 1)),
+    ]
+    p = portfolio_summary(items).positions[0]
+    assert p.name == "Apple Inc."
+    assert p.asset_class == "etf"
+
+
+def test_positions_totals():
+    items = [
+        _lot(1, qty="5", price="600", manual_value=Decimal("4000")),
+        _lot(2, qty="5", price="400", manual_value=Decimal("2000")),
+        _lot(3, symbol=None, name="Gotówka", asset_class="cash", price="4000"),
+    ]
+    s = portfolio_summary(items)
+    assert s.total_value == Decimal("10000.00")
+    p = next(p for p in s.positions if p.symbol == "AAPL")
+    assert p.quantity == Decimal("10")
+    assert p.cost == Decimal("5000.00")
+    assert p.value == Decimal("6000.00")
+    assert p.gain == Decimal("1000.00")
+    assert p.gain_pct == Decimal("20.0")
+    assert p.share_pct == Decimal("60.0")
+    assert p.avg_price == Decimal("500.00")
+
+
+def test_positions_lot_without_fx_rate_nulls_totals():
+    items = [_lot(1, qty="2", price="100"), _lot(2, qty="3", price="50", currency="CHF")]
+    p = portfolio_summary(items, {}).positions[0]
+    assert p.quantity == Decimal("5")
+    for f in ("cost", "value", "gain", "gain_pct", "share_pct", "avg_price"):
+        assert getattr(p, f) is None
+    chf = next(lot for lot in p.lots if lot.holding_id == 2)
+    assert chf.currency == "CHF"
+    assert chf.cost == Decimal("150.00") and chf.value == Decimal("150.00")
+
+
+def test_positions_foreign_currency_lot():
+    h = _lot(1, qty="5", price="150", currency="USD", market_price=Decimal("200"))
+    lot = portfolio_summary([h], {"USD": Decimal("4")}).positions[0].lots[0]
+    assert lot.currency == "USD"
+    assert lot.cost == Decimal("750.00")
+    assert lot.value == Decimal("1000.00")
+    assert lot.value_source == "market"
+    assert lot.gain == Decimal("250.00")
+    assert lot.gain_pct == Decimal("33.3")
+
+
+def test_positions_quote_in_other_currency_than_lot():
+    h = _lot(1, qty="1", price="500", market_price=Decimal("200"), price_currency="USD")
+    lot = portfolio_summary([h], {"USD": Decimal("4")}).positions[0].lots[0]
+    assert lot.currency == "PLN"
+    assert lot.value == Decimal("800.00")
+    assert lot.cost == Decimal("500.00")
+
+
+def test_positions_lot_order_undated_last():
+    items = [
+        _lot(1, purchase_date=date(2024, 9, 2)),
+        _lot(2, purchase_date=None),
+        _lot(3, purchase_date=date(2024, 3, 1)),
+    ]
+    lots = portfolio_summary(items).positions[0].lots
+    assert [lot.holding_id for lot in lots] == [3, 1, 2]

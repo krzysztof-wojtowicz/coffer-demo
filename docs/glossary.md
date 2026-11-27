@@ -15,6 +15,8 @@ One term, one meaning. Polish UI names are in parentheses.
 | **Savings goal** | An amount the user wants to collect by a date (not implemented). |
 | **Asset / asset class** | Something the user owns, in one of the classes: `stock`, `etf`, `bond`, `cash`, `crypto`, `commodity`, `real_estate` (one list shared by portfolio and profile). |
 | **Holding** (pozycja) | A specific asset in the portfolio with quantity, purchase price and date. |
+| **Position** | Holdings with the same ticker (trimmed, case-insensitive), whatever their currency; a holding without a ticker is its own position. Shown as one collapsed row with PLN totals (quantity, cost, value, gain, share, average price). Computed in `analytics.portfolio`, returned as `positions` in the portfolio summary. |
+| **Lot** | One holding inside a position: a single purchase with its date, quantity, price, cost, value and gain in its own currency. Edited and deleted on the lot, not on the position. |
 | **Portfolio** | All of a user's holdings. |
 | **Portfolio value** | Sum of all holdings at the last known price, in the base currency. |
 | **Base currency** | The currency of all totals (PLN). |

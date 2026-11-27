@@ -13,6 +13,8 @@ from coffer.portfolio.schemas import (
     HoldingUpdate,
     HoldingValuationOut,
     PortfolioSummaryOut,
+    PositionLotOut,
+    PositionOut,
     TargetOut,
 )
 
@@ -60,6 +62,16 @@ def get_summary(user: CurrentUser, db: DbSession) -> PortfolioSummaryOut:
                 as_of=result.quote_times.get(h.id),
             )
             for h in s.holdings
+        ],
+        positions=[
+            PositionOut(
+                **{k: v for k, v in asdict(p).items() if k != "lots"},
+                lots=[
+                    PositionLotOut(**asdict(lot), as_of=result.quote_times.get(lot.holding_id))
+                    for lot in p.lots
+                ],
+            )
+            for p in s.positions
         ],
         allocation=[AllocationOut(**asdict(a)) for a in s.allocation],
         total_value=s.total_value,

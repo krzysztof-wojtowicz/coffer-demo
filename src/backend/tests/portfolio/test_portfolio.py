@@ -334,3 +334,62 @@ def test_summary_target_is_per_user(auth_client, other_auth_client, monkeypatch)
 
 def test_holding_rejects_unknown_asset_class(auth_client):
     assert auth_client.post(BASE, json={**STOCK, "asset_class": "deposit"}).status_code == 422
+
+
+def test_summary_positions_group_by_ticker_case(auth_client, monkeypatch):
+    fake_market(monkeypatch, {"AAPL": "120.00"})
+    auth_client.post(BASE, json={**STOCK, "symbol": "aapl", "purchase_date": "2024-09-02"})
+    auth_client.post(BASE, json={**STOCK, "symbol": " AAPL ", "purchase_date": "2024-03-01"})
+    s = auth_client.get("/api/portfolio/summary").json()
+    assert len(s["holdings"]) == 2
+    assert len(s["positions"]) == 1
+    p = s["positions"][0]
+    assert p["symbol"] == "AAPL"
+    assert p["quantity"] == "20"
+    assert p["cost"] == "2000.00" and p["value"] == "2400.00"
+    assert p["gain"] == "400.00" and p["gain_pct"] == "20.0"
+    assert p["share_pct"] == "100.0" and p["avg_price"] == "100.00"
+    assert [lot["purchase_date"] for lot in p["lots"]] == ["2024-03-01", "2024-09-02"]
+    lot = p["lots"][0]
+    assert lot["currency"] == "PLN" and lot["value_source"] == "market"
+    for k in ("quantity", "purchase_price", "cost", "value", "gain", "gain_pct"):
+        assert isinstance(lot[k], str)
+
+
+def test_summary_positions_without_ticker_are_separate(auth_client, monkeypatch):
+    fake_market(monkeypatch)
+    auth_client.post(BASE, json=FLAT)
+    auth_client.post(BASE, json={**FLAT, "name": "Garaż"})
+    positions = auth_client.get("/api/portfolio/summary").json()["positions"]
+    assert len(positions) == 2
+    assert all(len(p["lots"]) == 1 for p in positions)
+
+
+def test_summary_positions_foreign_lot_own_currency(auth_client, monkeypatch):
+    fake_market(monkeypatch, {"AAPL": ("200.00", "USD")}, fx={"USD": Decimal("4")})
+    auth_client.post(
+        BASE, json={**STOCK, "quantity": "5", "purchase_price": "150.00", "currency": "USD"}
+    )
+    p = auth_client.get("/api/portfolio/summary").json()["positions"][0]
+    lot = p["lots"][0]
+    assert (lot["cost"], lot["value"], lot["gain"]) == ("750.00", "1000.00", "250.00")
+    assert lot["gain_pct"] == "33.3" and lot["currency"] == "USD"
+    assert p["value"] == "4000.00" and p["cost"] == "3000.00"
+
+
+def test_summary_positions_fx_missing_nulls_totals(auth_client, monkeypatch):
+    fake_market(monkeypatch, fx={})
+    auth_client.post(BASE, json={**STOCK, "currency": "CHF"})
+    p = auth_client.get("/api/portfolio/summary").json()["positions"][0]
+    assert p["value"] is None and p["cost"] is None and p["avg_price"] is None
+    assert p["lots"][0]["cost"] == "1000.00"
+
+
+def test_summary_positions_are_per_user(auth_client, other_auth_client, monkeypatch):
+    fake_market(monkeypatch, {"AAPL": "120.00"})
+    auth_client.post(BASE, json=STOCK)
+    other_auth_client.post(BASE, json={**STOCK, "quantity": "3"})
+    mine = auth_client.get("/api/portfolio/summary").json()["positions"]
+    theirs = other_auth_client.get("/api/portfolio/summary").json()["positions"]
+    assert len(mine) == 1 and len(mine[0]["lots"]) == 1 and mine[0]["quantity"] == "10"
+    assert len(theirs) == 1 and len(theirs[0]["lots"]) == 1 and theirs[0]["quantity"] == "3"
