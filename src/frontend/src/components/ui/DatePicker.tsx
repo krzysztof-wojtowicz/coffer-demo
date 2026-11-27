@@ -185,7 +185,7 @@ export function DatePicker({
                           !inMonth && 'text-muted opacity-60',
                           k === todayIso && 'border border-accent',
                           active && 'ring-2 ring-accent',
-                          k === value && 'bg-accent font-semibold text-bg hover:bg-accent',
+                          k === value && 'bg-accent-strong font-semibold text-white hover:brightness-90',
                         )}
                       >
                         {d.getDate()}

@@ -51,7 +51,7 @@ describe('InsightsCard', () => {
     view()
     expect(await screen.findByRole('table')).toBeTruthy()
     expect(screen.getByText('+25,0%')).toBeTruthy()
-    expect(screen.getByText('—')).toBeTruthy()
+    expect(screen.getByText('–')).toBeTruthy()
     expect(screen.getByText(/Przekroczono o/).textContent).toContain('100,00')
     const bars = screen.getAllByRole('progressbar')
     expect(bars[0].getAttribute('aria-valuenow')).toBe('125')

@@ -1,6 +1,5 @@
 import css from "./index.css?raw";
 import badgeSrc from "./components/ui/Badge.tsx?raw";
-import toggleSrc from "./components/ThemeToggle.tsx?raw";
 import profileSrc from "./features/profile/ProfileSection.tsx?raw";
 import { describe, expect, it } from "vitest";
 
@@ -69,12 +68,7 @@ function ratio(fgV: string, bgV: string, base?: RGBA): number {
 }
 
 const dark = tokens(block(/@theme\b/));
-const light = tokens(block(/:root\[data-theme=["']light["']\]/));
 
-const THEMES: [string, Record<string, string>][] = [
-  ["dark", dark],
-  ["light", light],
-];
 const grounds = ["bg", "surface", "surface-2"];
 const pairs: [string, string][] = [
   ...["text", "muted", "positive", "negative", "warning", "info"].flatMap((fg) =>
@@ -84,26 +78,16 @@ const pairs: [string, string][] = [
   ["accent", "surface"],
 ];
 
-describe("theme tokens", () => {
-  it("every dark token has a light counterpart", () => {
-    const missing = Object.keys(dark).filter((k) => !(k in light));
-    expect(missing, `tokens without light variant: ${missing.join(", ")}`).toEqual([]);
-  });
-});
-
-describe.each(THEMES)("WCAG contrast (%s)", (name, t) => {
+describe("WCAG contrast (dark)", () => {
+  const name = "dark", t = dark;
   it.each(pairs)("%s on %s >= 4.5:1", (fg, bg) => {
     const r = ratio(t[fg], t[bg]);
     expect(r, `${name}: ${fg} (${t[fg]}) on ${bg} (${t[bg]}) = ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("primary button text on accent >= 4.5:1 (bg or text token)", () => {
-    const rb = ratio(t.bg, t.accent);
-    const rt = ratio(t.text, t.accent);
-    expect(
-      Math.max(rb, rt),
-      `${name}: bg on accent = ${rb.toFixed(2)}:1, text on accent = ${rt.toFixed(2)}:1 (accent ${t.accent})`,
-    ).toBeGreaterThanOrEqual(4.5);
+  it("primary button text (white) on accent-strong >= 4.5:1", () => {
+    const r = ratio("#ffffff", t["accent-strong"]);
+    expect(r, `${name}: white on accent-strong (${t["accent-strong"]}) = ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
   });
 });
 
@@ -124,19 +108,15 @@ function toneClasses(): [string, string, string][] {
   return [...body.matchAll(/(\w+):\s*'bg-([\w/-]+)\s+text-([\w-]+)'/g)].map((m) => [m[1], m[2], m[3]]);
 }
 
-const selectionText = /checked \? '[^']*text-([\w-]+)'/.exec(toggleSrc)?.[1] ?? "accent";
-
 const FLOORS = ["surface", "surface-2"];
 
-describe.each(THEMES)("extended WCAG guards (%s)", (name, t) => {
+describe("extended WCAG guards (dark)", () => {
+  const name = "dark", t = dark;
   const check = (label: string, fg: string, bg: string, ground: string | undefined, min: number) => {
     const r = ratio(fg, bg, ground ? parse(t[ground]) : undefined);
     expect(r, `${name}: ${label} = ${r.toFixed(2)}:1 (need ${min})`).toBeGreaterThanOrEqual(min);
   };
 
-  it("bg text on accent-strong (primary hover) >= 4.5", () => {
-    check(`bg (${t.bg}) on accent-strong (${t["accent-strong"]})`, t.bg, t["accent-strong"], undefined, 4.5);
-  });
 
   it.each(["surface", "bg"])("bg text on negative and negative/90 over %s >= 4.5", (g) => {
     check(`bg on negative`, t.bg, t.negative, undefined, 4.5);
@@ -144,7 +124,7 @@ describe.each(THEMES)("extended WCAG guards (%s)", (name, t) => {
   });
 
   it.each(FLOORS)("selected toggle text (%s-based accent-soft) >= 4.5", (g) => {
-    check(`${selectionText} on accent-soft over ${g}`, t[selectionText], t["accent-soft"], g, 4.5);
+    check(`accent on accent-soft over ${g}`, t.accent, t["accent-soft"], g, 4.5);
   });
 
   it.each(toneClasses())("Badge %s (bg-%s text-%s) >= 4.5 on surface and surface-2", (tone, bg, fg) => {
@@ -173,7 +153,8 @@ function hue([r, g, b]: RGBA): number | null {
   return (h * 60 + 360) % 360;
 }
 
-describe.each(THEMES)("allocation bucket colors (%s)", (name, t) => {
+describe("allocation bucket colors (dark)", () => {
+  const name = "dark", t = dark;
   // Decision: two segments are distinguishable if luminance ratio >= 1.5:1
   // OR hue differs by >= 30 degrees (chromatic pair). Applied to every pair.
   const src = profileSrc;
@@ -196,6 +177,25 @@ describe.each(THEMES)("allocation bucket colors (%s)", (name, t) => {
           r >= 1.5 || dh >= 30,
           `${name}: ${na}(${ta} ${t[ta]}) vs ${nb}(${tb} ${t[tb]}): contrast ${r.toFixed(2)}:1, hue diff ${dh.toFixed(0)} deg`,
         ).toBe(true);
+      }
+  });
+});
+
+describe("chart tokens", () => {
+  const charts = Object.keys(dark).filter((k) => k.startsWith("chart-"));
+  it("defines chart-1..7", () => expect(charts.length).toBe(7));
+  it.each(charts)("%s is visible on surface (>= 3:1)", (k) => {
+    const r = ratio(dark[k], dark.surface);
+    expect(r, `${k} (${dark[k]}) on surface = ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
+  });
+  it("every pair differs in hue by >= 25deg or luminance ratio >= 1.4", () => {
+    for (let i = 0; i < charts.length; i++)
+      for (let j = i + 1; j < charts.length; j++) {
+        const [a, b] = [dark[charts[i]], dark[charts[j]]];
+        const ha = hue(parse(a)), hb = hue(parse(b));
+        let dh = ha !== null && hb !== null ? Math.abs(ha - hb) : 0;
+        dh = Math.min(dh, 360 - dh);
+        expect(ratio(a, b) >= 1.4 || dh >= 25, `${charts[i]} vs ${charts[j]}: hue ${dh.toFixed(0)}`).toBe(true);
       }
   });
 });

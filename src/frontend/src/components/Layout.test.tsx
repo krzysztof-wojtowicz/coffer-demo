@@ -14,7 +14,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Layout", () => {
-  it("renders the theme radiogroup 'Motyw' for a logged-in view", () => {
+  it("renders the outlet content and the nav for a logged-in view", () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter>
@@ -26,9 +26,7 @@ describe("Layout", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    const group = screen.getByRole("radiogroup", { name: "Motyw" });
-    expect(group).toBeTruthy();
-    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(screen.queryByRole("radiogroup")).toBeNull();
     expect(screen.getByText("treść")).toBeTruthy();
   });
 });

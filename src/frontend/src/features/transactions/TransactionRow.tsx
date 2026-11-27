@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { ErrorMessage } from '../../components/ErrorMessage'
-import { Money } from '../../components/Money'
+import { Signed } from '../../components/Signed'
 import { Button } from '../../components/ui/Button'
 import { Field } from '../../components/ui/Field'
 import { Input } from '../../components/ui/Input'
@@ -36,7 +36,7 @@ export function TransactionRow({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <span className="w-20 shrink-0 text-xs text-muted whitespace-nowrap">{tx.date}</span>
         <span className="w-28 shrink-0 text-right text-sm">
-          <Money value={tx.amount} colored />
+          <Signed value={tx.amount} />
         </span>
         <span className="min-w-0 flex-1 truncate text-sm">{tx.description}</span>
         <span
@@ -98,7 +98,7 @@ function EditForm({
   const error = update.error ?? del.error
 
   return (
-    <form onSubmit={submit} className="mt-3 space-y-3 rounded-lg bg-surface-2 p-3">
+    <form onSubmit={submit} className="mt-3 space-y-3 rounded-md bg-surface-2 p-3">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Field label={pl.transactions.date}>
           <DatePicker required value={date} onChange={setDate} />

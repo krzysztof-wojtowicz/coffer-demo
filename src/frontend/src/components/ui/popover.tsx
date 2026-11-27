@@ -48,7 +48,7 @@ export function Popover({
     <div
       ref={panelRef}
       style={{ position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.minWidth, zIndex: 60 }}
-      className="rounded-md border border-border bg-surface p-1 shadow-lg"
+      className="rounded bg-surface-2 p-1 shadow-xl ring-1 ring-border"
     >
       {children}
     </div>,

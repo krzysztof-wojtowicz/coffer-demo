@@ -149,7 +149,18 @@ An arrow means "imports / uses". `import-linter` enforces nine contracts: **"Ana
 
 ## 5. Frontend
 
-Routes (`App.tsx`): `/` (Summary), `/transactions`, `/portfolio`, `/account`, `/login`, `/register`. Old `/import` redirects to `/transactions` and `/profile` to `/account`. CSV import and the add form are expandable panels in `TransactionsPage`; filters (month, type, category, source) and sorting (date, amount) run in the browser on one month's list. `AccountPage` combines the investment profile with security settings. Shared UI components live in `components/ui` (custom `Select`, `DatePicker`, `ConfirmDialog`, portal popover). All UI text is Polish (N06) in `i18n/pl.ts`; amounts arrive as strings and are only formatted (`Intl.NumberFormat('pl-PL')`), never summed.
+Routes (`App.tsx`): `/` (Summary), `/transactions`, `/portfolio`, `/account`, `/login`, `/register`. Old `/import` redirects to `/transactions` and `/profile` to `/account`. CSV import and the add form are expandable panels in `TransactionsPage`; filters (month, type, category, source) and sorting (date, amount) run in the browser on one month's list. `AccountPage` combines the investment profile with security settings. Shared UI components live in `components/ui` (custom `Select`, `DatePicker`, `ConfirmDialog`, portal popover). All UI text is Polish (N06) in `i18n/pl.ts`; amounts arrive as strings and are only formatted, never summed.
+
+**Look and shared pieces.** The theme is dark only; there is no theme switch. Colours, fonts and radii are semantic tokens in `index.css` (`@theme static`): `bg`, `surface`, `surface-2`, `border`, `text`, `muted`, `accent`, `positive`, `negative`, `warning`, `info` and the categorical `chart-1..7`. Feature code uses tokens only, so restyling means editing tokens or shared components. Geist and Geist Mono are self-hosted through `@fontsource-variable/*` (imported in `main.tsx`); no font CDN is used.
+
+| Piece | Role |
+|---|---|
+| `lib/format.ts` | The only formatting module: `formatMoney`, `formatPct`, `signOf` (cached `Intl.NumberFormat('pl-PL')` per currency) |
+| `components/Signed` | Amount or percentage coloured by sign (`positive` / `negative`), optional `+` and `invert` |
+| `components/Money` | Plain amount, red only when negative |
+| `components/ui/Stat` | Summary tile: label, value, optional delta |
+| `components/ui/Bar`, `ui/BarList` | Progress/meter bar and a labelled list of bars (categories, limits) |
+| `features/portfolio/AllocationChart` | Hand-rolled SVG donut with legend (`role="img"` plus text legend); `compact` variant on Summary; colours from `chart-*` |
 
 ```mermaid
 flowchart LR

@@ -1,51 +1,43 @@
 @import "tailwindcss";
 
-@theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --color-bg: #15171c;
-  --color-surface: #1c1f26;
-  --color-surface-2: #262a33;
-  --color-border: #343944;
-  --color-input-border: #7f8594;
-  --color-text: #ece8df;
-  --color-muted: #a5a094;
-  --color-accent: #c9a24d;
-  --color-accent-strong: #a8842f;
-  --color-accent-soft: rgb(201 162 77 / 0.14);
-  --color-positive: #4cb88a;
-  --color-negative: #ef7f7f;
-  --color-warning: #e0a040;
-  --color-info: #8aa8dc;
+@theme static {
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-bg: #0b0c10;
+  --color-surface: #14161d;
+  --color-surface-2: #1b1e27;
+  --color-border: rgb(255 255 255 / 0.06);
+  --color-input-border: #6a7088;
+  --color-text: #e6e7ee;
+  --color-muted: #8b8fa3;
+  --color-accent: #8e7ef3;
+  --color-accent-strong: #4637b0;
+  --color-accent-soft: rgb(142 126 243 / 0.08);
+  --color-positive: #36ab78;
+  --color-negative: #e0707a;
+  --color-warning: #c98a2e;
+  --color-info: #6f9bd8;
+  --color-chart-1: #6b4fe6;
+  --color-chart-2: #2fb5a3;
+  --color-chart-3: #4fa3e0;
+  --color-chart-4: #e0708f;
+  --color-chart-5: #d9a441;
+  --color-chart-6: #646b80;
+  --color-chart-7: #8fc84f;
 }
 
 html {
   color-scheme: dark;
 }
 
-:root[data-theme="dark"] {
-  color-scheme: dark;
-}
-
-:root[data-theme="light"] {
-  color-scheme: light;
-  --color-bg: #faf7f0;
-  --color-surface: #ffffff;
-  --color-surface-2: #f1ece0;
-  --color-border: #ddd5c3;
-  --color-input-border: #8c8372;
-  --color-text: #1d1a14;
-  --color-muted: #5f584b;
-  --color-accent: #7d5f12;
-  --color-accent-strong: #654c0c;
-  --color-accent-soft: rgb(125 95 18 / 0.06);
-  --color-positive: #19704c;
-  --color-negative: #a3262e;
-  --color-warning: #8a5300;
-  --color-info: #2d4f8f;
-}
-
+/* Dot grid and a faint accent glow; pure CSS, fixed so it does not scroll with content. */
 body {
   background-color: var(--color-bg);
+  background-image:
+    radial-gradient(ellipse 80% 40% at 50% 0%, rgb(70 55 176 / 0.14), transparent),
+    radial-gradient(rgb(255 255 255 / 0.09) 1px, transparent 1px);
+  background-size: auto, 20px 20px;
+  background-attachment: fixed;
   color: var(--color-text);
 }
 

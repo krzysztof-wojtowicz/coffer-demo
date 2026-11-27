@@ -63,7 +63,7 @@ export function MonthPicker({
         aria-label={pl.monthPicker.choose}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="min-w-40 rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm font-medium capitalize hover:bg-border"
+        className="min-w-40 rounded bg-surface-2 px-3 py-1.5 text-sm font-medium capitalize hover:bg-surface-2/70"
         onClick={() => {
           setYear(vy)
           setOpen((o) => !o)
@@ -84,7 +84,7 @@ export function MonthPicker({
         <div
           role="dialog"
           aria-label={pl.monthPicker.choose}
-          className="absolute left-0 top-full z-20 mt-1 w-64 rounded-lg border border-border bg-surface p-3 shadow-lg"
+          className="absolute left-0 top-full z-20 mt-1 w-64 rounded-md bg-surface-2 p-3 shadow-xl ring-1 ring-border"
         >
           <div className="mb-2 flex items-center justify-between">
             <button
@@ -118,7 +118,7 @@ export function MonthPicker({
                   disabled={max !== undefined && v > max}
                   className={cn(
                     'rounded-md px-2 py-2 text-sm hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent',
-                    selected && 'bg-accent font-semibold text-bg hover:bg-accent-strong',
+                    selected && 'bg-accent-strong font-semibold text-white hover:brightness-90',
                   )}
                   onClick={() => {
                     onChange(v)

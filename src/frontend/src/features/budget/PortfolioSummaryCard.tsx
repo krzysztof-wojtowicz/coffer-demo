@@ -1,11 +1,14 @@
 import { Link } from 'react-router-dom'
+import { AllocationChart } from '../portfolio/AllocationChart'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { Money } from '../../components/Money'
+import { Signed } from '../../components/Signed'
 import { Card } from '../../components/ui/Card'
+import { Stat } from '../../components/ui/Stat'
 import { Spinner } from '../../components/ui/Spinner'
 import { pl } from '../../i18n/pl'
-import { cn } from '../../lib/cn'
 import { apiErrorMessage } from '../../lib/errors'
+import { formatPct } from '../../lib/format'
 import { formatAsOf, usePortfolioSummary } from '../portfolio/queries'
 
 const TOP_N = 5
@@ -27,7 +30,6 @@ export function PortfolioSummaryCard() {
     )
   }
   const pct = data.total_gain_pct
-  const neg = data.total_gain.startsWith('-')
   const top = [...data.holdings]
     .filter((h) => h.share_pct !== null)
     .sort((a, b) => Number(b.share_pct) - Number(a.share_pct))
@@ -35,50 +37,26 @@ export function PortfolioSummaryCard() {
   return (
     <Card title={pl.summary.portfolioTitle}>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div>
-          <div className="text-sm text-muted">{pl.portfolio.totalValue}</div>
-          <div className="mt-1 text-2xl font-semibold">
-            <Money value={data.total_value} />
-          </div>
-        </div>
-        <div>
-          <div className="text-sm text-muted">{pl.summary.portfolioInvested}</div>
-          <div className="mt-1 text-2xl font-semibold">
-            <Money value={data.total_cost} />
-          </div>
-        </div>
-        <div>
-          <div className="text-sm text-muted">{pl.portfolio.totalGain}</div>
-          <div className="mt-1 text-2xl font-semibold">
-            <Money value={data.total_gain} colored />
-            {pct !== null && (
-              <span className={cn('ml-2 text-base', neg ? 'text-negative' : 'text-positive')}>
-                {neg ? '' : '+'}
-                {pct.replace('.', ',')}%
-              </span>
-            )}
-          </div>
-        </div>
+        <Stat label={pl.portfolio.totalValue} value={<Money value={data.total_value} />} />
+        <Stat label={pl.summary.portfolioInvested} value={<Money value={data.total_cost} />} />
+        <Stat
+          label={pl.portfolio.totalGain}
+          value={
+            <>
+              <Signed value={data.total_gain} />
+              {pct !== null && (
+                <span className="ml-2 text-base">
+                  <Signed value={pct} kind="pct" />
+                </span>
+              )}
+            </>
+          }
+        />
       </div>
       {data.allocation.length > 0 && (
         <div className="mt-4">
-          <div className="text-sm text-muted">{pl.portfolio.allocation}</div>
-          <ul className="mt-2 space-y-2">
-            {data.allocation.map((a) => (
-              <li key={a.asset_class}>
-                <div className="flex justify-between gap-3 text-sm">
-                  <span>{pl.portfolio.classes[a.asset_class]}</span>
-                  <span className="tabular-nums">{a.share_pct.replace('.', ',')}%</span>
-                </div>
-                <div className="mt-1 h-2 rounded-full bg-surface-2" aria-hidden="true">
-                  <div
-                    className="h-2 rounded-full bg-accent"
-                    style={{ width: `${Math.min(100, Number(a.share_pct))}%` }}
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="mb-2 text-sm text-muted">{pl.portfolio.allocation}</div>
+          <AllocationChart allocation={data.allocation} compact />
         </div>
       )}
       {top.length > 0 && (
@@ -91,14 +69,9 @@ export function PortfolioSummaryCard() {
                   {h.name} <span className="text-muted">({pl.portfolio.classes[h.asset_class]})</span>
                 </span>
                 <span className="flex gap-3 tabular-nums">
-                  <span className="text-muted">{(h.share_pct as string).replace('.', ',')}%</span>
-                  <Money value={h.gain} colored />
-                  {h.gain_pct !== null && (
-                    <span className={h.gain.startsWith('-') ? 'text-negative' : 'text-positive'}>
-                      {h.gain.startsWith('-') ? '' : '+'}
-                      {h.gain_pct.replace('.', ',')}%
-                    </span>
-                  )}
+                  <span className="text-muted">{formatPct(h.share_pct)}</span>
+                  <Signed value={h.gain} />
+                  {h.gain_pct !== null && <Signed value={h.gain_pct} kind="pct" />}
                 </span>
               </li>
             ))}

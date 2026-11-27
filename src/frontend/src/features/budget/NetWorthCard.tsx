@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { Money } from '../../components/Money'
 import { Card } from '../../components/ui/Card'
+import { Stat } from '../../components/ui/Stat'
 import { Spinner } from '../../components/ui/Spinner'
 import { pl } from '../../i18n/pl'
 import { apiErrorMessage } from '../../lib/errors'
@@ -15,23 +16,10 @@ export function NetWorthCard() {
   return (
     <Card title={pl.summary.netWorthTitle}>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div>
-          <div className="text-sm text-muted">{pl.summary.netWorthCash}</div>
-          <div className="mt-1 text-2xl font-semibold">
-            <Money value={data.cash_balance} />
-          </div>
-        </div>
-        <div>
-          <div className="text-sm text-muted">{pl.summary.netWorthPortfolio}</div>
-          <div className="mt-1 text-2xl font-semibold">
-            <Money value={data.portfolio_value} />
-          </div>
-        </div>
-        <div className="rounded-lg bg-surface-2 p-3">
-          <div className="text-sm font-medium text-text">{pl.summary.netWorthTotal}</div>
-          <div className="mt-1 text-3xl font-bold" data-testid="net-worth-total">
-            <Money value={data.net_worth} />
-          </div>
+        <Stat label={pl.summary.netWorthCash} value={<Money value={data.cash_balance} />} />
+        <Stat label={pl.summary.netWorthPortfolio} value={<Money value={data.portfolio_value} />} />
+        <div className="rounded-md bg-surface-2 p-3">
+          <Stat label={pl.summary.netWorthTotal} value={<Money value={data.net_worth} />} testId="net-worth-total" />
         </div>
       </div>
       <p className="mt-3 text-xs text-muted">

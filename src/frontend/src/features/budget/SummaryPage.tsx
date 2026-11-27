@@ -8,7 +8,7 @@ import { NetWorthCard } from './NetWorthCard'
 import { PortfolioSummaryCard } from './PortfolioSummaryCard'
 import { SummaryTiles } from './SummaryTiles'
 
-const h2 = 'border-l-2 border-accent pl-2.5 text-base font-semibold tracking-tight text-text'
+const h2 = 'text-sm font-medium text-muted'
 
 export function SummaryPage() {
   const [month, setMonth] = useState(currentMonth())

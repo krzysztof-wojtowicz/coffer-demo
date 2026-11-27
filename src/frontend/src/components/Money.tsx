@@ -1,18 +1,7 @@
-import { formatMoney } from '../lib/money'
+import { formatMoney, signOf } from '../lib/format'
 import { cn } from '../lib/cn'
 
-export function Money({ value, colored = false }: { value: string; colored?: boolean }) {
-  const neg = value.startsWith('-')
-  const zero = /^[-+]?0*[.,]?0*$/.test(value)
-  return (
-    <span
-      className={cn(
-        'tabular-nums',
-        neg && 'text-negative',
-        colored && !neg && !zero && 'text-positive',
-      )}
-    >
-      {formatMoney(value)}
-    </span>
-  )
+// Plain amount, red when negative. Use <Signed> when positives should be green too.
+export function Money({ value }: { value: string }) {
+  return <span className={cn('font-mono tabular-nums', signOf(value) < 0 && 'text-negative')}>{formatMoney(value)}</span>
 }
