@@ -2,15 +2,14 @@ schema: spec-driven
 
 # Project context for OpenSpec artifacts. Full rules: CLAUDE.md.
 context: |
-  Coffer is a personal-finance web app with an AI assistant (student project, 4 people).
+  Coffer is a personal-finance web app (student project, 4 people).
   Stack: Python 3 / FastAPI / SQLAlchemy / Alembic / PostgreSQL backend in src/backend,
-  React + TypeScript + Vite + Tailwind frontend in src/frontend, LLM via Ollama/OpenAI/Gemini/Anthropic.
+  React + TypeScript + Vite + Tailwind frontend in src/frontend. The AI assistant was removed and will be rebuilt for local LLMs after the refactor.
   Constraints an agent cannot infer:
   - Money is Decimal only (NUMERIC(14,2) in DB, strings in JSON), rounded with coffer.core.money.quantize (ROUND_HALF_UP).
   - Totals are computed only in coffer.analytics (pure functions, no DB, no FastAPI).
-  - Modules talk to each other only through their service.py; the core never imports coffer.agent.
+  - Modules talk to each other only through their service.py.
   - Every endpoint except /api/health and /api/auth/{register,login,logout} requires a session; another user's resource returns 404.
-  - Only aggregates reach the LLM: no e-mail, transaction descriptions or identifiers. The core works without an LLM (N08).
   - The UI and all user-facing messages are in Polish (N06). Specs, code and docs are in English;
     quote exact Polish UI strings where they matter.
   - Requirement IDs (F01..F38, N01..N09) come from the original requirements and stay in requirement text.

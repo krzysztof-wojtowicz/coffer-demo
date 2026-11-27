@@ -6,7 +6,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { pl } from '../../i18n/pl'
 import { cn } from '../../lib/cn'
 import { apiErrorMessage } from '../../lib/errors'
-import { formatAsOf, purchaseImpactLink, usePortfolioSummary } from '../portfolio/queries'
+import { formatAsOf, usePortfolioSummary } from '../portfolio/queries'
 
 const TOP_N = 5
 
@@ -111,9 +111,6 @@ export function PortfolioSummaryCard() {
       <div className="mt-2 flex flex-wrap gap-4">
         <Link to="/portfolio" className={linkCls}>
           {pl.summary.portfolioDetails}
-        </Link>
-        <Link to={purchaseImpactLink()} className={linkCls}>
-          {pl.portfolio.assessPurchase}
         </Link>
       </div>
     </Card>

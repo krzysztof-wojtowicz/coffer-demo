@@ -6,7 +6,6 @@ from fastapi.exceptions import RequestValidationError
 
 from coffer.accounts.api import redacted_validation_handler
 from coffer.accounts.api import router as accounts_router
-from coffer.agent.api import router as agent_router
 from coffer.budget.api import router as budget_router
 from coffer.cash.api import router as cash_router
 from coffer.core.body_limit import BodySizeLimitMiddleware
@@ -14,7 +13,6 @@ from coffer.core.config import Settings, get_settings
 from coffer.core.db import SessionLocal
 from coffer.core.origin import install_origin_policy
 from coffer.imports.api import router as imports_router
-from coffer.market.api import router as market_router
 from coffer.market.scheduler import start_price_scheduler
 from coffer.portfolio.api import router as portfolio_router
 from coffer.profile.api import router as profile_router
@@ -55,10 +53,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(budget_router)
     app.include_router(cash_router)
     app.include_router(imports_router)
-    app.include_router(agent_router)
     app.include_router(profile_router)
     app.include_router(portfolio_router)
-    app.include_router(market_router)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

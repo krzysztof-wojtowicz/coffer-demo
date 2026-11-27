@@ -1,7 +1,7 @@
 """In-process sliding-window rate limiter for the auth endpoints.
 
-Process memory (not a DB table) on purpose: production runs a single Render instance with
-one uvicorn worker, so one process sees every request; it costs no DB writes per attempt and
+Process memory (not a DB table) on purpose: the API runs as a single uvicorn worker,
+so one process sees every request; it costs no DB writes per attempt and
 needs no cleanup job. Trade-offs: counters reset on restart/redeploy, and running several
 workers or instances would split them (then move this to a `login_attempts` table).
 """
@@ -117,13 +117,8 @@ def client_ip(request: Request) -> str:
     X-Forwarded-For is used (each trusted proxy appends the address it saw), never the
     leftmost one. Entries further left are client-controlled and never trusted. If the header
     has fewer than N entries, the leftmost (= the only proxy-written) entry is used.
-    Limitation: with N=2 (Vercel -> Render) a client calling onrender.com directly, bypassing
-    Vercel, controls entry N from the right too; only a direct-origin block would fix that.
-
-    N=0 uses request.client.host. Locally that is the socket peer, but in the production image
-    uvicorn runs with --proxy-headers --forwarded-allow-ips='*', which replaces it with the
-    LEFTMOST X-Forwarded-For entry: a client calling onrender.com directly can spoof it, so the
-    per-IP limit is best effort there. The per-e-mail limit applies regardless of the IP.
+    N=0 uses request.client.host (the socket peer). The per-e-mail limit applies regardless
+    of the IP.
     """
     hops = get_settings().trusted_proxy_hops
     forwarded = request.headers.get("x-forwarded-for")

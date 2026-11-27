@@ -1,6 +1,6 @@
 # Coffer data model
 
-The database's current state, its known issues, modeling rules for the team, and the planned direction. The current ER diagram is in [architecture.md §8](architecture.md#8-data-model). When code and this document disagree, the migrations in `src/backend/alembic/versions/` are the source of truth; this document describes the **direction**.
+The database's current state, its known issues, modeling rules for the team, and the planned direction. The current ER diagram is in [architecture.md §6](architecture.md#6-data-model). When code and this document disagree, the migrations in `src/backend/alembic/versions/` are the source of truth; this document describes the **direction**.
 
 Database: PostgreSQL 16 in Docker (`compose.yaml`). Only Alembic migrations create the schema; tests build it with `alembic upgrade head` too, so CHECK constraints apply in tests.
 
@@ -12,38 +12,37 @@ Database: PostgreSQL 16 in Docker (`compose.yaml`). Only Alembic migrations crea
 |---|---|
 | `0001_initial` | `users`, `auth_sessions`, `categories` (11 seeded rows), `transactions` |
 | `0002_import_drafts` | `import_drafts` |
-| `0003_profile_agent` | `investment_profiles`, `agent_runs`, `suggestions` |
+| `0003_profile_agent` | `investment_profiles` (+ `agent_runs`, `suggestions`, dropped in `0010`) |
 | `0004_portfolio` | `holdings` |
 | `0005_accounts` | case-insensitive e-mail (`ux_users_email_lower`), `users.password_changed_at` / `last_login_at`, index on `auth_sessions.expires_at` |
 | `0006_opening_balance` | `opening_balances` (module `cash`) |
-| `0007_agent_actions` | `agent_runs` / `suggestions` for agent actions (`provider`, `params`, `steps`, `llm_calls`, `cost_usd`, `report`, `source`, `ai_status`, CHECKs, `(user_id, created_at)` indexes), `llm_usage_daily` |
+| `0007_agent_actions` | (all dropped in `0010`) `agent_runs` / `suggestions` for agent actions (`provider`, `params`, `steps`, `llm_calls`, `cost_usd`, `report`, `source`, `ai_status`, CHECKs, `(user_id, created_at)` indexes), `llm_usage_daily` |
 | `0008_budget_limits` | `budget_limits` |
 | `0009_market_quotes` | `market_quotes` |
+| `0010_drop_agent` | drops `agent_runs`, `suggestions`, `llm_usage_daily` (AI assistant removed; `downgrade` recreates them empty) |
+| `0011_drop_tx_currency` | drops `transactions.currency` and `transactions.base_amount` (PLN only; `amount` is the value; `downgrade` re-adds both, filled from `amount`) |
 
-New revisions take the next free number from `0010`; `down_revision` is always the current head (`alembic heads`).
+New revisions take the next free number from `0011`; `down_revision` is always the current head (`alembic heads`).
 
 ### 1.2 Table notes
 
 What the ER diagram doesn't show:
 - **`users` / `auth_sessions`** (`accounts`): e-mail is stored normalized and is unique on `lower(email)`. The `0005` downgrade cannot restore the original letter case. Expired sessions are removed only on logout. Login rate limiting (`accounts/ratelimit.py`) is in process memory, so it resets on restart and isn't shared between workers; scaling out would need a table.
 - **`categories`** (`transactions`): global and seeded. There is no stable category code (logic uses the Polish name), and nothing guarantees exactly one default.
-- **`transactions`**: `base_amount` always equals `amount` today because only PLN is supported. `amount`, `currency` and `source` have no CHECK constraints.
+- **`transactions`**: PLN only: `amount` is the value (no `currency` or `base_amount` columns since `0011`). `amount` and `source` have no CHECK constraints.
 - **`import_drafts`** (`imports`): an expired draft is removed only when the **same** user accesses imports again.
-- **`agent_runs`**: `task` is the action id (rows from before `0007` have `surplus`/`advisor`); `status` has a CHECK constraint that includes the legacy `no_surplus`.
-- **`suggestions`**: written for AI and rule-based results; `no_data` writes only the run. `report` was backfilled for old rows.
-- **`llm_usage_daily`**: `agent/service.py: reserve_run` does an atomic `INSERT … ON CONFLICT DO UPDATE … RETURNING` and refuses past `COFFER_AGENT_DAILY_LIMIT`.
 - **`budget_limits`**: the rule that limits apply only to `in_budget` categories lives in `budget/service.py`.
 - **`market_quotes`**: global, one row per symbol per day (UPSERT). FX rates are stored here as `<CCY>PLN=X` pairs; there is no `fx_rates` table.
 - **`opening_balances`** (`cash`): the amount may be negative; the balance is valid at the end of `as_of`, and later transactions add to it.
 
 ### 1.3 Known issues (most serious first)
 
-1. **Asset-class vocabularies differ.** `profile` uses `cash, deposit, stocks, etf, bonds, crypto, real_estate`; `portfolio` uses `stock, etf, bond, real_estate, commodity, crypto, cash`. Matching portfolio to profile (F36, F37) compares incompatible codes, and `deposit` can't be stored as a holding.
-2. **Multi-currency exists only on paper.** `currency` / `base_amount` exist, but the service writes PLN and the parser rejects other currencies. There is no stored FX rate per transaction and no per-user base currency (assumption A4).
+1. **Asset-class vocabularies differ.** `profile` uses `cash, deposit, stocks, etf, bonds, crypto, real_estate`; `portfolio` uses `stock, etf, bond, real_estate, commodity, crypto, cash`. Matching portfolio to profile (F36, F37; unimplemented) compares incompatible codes, and `deposit` can't be stored as a holding.
+2. **Multi-currency exists only on paper.** `transactions` has no `currency` / `base_amount` (dropped in `0011`); the service writes PLN and the parser rejects other currencies. There is no stored FX rate per transaction and no per-user base currency (assumption A4).
 3. **`holdings.purchase_price` is `numeric(14,2)`**, which truncates unit prices below 0.01 (crypto, fund units).
-4. **Missing CHECKs** on currencies, `transactions.amount` (allows 0), `source`, `investment_profiles.*`, `suggestions.month`, `holdings.manual_value`. Validation lives only in Pydantic, so scripts can bypass it.
+4. **Missing CHECKs** on currencies, `transactions.amount` (allows 0), `source`, `investment_profiles.*`, `holdings.manual_value`. Validation lives only in Pydantic, so scripts can bypass it.
 5. **Indexes:** `ix_transactions_user_id` duplicates `(user_id, date)`; there is no index on `transactions.category_id`.
-6. **No retention:** expired sessions, abandoned import drafts and `agent_runs` contents grow forever. This is the main size risk for a small hosted database.
+6. **No retention:** expired sessions and abandoned import drafts grow forever. This is the main size risk for a small hosted database.
 7. **Constraint names are generated by Postgres** (no `naming_convention` on `Base`).
 8. **Minor:** `import_drafts.id` is `varchar(36)` instead of `uuid`; `transactions` and `holdings` lack `updated_at`; the `holdings` CHECKs exist only in the migration, not in `models.py`.
 
@@ -53,7 +52,7 @@ What stays: every FK to `users` cascades (account deletion is one `DELETE`), all
 
 **(a) The portfolio is positions, not an operations log.** `holdings` stays the source of truth (class, ticker, quantity, average purchase price, date). An operations log would force a cost method (FIFO/average), realized gains, dividends and splits, which no requirement asks for. If history is ever needed, add `portfolio_operations` and turn each holding into an "opening" operation.
 
-**(b) Quotes and FX in the database.** Done for quotes (`market_quotes`, price job). Still planned: `fx_rates (base_ccy, quote_ccy, rate_date)` from NBP, so a transaction is converted at the rate of its own date (A4) and the used rate is stored in `transactions.fx_rate` (reproducible N04). Memory cache (5 min) stays the first layer; the MCP server keeps working without a database.
+**(b) Quotes and FX in the database.** Done for quotes (`market_quotes`, price job). Still planned: `fx_rates (base_ccy, quote_ccy, rate_date)` from NBP, so a transaction is converted at the rate of its own date (A4) and the used rate is stored in `transactions.fx_rate` (reproducible N04). Memory cache (5 min) stays the first layer.
 
 **(c) Global categories with a stable code.** Planned: `categories.code varchar(30) UNIQUE` (e.g. `food`, `own_transfer`) and `sort_order`, a partial unique index guaranteeing one default, FK `ON DELETE RESTRICT`. `code` separates logic (categorizer, analytics, agent) from the Polish UI name. No per-user categories.
 
@@ -61,9 +60,7 @@ What stays: every FK to `users` cascades (account deletion is one `DELETE`), all
 
 **(e, g) Original currency plus a frozen base amount; base currency in `user_settings`.** Planned: `transactions` stores `amount` + `currency`, `fx_rate` and `base_amount = quantize(amount × fx_rate)`; totals use only `base_amount`; a missing rate rejects the row with a Polish error. Base currency goes in a new 1:1 `user_settings` table owned by `profile` (no row = PLN), and changing it is blocked once the user has transactions or holdings. Supported currencies are a constant in `coffer/core/money.py`, with `char(3)` + `CHECK (x ~ '^[A-Z]{3}$')`.
 
-**(f) Every LLM call is traced and counted.** Done in `0007`: every action writes `agent_runs`; the daily run limit is atomic and shared across actions; `task` is the action id from the code catalog (no CHECK, so new actions need no migration). Not done: a token limit.
-
-**(h) Hard delete and retention.** No soft delete anywhere: N09 requires permanent deletion. Every new user table **must** cascade from `users`. Planned retention (nothing implemented yet): delete expired `auth_sessions` and `import_drafts`; null `agent_runs` contents after 30 days and delete rows after 180; delete `llm_usage_daily` older than 90 days; keep quotes for 3 years. Mechanism: each owning module exposes `purge_expired(db, now) -> int` in `service.py`; `coffer/scripts/purge.py` calls them (run by hand or on a schedule; no `pg_cron`). Size estimate: about 490 MB for 200 active accounts over 3 years; the demo needs under 20 MB.
+**(h) Hard delete and retention.** No soft delete anywhere: N09 requires permanent deletion. Every new user table **must** cascade from `users`. Planned retention (nothing implemented yet): delete expired `auth_sessions` and `import_drafts`; keep quotes for 3 years. Mechanism: each owning module exposes `purge_expired(db, now) -> int` in `service.py`; `coffer/scripts/purge.py` calls them (run by hand or on a schedule; no `pg_cron`). Size estimate: about 490 MB for 200 active accounts over 3 years; the demo needs under 20 MB.
 
 **Other planned changes:** one shared asset-class vocabulary `cash, deposit, stock, etf, bond, crypto, real_estate, commodity` in `coffer/core/assets.py` used by `portfolio` and `profile` (data migration `stocks→stock`, `bonds→bond`); `holdings.purchase_price` → `numeric(20,8)`; `transactions` index `(user_id, date, id)` replacing the two current ones; `import_drafts.id` → `uuid`; CHECKs listed in §1.3. Integer ids stay (`bigint` is not needed at this volume).
 
@@ -72,14 +69,13 @@ What stays: every FK to `users` cascades (account deletion is one `DELETE`), all
 | Module | Tables | Read by (only through `service.py`) |
 |---|---|---|
 | `accounts` | `users`, `auth_sessions` | everyone via `deps.CurrentUser` |
-| `profile` | `investment_profiles` (+ planned `user_settings`) | `agent`; base currency for `transactions`/`portfolio`/`budget` |
-| `transactions` | `categories`, `transactions` | `budget`, `imports`, `agent.tools` |
-| `budget` | `budget_limits` (+ optional `savings_goals`) | `agent.tools` |
+| `profile` | `investment_profiles` (+ planned `user_settings`) | base currency for `transactions`/`portfolio`/`budget` |
+| `transactions` | `categories`, `transactions` | `budget`, `imports` |
+| `budget` | `budget_limits` (+ optional `savings_goals`) | nobody |
 | `imports` | `import_drafts` | nobody |
-| `portfolio` | `holdings` | `agent` |
+| `portfolio` | `holdings` | `budget` |
 | `cash` | `opening_balances` | `budget` |
-| `market` | `market_quotes` (+ planned `fx_rates`) | `portfolio`, `transactions`, `agent` |
-| `agent` | `agent_runs`, `suggestions`, `llm_usage_daily` | nobody (the core never imports `agent`) |
+| `market` | `market_quotes` (+ planned `fx_rates`) | `portfolio`, `transactions` |
 | `analytics` | none (pure functions on dataclasses) | |
 
 Only the owning module changes its tables (migration + `models.py`). Cross-module FKs are allowed (e.g. `budget_limits.category_id → categories`), but a module never imports another module's models.
@@ -94,7 +90,7 @@ Only the owning module changes its tables (migration + `models.py`). Cross-modul
 6. **User data.** `user_id integer NOT NULL REFERENCES users ON DELETE CASCADE`, first in the table's main index; every query in `service.py` filters by it.
 7. **Indexes** only for real queries in `service.py` (note which in the migration). A composite index replaces its prefix. Index FKs to user tables.
 8. **CHECK and NOT NULL** for context-free rules (sign, format, value set); rules spanning rows or tables stay in `service.py`. Declare CHECKs in `__table_args__` too, because Alembic doesn't compare them.
-9. **JSONB** only for documents read as a whole (agent trace, snapshot, draft), never for anything filtered or summed; each JSONB column gets a `jsonb_typeof` CHECK.
+9. **JSONB** only for documents read as a whole (snapshot, draft), never for anything filtered or summed; each JSONB column gets a `jsonb_typeof` CHECK.
 10. **No soft delete.**
 
 ### Migrations

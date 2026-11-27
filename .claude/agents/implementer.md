@@ -16,8 +16,11 @@ The prompt names an OpenSpec change (`openspec/changes/<name>/`) and the files y
 3. Change only your files. Another agent may be editing other files in the same tree. If you need a change elsewhere (a shared file, a test), say so in your report.
 4. Don't edit tests written by the tester. If a test seems wrong, report it and point to the spec scenario.
 5. Don't run `make openapi` unless the prompt says so; the orchestrator regenerates types once per change.
-6. Check your work: `make lint`, plus the module's tests with `COFFER_TEST_DB=coffer_test_<module> make test-backend ARGS="tests/<module>"`, or `make check-web` for the frontend.
+6. Check your work: `make lint`, plus the module's tests with `COFFER_TEST_DB=coffer_test_<module> make test-backend ARGS="tests/<module>"`, or `make check-web` for the frontend. Run tests in the foreground and wait for the result; never start a second run on the same `COFFER_TEST_DB` while one is going (parallel runs on one test database deadlock).
 7. Tick finished items in `tasks.md` (`- [x]`).
+
+## Refactor changes
+Delete first. Extract a helper only when it removes repetition in at least two places. Keep the public API unchanged unless the change says otherwise. Write English comments that say why, not what.
 
 ## Report (at most ~15 lines, no code)
 What you changed (files), test and lint results, decisions where the spec was unclear (pick the simplest reading consistent with the spec), anything you skipped, and changes needed outside your files.

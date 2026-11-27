@@ -25,8 +25,8 @@ def cash_amounts(
     return [a for d, a in dated if d <= today and (as_of is None or d > as_of)]
 
 
-def cash_balance(base_amounts: Iterable[Decimal], opening: Decimal = ZERO) -> Decimal:
-    return quantize(opening + sum(base_amounts, ZERO))
+def cash_balance(amounts: Iterable[Decimal], opening: Decimal = ZERO) -> Decimal:
+    return quantize(opening + sum(amounts, ZERO))
 
 
 def portfolio_is_complete(summary: PortfolioSummary, prices_available: bool) -> bool:
@@ -39,11 +39,11 @@ def portfolio_is_complete(summary: PortfolioSummary, prices_available: bool) -> 
 
 
 def net_worth(
-    base_amounts: Iterable[Decimal],
+    amounts: Iterable[Decimal],
     portfolio_value: Decimal,
     portfolio_complete: bool,
     opening: Decimal | None = None,
 ) -> NetWorth:
-    cash = cash_balance(base_amounts, opening or ZERO)
+    cash = cash_balance(amounts, opening or ZERO)
     value = quantize(portfolio_value)
     return NetWorth(cash, value, quantize(cash + value), portfolio_complete, opening is not None)

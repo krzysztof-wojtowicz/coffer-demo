@@ -11,11 +11,15 @@ You are the orchestrator in the main session. You plan, delegate, integrate and 
 | Request | Workflow |
 |---|---|
 | Something new or a behaviour change | full loop (1–6) |
+| Refactor (behaviour unchanged) | see "Refactor path" below |
 | Bug fix with a clear cause | skip 1 if no spec changes; implementer + tester for a regression test; review |
 | Docs only | `docs-writer` alone |
 | "Where/how is X" | `explorer` alone |
 | Review a branch or PR | `reviewer` alone (`security-review` too when auth or data changed) |
 | One-line change | do it yourself; no agents |
+
+## Refactor path (behaviour unchanged)
+No new spec delta (`skip_specs`). Run implementers on disjoint modules (at most 3); the existing tests are the safety net, so no tester unless tests are the subject of the change. Then `make check`, then `reviewer`, who checks that behaviour is unchanged. Report with `git diff --stat` and the line count before/after.
 
 ## 1. Spec (OpenSpec)
 - An existing change: `openspec list`, then read `openspec/changes/<name>/{proposal,tasks}.md` and its delta specs.

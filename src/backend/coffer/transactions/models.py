@@ -2,7 +2,7 @@ import datetime as dt
 from decimal import Decimal
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Numeric, String, false, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from coffer.core.db import Base
 
@@ -24,10 +24,10 @@ class Transaction(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     date: Mapped[dt.date] = mapped_column(Date)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
-    currency: Mapped[str] = mapped_column(String(3), default="PLN", server_default="PLN")
-    base_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     description: Mapped[str] = mapped_column(String(500))
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
+    # Joined so TransactionOut can read category_name without a query per row.
+    category: Mapped[Category] = relationship(lazy="joined")
     source: Mapped[str] = mapped_column(String(10))
     needs_review: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     created_at: Mapped[dt.datetime] = mapped_column(

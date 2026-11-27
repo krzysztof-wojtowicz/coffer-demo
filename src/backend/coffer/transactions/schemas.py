@@ -2,9 +2,9 @@ import datetime as dt
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, StringConstraints, field_serializer, field_validator
+from pydantic import AliasPath, BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
-MAX_ABS_AMOUNT = Decimal("1000000000")
+from coffer.core.money import MAX_ABS_AMOUNT, MoneyStr
 
 Description = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
@@ -73,15 +73,12 @@ class TransactionUpdate(BaseModel):
 
 
 class TransactionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     date: dt.date
-    amount: Decimal
-    currency: str
+    amount: MoneyStr
     description: str
     category_id: int
-    category_name: str
+    category_name: str = Field(validation_alias=AliasPath("category", "name"))
     source: str
-
-    @field_serializer("amount")
-    def _ser_amount(self, value: Decimal) -> str:
-        return f"{value:.2f}"

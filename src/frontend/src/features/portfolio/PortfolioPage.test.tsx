@@ -100,7 +100,7 @@ function renderPage() {
 }
 
 describe('PortfolioPage', () => {
-  it('pokazuje datę cen i link „Oceń wpływ zakupu” z parametrami', async () => {
+  it('pokazuje datę cen', async () => {
     summaryBody = {
       ...summary,
       prices_as_of: '2026-11-10T08:30:00Z',
@@ -109,10 +109,6 @@ describe('PortfolioPage', () => {
     renderPage()
     expect(await screen.findByText(/Ceny z: /)).toBeTruthy()
     expect(screen.getByText(/cena z 01\.01\.2020/)).toBeTruthy()
-    const links = screen.getAllByRole('link', { name: 'Oceń wpływ zakupu' })
-    const hrefs = links.map((l) => l.getAttribute('href'))
-    expect(hrefs).toContain('/assistant?action=purchase_impact&asset_class=stock&symbol=AAPL')
-    expect(hrefs).toContain('/assistant?action=purchase_impact')
   })
 
   it('pokazuje pozycje, podsumowanie i alokację', async () => {

@@ -41,10 +41,6 @@ class DraftNotFoundError(Exception):
     pass
 
 
-class UnknownCategoryError(Exception):
-    pass
-
-
 def _existing(
     db: Session, user_id: int, rows: list[ParsedRow]
 ) -> Counter[tuple[date, Decimal, str]]:
@@ -186,7 +182,7 @@ def commit(db: Session, user_id: int, draft_id: str, data: CommitIn) -> CommitOu
     valid_ids = {c.id for c in tx_service.list_categories(db)}
     overrides = {r.index: r for r in data.rows}
     if any(r.category_id is not None and r.category_id not in valid_ids for r in data.rows):
-        raise UnknownCategoryError
+        raise tx_service.UnknownCategoryError
 
     parsed = [_to_parsed(r) for r in draft.rows]
     dups = mark_duplicates(parsed, _existing(db, user_id, parsed))

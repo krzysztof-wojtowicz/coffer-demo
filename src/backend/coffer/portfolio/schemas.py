@@ -5,18 +5,18 @@ from typing import Annotated, Literal
 from pydantic import (
     BaseModel,
     ConfigDict,
+    PlainSerializer,
     StringConstraints,
-    field_serializer,
     field_validator,
     model_validator,
 )
 
 from coffer.core import clock
+from coffer.core.money import MoneyStr, PctStr, money
 
 AssetClass = Literal["stock", "etf", "bond", "real_estate", "commodity", "crypto", "cash"]
 ValueSource = Literal["market", "manual", "cost"]
 
-MAX_MONEY = Decimal("1000000000000")  # NUMERIC(14,2) limit
 MAX_QUANTITY = Decimal("1000000000000")  # NUMERIC(20,8) limit
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
@@ -25,30 +25,15 @@ Note = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
 REQUIRED_ON_PATCH = ("name", "asset_class", "quantity", "purchase_price", "currency")
 
 
-def _money(value: Decimal | None, label: str) -> Decimal | None:
-    if value is None:
-        return None
-    if not value.is_finite():
-        raise ValueError(f"Nieprawidłowa wartość: {label}")
-    if value < 0:
-        raise ValueError(f"{label} nie może być ujemna")
-    if value >= MAX_MONEY:
-        raise ValueError(f"{label} poza zakresem")
-    if value != value.quantize(Decimal("0.01")):
-        raise ValueError(f"{label}: maksymalnie 2 miejsca po przecinku")
-    return value
-
-
-def _pct(value: Decimal | None) -> str | None:
-    return None if value is None else f"{value:.1f}"
-
-
-def _money_str(value: Decimal) -> str:
-    return f"{value:.2f}"
-
-
 def fmt_quantity(value: Decimal) -> str:
     return format(value.normalize(), "f")
+
+
+PurchasePrice = Annotated[Decimal, money("Cena zakupu")]
+CurrentValue = Annotated[Decimal, money("Wartość bieżąca")]
+
+# Output type: quantities without trailing zeros.
+QtyStr = Annotated[Decimal, PlainSerializer(fmt_quantity, return_type=str)]
 
 
 class _HoldingValidators(BaseModel):
@@ -98,16 +83,6 @@ class _HoldingValidators(BaseModel):
             raise ValueError("Ilość: maksymalnie 8 miejsc po przecinku")
         return v
 
-    @field_validator("purchase_price", check_fields=False)
-    @classmethod
-    def _price(cls, v: Decimal | None) -> Decimal | None:
-        return _money(v, "Cena zakupu")
-
-    @field_validator("manual_value", check_fields=False)
-    @classmethod
-    def _manual(cls, v: Decimal | None) -> Decimal | None:
-        return _money(v, "Wartość bieżąca")
-
     @field_validator("purchase_date", check_fields=False)
     @classmethod
     def _date(cls, v: dt.date | None) -> dt.date | None:
@@ -126,10 +101,10 @@ class HoldingCreate(_HoldingValidators):
     symbol: str | None = None
     asset_class: AssetClass
     quantity: Decimal
-    purchase_price: Decimal
+    purchase_price: PurchasePrice
     currency: str = "PLN"
     purchase_date: dt.date | None = None
-    manual_value: Decimal | None = None
+    manual_value: CurrentValue | None = None
     note: Note | None = None
 
 
@@ -140,10 +115,10 @@ class HoldingUpdate(_HoldingValidators):
     symbol: str | None = None
     asset_class: AssetClass | None = None
     quantity: Decimal | None = None
-    purchase_price: Decimal | None = None
+    purchase_price: PurchasePrice | None = None
     currency: str | None = None
     purchase_date: dt.date | None = None
-    manual_value: Decimal | None = None
+    manual_value: CurrentValue | None = None
     note: Note | None = None
 
     @model_validator(mode="after")
@@ -161,25 +136,13 @@ class HoldingOut(BaseModel):
     name: str
     symbol: str | None
     asset_class: AssetClass
-    quantity: Decimal
-    purchase_price: Decimal
+    quantity: QtyStr
+    purchase_price: MoneyStr
     currency: str
     purchase_date: dt.date | None
-    manual_value: Decimal | None
+    manual_value: MoneyStr | None
     note: str | None
     created_at: dt.datetime
-
-    @field_serializer("quantity")
-    def _ser_qty(self, v: Decimal) -> str:
-        return fmt_quantity(v)
-
-    @field_serializer("purchase_price")
-    def _ser_price(self, v: Decimal) -> str:
-        return _money_str(v)
-
-    @field_serializer("manual_value")
-    def _ser_manual(self, v: Decimal | None) -> str | None:
-        return None if v is None else _money_str(v)
 
 
 class HoldingValuationOut(BaseModel):
@@ -187,70 +150,34 @@ class HoldingValuationOut(BaseModel):
     name: str
     symbol: str | None
     asset_class: AssetClass
-    quantity: Decimal
+    quantity: QtyStr
     currency: str
-    cost_basis: Decimal
-    current_value: Decimal
+    cost_basis: MoneyStr
+    current_value: MoneyStr
     value_source: ValueSource
-    market_price: Decimal | None
+    market_price: MoneyStr | None
     price_currency: str | None
-    gain: Decimal
-    gain_pct: Decimal | None
-    share_pct: Decimal | None
+    gain: MoneyStr
+    gain_pct: PctStr | None
+    share_pct: PctStr | None
     amount_currency: str
     converted: bool
     as_of: dt.datetime | None = None
 
-    @field_serializer("quantity")
-    def _ser_qty(self, v: Decimal) -> str:
-        return fmt_quantity(v)
-
-    @field_serializer("cost_basis", "current_value", "gain")
-    def _ser_money(self, v: Decimal) -> str:
-        return _money_str(v)
-
-    @field_serializer("market_price")
-    def _ser_price(self, v: Decimal | None) -> str | None:
-        return None if v is None else _money_str(v)
-
-    @field_serializer("gain_pct")
-    def _ser_gain_pct(self, v: Decimal | None) -> str | None:
-        return _pct(v)
-
-    @field_serializer("share_pct")
-    def _ser_share(self, v: Decimal | None) -> str | None:
-        return _pct(v)
-
 
 class AllocationOut(BaseModel):
     asset_class: AssetClass
-    value: Decimal
-    share_pct: Decimal
-
-    @field_serializer("value")
-    def _ser_value(self, v: Decimal) -> str:
-        return _money_str(v)
-
-    @field_serializer("share_pct")
-    def _ser_pct(self, v: Decimal) -> str:
-        return f"{v:.1f}"
+    value: MoneyStr
+    share_pct: PctStr
 
 
 class PortfolioSummaryOut(BaseModel):
     holdings: list[HoldingValuationOut]
     allocation: list[AllocationOut]
-    total_value: Decimal
-    total_cost: Decimal
-    total_gain: Decimal
-    total_gain_pct: Decimal | None
+    total_value: MoneyStr
+    total_cost: MoneyStr
+    total_gain: MoneyStr
+    total_gain_pct: PctStr | None
     prices_available: bool
     fx_missing: list[str]
     prices_as_of: dt.datetime | None = None
-
-    @field_serializer("total_value", "total_cost", "total_gain")
-    def _ser_money(self, v: Decimal) -> str:
-        return _money_str(v)
-
-    @field_serializer("total_gain_pct")
-    def _ser_pct(self, v: Decimal | None) -> str | None:
-        return _pct(v)

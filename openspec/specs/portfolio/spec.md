@@ -1,7 +1,7 @@
 # portfolio Specification
 
 ## Purpose
-The user's investment portfolio: holdings, valuation in the base currency, allocation by asset class, gain/loss, and daily market-price refresh. Covers F20–F25 and N07 (former UC-04). Market data comes from Yahoo Finance (`yfinance`) through `coffer.market`; see `docs/mcp-market.md`.
+The user's investment portfolio: holdings, valuation in the base currency, allocation by asset class, gain/loss, and daily market-price refresh. Covers F20–F25, F30 (investment profile) and N07 (former UC-04). Market data comes from Yahoo Finance (`yfinance`) through `coffer.market`.
 
 ## Requirements
 
@@ -59,3 +59,14 @@ Portfolio features SHALL NOT depend on the AI agent.
 #### Scenario: LLM unavailable
 - **WHEN** no LLM provider is reachable
 - **THEN** holdings, valuation and allocation work normally
+
+### Requirement: Investment profile (F30)
+A user SHALL be able to save an investment profile (`PUT /api/profile`) with an investment horizon (up to 2 years / 2–5 years / over 5 years), a risk tolerance (low / medium / high) and at least one preferred asset class, and read it back (`GET /api/profile`, null when not set).
+
+#### Scenario: Save and read back
+- **WHEN** the user saves a complete profile
+- **THEN** `GET /api/profile` returns the saved horizon, risk tolerance and asset classes
+
+#### Scenario: Incomplete profile
+- **WHEN** the horizon or risk tolerance is missing or no asset class is selected
+- **THEN** the system responds 422 and keeps the previous profile

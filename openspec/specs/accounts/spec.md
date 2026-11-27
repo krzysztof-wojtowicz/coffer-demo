@@ -68,7 +68,7 @@ A logged-in user SHALL be able to change their password after confirming the cur
 - **THEN** the system responds 403 and keeps the old password
 
 ### Requirement: Account deletion (N09)
-A logged-in user SHALL be able to permanently delete their account and all their data (transactions, portfolio, profile, limits, opening balance, agent history) after confirming with their password.
+A logged-in user SHALL be able to permanently delete their account and all their data (transactions, portfolio, profile, limits, opening balance) after confirming with their password.
 
 #### Scenario: Confirmed deletion
 - **WHEN** the user confirms deletion with the correct password

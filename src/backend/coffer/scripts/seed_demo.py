@@ -1,9 +1,9 @@
-"""Dane demo: konto demo@coffer.local z wymyślonymi transakcjami.
+"""Demo data: the demo@coffer.local account with made-up transactions.
 
-Transakcje obejmują 3 pełne miesiące wstecz oraz bieżący miesiąc do dzisiaj.
-Skrypt jest idempotentny: transakcje konta demo są usuwane i tworzone od nowa.
+Covers 3 full months back plus the current month up to today.
+Idempotent: the demo account's transactions are deleted and recreated.
 
-Uruchomienie: `make seed` (wymaga wcześniej `make migrate`).
+Run with `make seed` (after `make migrate`).
 """
 
 import calendar
@@ -180,8 +180,6 @@ def seed_demo(db: Session, today: dt.date | None = None) -> int:
             user_id=user.id,
             date=d.date,
             amount=d.amount,
-            currency="PLN",
-            base_amount=d.amount,
             description=d.description,
             category_id=_category_id(categories, d.category),
             source="manual",

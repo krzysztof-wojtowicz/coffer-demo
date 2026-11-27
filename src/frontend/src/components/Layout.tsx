@@ -10,7 +10,6 @@ const links = [
   { to: '/', label: pl.nav.summary, end: true },
   { to: '/transactions', label: pl.nav.transactions, end: false },
   { to: '/portfolio', label: pl.nav.portfolio, end: false },
-  { to: '/assistant', label: pl.nav.assistant, end: false },
   { to: '/account', label: pl.nav.account, end: false },
 ]
 

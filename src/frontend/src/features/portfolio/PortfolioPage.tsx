@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { Money } from '../../components/Money'
 import { Badge } from '../../components/ui/Badge'
@@ -14,7 +13,6 @@ import {
   useDeleteHolding,
   formatAsOf,
   isStale,
-  purchaseImpactLink,
   useHoldings,
   usePortfolioSummary,
   type Holding,
@@ -184,14 +182,6 @@ function HoldingsTable({
                           {t.editAction}
                         </Button>
                       )}
-                      {v.symbol && (
-                        <Link
-                          to={purchaseImpactLink(v.asset_class, v.symbol)}
-                          className="mr-1 inline-block cursor-pointer rounded-md px-2 py-1 text-sm text-accent hover:bg-surface-2"
-                        >
-                          {t.assessPurchase}
-                        </Link>
-                      )}
                       <Button variant="ghost" size="sm" onClick={() => remove(v.id)}>
                         {t.delete}
                       </Button>
@@ -237,12 +227,6 @@ export function PortfolioPage() {
             ) : (
               <span />
             )}
-            <Link
-              to={purchaseImpactLink()}
-              className="cursor-pointer text-sm font-medium text-accent hover:underline"
-            >
-              {t.assessPurchase}
-            </Link>
           </div>
           <SummaryTiles s={s} />
           <HoldingsTable

@@ -1,7 +1,7 @@
 # budget Specification
 
 ## Purpose
-Monthly budget analysis, month-over-month comparisons, category spending limits, and net worth (cash plus portfolio). Covers F10–F15, F17 (via the agent's `budget_plan` action), F26 and N04 (former UC-11). All totals are computed in `coffer.analytics`.
+Monthly budget analysis, month-over-month comparisons, category spending limits, and net worth (cash plus portfolio). Covers F10–F15, F17, F26 and N04 (former UC-11). All totals are computed in `coffer.analytics`.
 
 ## Requirements
 

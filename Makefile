@@ -1,7 +1,7 @@
 BACKEND = cd src/backend && uv run
 FRONTEND = cd src/frontend
 
-.PHONY: setup db-up db-down migrate dev-api dev-web test-backend lint check-web check-web-clean check openapi seed mcp-market prices openspec-skills
+.PHONY: setup db-up db-down migrate dev-api dev-web test-backend lint check-web check-web-clean check openapi seed prices openspec-skills
 
 setup:
 	cd src/backend && uv sync
@@ -47,9 +47,6 @@ openapi:
 
 seed:
 	$(BACKEND) python -m coffer.scripts.seed_demo
-
-mcp-market:
-	@$(BACKEND) python -m coffer.market.mcp_server
 
 prices:
 	$(BACKEND) python -m coffer.scripts.refresh_prices

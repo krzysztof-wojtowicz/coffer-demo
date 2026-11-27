@@ -6,6 +6,7 @@ from coffer.imports import service
 from coffer.imports.banks import BANKS
 from coffer.imports.parser import ImportEncodingError, ImportFormatError
 from coffer.imports.schemas import BankOut, CommitIn, CommitOut, ImportPreviewOut
+from coffer.transactions.service import UnknownCategoryError
 
 router = APIRouter(prefix="/api/imports", tags=["imports"])
 
@@ -51,7 +52,7 @@ def commit_import(draft_id: str, data: CommitIn, user: CurrentUser, db: DbSessio
         return service.commit(db, user.id, draft_id, data)
     except service.DraftNotFoundError:
         raise HTTPException(status_code=404, detail=NOT_FOUND) from None
-    except service.UnknownCategoryError:
+    except UnknownCategoryError:
         raise HTTPException(status_code=422, detail="Nieznana kategoria") from None
 
 

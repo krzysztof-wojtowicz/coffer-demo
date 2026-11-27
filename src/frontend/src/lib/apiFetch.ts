@@ -1,7 +1,7 @@
 import { signOutLocally } from './queryClient'
 
 /**
- * Plain fetch for calls that openapi-fetch handles poorly (multipart upload, SSE streams,
+ * Plain fetch for calls that openapi-fetch handles poorly (multipart upload,
  * AbortController-heavy flows). Looks up globalThis.fetch per call, so test stubs work,
  * and applies the same 401 policy as the openapi-fetch middleware in api/client.ts.
  */

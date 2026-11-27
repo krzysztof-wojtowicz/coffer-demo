@@ -54,10 +54,9 @@ A security sweep found and fixed vulnerabilities, each one with an exploit test,
 ## Deployment removed (Nov 2026)
 Until the refactoring, the app ran on free plans: the SPA on Vercel, which rewrote `/api/*` to the API; the API on Render (Docker, Frankfurt), deployed by a GitHub Actions hook after CI; and Postgres on Neon. The production setup didn't work reliably, so it was removed to keep development local-only. That covered `render.yaml`, `vercel.json`, the backend `Dockerfile`, the `deploy.yml` workflow, Neon config, `make migrate-remote`/`seed-remote` and `docs/deploy/`. GitHub automation was removed as well: the CI and migration-check workflows and Dependabot (`.github/`), with Actions disabled on the repository. Checks now run locally (`make check`). Everything can be restored from git history if hosting comes back.
 
+## AI assistant removed (Nov 2026)
+To simplify the refactoring, the AI assistant was removed (change `remove-ai-agent`): the `coffer.agent` module, all LLM clients (Ollama, OpenAI, Gemini, Anthropic), the MCP market server, `/api/agent/*`, `GET /api/market/quotes`, the assistant tab, and the tables `agent_runs`, `suggestions` and `llm_usage_daily` (dropped by a new migration). The investment profile, quotes, FX and the price job stay. Stages 2, 3 and 5 above describe the assistant as it was. It will be rebuilt for local LLMs after the refactor (see the [roadmap](roadmap.md)).
+
 ## Open follow-ups from reviews
 - Expired `auth_sessions` and abandoned import drafts are never purged (see [data-model.md](data-model.md) §2h).
 - `OriginMiddleware` lets requests without an `Origin` header through on purpose, relying on SameSite=Lax. This should be revisited if the app is hosted again.
-- A client disconnect or "Anuluj" over SSE doesn't stop the model call thread.
-- The number validator is intentionally lenient: integers below 100 aren't checked, rounding to whole numbers passes, and `1.234,56` gives a false error.
-- Frontend: the SSE `error` event is ignored, and `noSurplus` compares the string `"0.00"`.
-- `agent/anonymize.scrub` is unused (meant for AI categorization).

@@ -34,6 +34,11 @@ user: "add a net-worth chart"
 4. **Separate test databases:** `COFFER_TEST_DB=coffer_test_<module>`.
 5. **Generated files once:** only the orchestrator runs `make openapi`, after the build.
 6. **Migrations in sequence:** changes with Alembic migrations never run in parallel (one head).
+7. **One test file per module:** the tester extends `tests/<module>/test_<module>.py` (frontend: the component's `*.test.tsx`) and never creates parallel files.
+
+## Refactors and parked changes
+- **Refactor (behaviour unchanged):** no spec delta; up to 3 implementers on disjoint modules; the existing tests are the safety net (no tester); the reviewer checks behaviour is unchanged; the report includes `git diff --stat`.
+- **Parked:** `openspec/parked/` holds changes that are on hold (`openspec list` ignores it). Move one back to `openspec/changes/` to resume it.
 
 ## Token economy
 - `CLAUDE.md` stays short because every agent loads it; details live in specs and changes.

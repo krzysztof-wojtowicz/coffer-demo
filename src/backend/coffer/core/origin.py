@@ -1,6 +1,3 @@
-import re
-from functools import lru_cache
-
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -17,17 +14,9 @@ CORS_HEADERS = ["Content-Type"]
 CORS_MAX_AGE_S = 600
 
 
-@lru_cache
-def _compile(pattern: str) -> re.Pattern[str]:
-    return re.compile(pattern)
-
-
 def is_allowed_origin(origin: str, settings: Settings) -> bool:
     """The one origin policy shared by the CSRF Origin check and CORS."""
-    if origin in settings.allowed_origins:
-        return True
-    regex = settings.allowed_origin_regex
-    return regex is not None and _compile(regex).fullmatch(origin) is not None
+    return origin in settings.allowed_origins
 
 
 class OriginMiddleware(BaseHTTPMiddleware):
@@ -59,7 +48,6 @@ class _CofferCORSMiddleware(CORSMiddleware):
         super().__init__(
             app,
             allow_origins=settings.allowed_origins,  # never "*": config validation rejects it
-            allow_origin_regex=settings.allowed_origin_regex,
             allow_credentials=True,
             allow_methods=CORS_METHODS,
             allow_headers=CORS_HEADERS,

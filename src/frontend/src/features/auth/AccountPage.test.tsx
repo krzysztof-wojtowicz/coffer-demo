@@ -110,3 +110,101 @@ describe('AccountPage', () => {
     expect(screen.queryByText('strona logowania')).toBeNull()
   })
 })
+
+
+describe("AccountPage: dodatkowe przypadki", () => {
+  it("nowe hasło równe obecnemu jest blokowane bez żądania", async () => {
+    const user = renderPage();
+    await user.type(
+      await screen.findByLabelText("Obecne hasło"),
+      "Kot-w-butach-42",
+    );
+    await user.type(screen.getByLabelText("Nowe hasło"), "Kot-w-butach-42");
+    await user.click(screen.getByRole("button", { name: "Zmień hasło" }));
+    expect(calls).toHaveLength(0);
+  });
+
+  it("zmiana hasła stosuje regułę e-maila zalogowanego użytkownika", async () => {
+    const user = renderPage();
+    await user.type(
+      await screen.findByLabelText("Obecne hasło"),
+      "Kot-w-butach-42",
+    );
+    await screen.findByText("Bezpieczeństwo konta");
+    await vi.waitFor(async () => {
+      await user.clear(screen.getByLabelText("Nowe hasło"));
+      await user.type(screen.getByLabelText("Nowe hasło"), "jan@example.com");
+      expect(
+        screen.getByText("Hasło nie może być takie samo jak adres e-mail."),
+      ).toBeTruthy();
+    });
+    await user.click(screen.getByRole("button", { name: "Zmień hasło" }));
+    expect(calls).toHaveLength(0);
+  });
+
+  it("429 przy usuwaniu konta: komunikat i brak wylogowania", async () => {
+    respond = () =>
+      new Response(
+        JSON.stringify({
+          detail: "Zbyt wiele prób. Spróbuj ponownie za 15 min.",
+        }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json", "Retry-After": "900" },
+        },
+      );
+    const user = renderPage();
+    await user.type(
+      await screen.findByLabelText("Potwierdź hasłem"),
+      "Kot-w-butach-42",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Usuń konto na zawsze" }),
+    );
+    expect(
+      await screen.findByText("Zbyt wiele prób. Spróbuj ponownie za 15 min."),
+    ).toBeTruthy();
+    expect(screen.queryByText("strona logowania")).toBeNull();
+  });
+
+  it("błąd wylogowania wszędzie zostawia użytkownika na stronie", async () => {
+    respond = () => json({ detail: "Wymagane logowanie" }, 401);
+    const user = renderPage();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Wyloguj ze wszystkich urządzeń",
+      }),
+    );
+    expect(await screen.findByText("Wymagane logowanie")).toBeTruthy();
+  });
+
+  it("pusta zgoda hasłem nie usuwa konta", async () => {
+    const user = renderPage();
+    await user.click(
+      await screen.findByRole("button", { name: "Usuń konto na zawsze" }),
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    expect(calls.filter((c) => c.method === "DELETE")).toHaveLength(0);
+  });
+
+  // BUG (medium, accounts/front, queries.ts useLeave): an error response with an empty body
+  // (e.g. proxy 502/503/429) counts as success: the user is signed out locally and sent to
+  // /login although the account was NOT deleted.
+  it(
+    "pusta odpowiedź błędu przy usuwaniu nie udaje sukcesu",
+    async () => {
+      respond = () =>
+        new Response(null, { status: 503, headers: { "Content-Length": "0" } });
+      const user = renderPage();
+      await user.type(
+        await screen.findByLabelText("Potwierdź hasłem"),
+        "Kot-w-butach-42",
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Usuń konto na zawsze" }),
+      );
+      await new Promise((r) => setTimeout(r, 100));
+      expect(screen.queryByText("strona logowania")).toBeNull();
+    },
+  );
+});

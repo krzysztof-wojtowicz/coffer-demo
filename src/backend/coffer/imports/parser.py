@@ -4,10 +4,10 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
+from coffer.core.money import MAX_ABS_AMOUNT
 from coffer.imports.banks import BankConfig
 
 # Same bound as manual transactions; the column is NUMERIC(14,2).
-MAX_ABS_AMOUNT = Decimal("1000000000")
 
 _SPACES = (" ", " ", " ")
 

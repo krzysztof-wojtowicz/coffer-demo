@@ -17,7 +17,7 @@ A fictional format for developing and testing import before real banks are suppo
 |---|---|
 | `Data operacji` | transaction date |
 | `Data księgowania` | ignored |
-| `Opis` | description (may contain names and account numbers, so it is never sent to the LLM, N03) |
+| `Opis` | description (may contain names and account numbers) |
 | `Kwota` | amount in the original currency |
 | `Waluta` | original currency; only `PLN` is supported now, other rows get the error "Waluta … nie jest jeszcze obsługiwana" (daily-rate conversion is planned) |
 | `Saldo po operacji` | ignored |

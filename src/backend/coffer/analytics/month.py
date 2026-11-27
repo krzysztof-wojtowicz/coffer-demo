@@ -11,7 +11,7 @@ from coffer.core.months import parse_month
 @dataclass(frozen=True)
 class TxView:
     date: date
-    base_amount: Decimal
+    amount: Decimal
     category_id: int
     category_name: str
     in_budget: bool
@@ -48,7 +48,7 @@ def month_summary(month: str, txs: Iterable[TxView]) -> MonthSummary:
     for tx in txs:
         if not (start <= tx.date < end):
             continue
-        amount = quantize(tx.base_amount)
+        amount = quantize(tx.amount)
         if tx.in_budget:
             budget_balance += amount
         if amount > 0:

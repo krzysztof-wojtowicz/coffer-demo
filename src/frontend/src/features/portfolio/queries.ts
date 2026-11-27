@@ -86,14 +86,6 @@ export function useDeleteHolding() {
   })
 }
 
-/** Deep link to the assistant's purchase-impact action (see E5-06). */
-export function purchaseImpactLink(assetClass?: string, symbol?: string | null): string {
-  const p = new URLSearchParams({ action: 'purchase_impact' })
-  if (assetClass) p.set('asset_class', assetClass)
-  if (symbol) p.set('symbol', symbol)
-  return `/assistant?${p.toString()}`
-}
-
 export function formatAsOf(iso: string): string {
   return new Date(iso).toLocaleString('pl-PL', {
     day: '2-digit',

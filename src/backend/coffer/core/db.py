@@ -14,7 +14,7 @@ class Base(DeclarativeBase):
 
 
 _DATABASE_URL = get_settings().database_url
-engine = create_engine(_DATABASE_URL, **engine_options(_DATABASE_URL))
+engine = create_engine(_DATABASE_URL, **engine_options())
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
@@ -35,3 +35,9 @@ def get_session_factory() -> sessionmaker[Session]:
 
 
 SessionFactory = Annotated[sessionmaker[Session], Depends(get_session_factory)]
+
+
+def get_owned[T](db: Session, model: type[T], user_id: int, id: int) -> T | None:
+    """The user's row or None; routers turn None into their own 404."""
+    row = db.get(model, id)
+    return row if row is not None and getattr(row, "user_id", None) == user_id else None

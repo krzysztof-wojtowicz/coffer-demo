@@ -1,14 +1,14 @@
 # Coffer
 
-Personal-finance web app with an AI assistant (student project, 4 people). Python/FastAPI + PostgreSQL backend, React/TypeScript frontend, LLM via Ollama/OpenAI/Gemini/Anthropic. Runs **locally only** during the refactoring (no deployment).
+Personal-finance web app (student project, 4 people). Python/FastAPI + PostgreSQL backend, React/TypeScript frontend. The AI assistant was removed and will be rebuilt for local LLMs after the refactor. Runs **locally only** during the refactoring (no deployment).
 
 ## Layout
 | Path | What |
 |---|---|
-| `openspec/specs/` | **Behaviour, source of truth**: `accounts`, `transactions`, `budget`, `portfolio`, `ai-agent` |
+| `openspec/specs/` | **Behaviour, source of truth**: `accounts`, `transactions`, `budget`, `portfolio` |
 | `openspec/changes/` | Planned work (proposal, tasks, delta specs); `openspec list` |
 | `docs/` | `architecture.md`, `data-model.md`, `development.md`, `roadmap.md`, `history.md`, `glossary.md` |
-| `src/backend/coffer/` | Modules: `accounts, transactions, imports, budget, cash, portfolio, profile, market, analytics, agent, core` |
+| `src/backend/coffer/` | Modules: `accounts, transactions, imports, budget, cash, portfolio, profile, market, analytics, core` |
 | `src/frontend/src/` | `features/*`, `components/ui`, `api/` (generated types), `i18n/pl.ts` |
 | `data/fixtures/` | Fictional test data |
 
@@ -21,11 +21,10 @@ Personal-finance web app with an AI assistant (student project, 4 people). Pytho
 
 ## Hard rules
 - **Money:** `Decimal` only, never `float`; round with `coffer.core.money.quantize` (ROUND_HALF_UP). `NUMERIC(14,2)` in the DB; strings in JSON.
-- **Totals are computed only in `coffer.analytics`** (pure functions: no DB, no FastAPI). The agent never computes numbers; it interprets them.
-- **Module boundaries:** a module uses another only through its `service.py` (or public `analytics` dataclasses). The core never imports `coffer.agent` (enforced by `import-linter`).
+- **Totals are computed only in `coffer.analytics`** (pure functions: no DB, no FastAPI).
+- **Module boundaries:** a module uses another only through its `service.py` (or public `analytics` dataclasses).
 - **Module layout:** `coffer/<module>/{api.py, service.py, models.py, schemas.py}`; thin router, logic in `service.py`.
 - **Security:** every endpoint except `/api/health` and `/api/auth/{register,login,logout}` requires `CurrentUser`; every query filters by `user_id`; another user's resource → 404.
-- **AI privacy:** only aggregates go to the LLM: no e-mail, transaction descriptions or identifiers. A missing LLM must never break the core; every agent action has a rule-based fallback.
 - **Migrations:** reversible, one Alembic head, `ON DELETE CASCADE` from `users` on every user table (see `docs/data-model.md` §3).
 - **Language:** the UI and user-facing error messages are **Polish**; code, comments, docs and specs are **English**.
 
@@ -33,6 +32,9 @@ Personal-finance web app with an AI assistant (student project, 4 people). Pytho
 1. Any behaviour change starts as an OpenSpec change (`openspec-propose` skill) and is approved by the user.
 2. Build it with the `orchestrate` skill: implementer + tester in parallel on disjoint files → integrate → reviewer → docs-writer.
 3. Archive with `openspec-archive-change`. Commit only when the user asks.
+Refactors (behaviour unchanged): no spec delta; implementers on disjoint modules, existing tests as the safety net, no tester.
+Tests: one file per module (`tests/<module>/test_<module>.py`); extend it, never add parallel files.
+Parked changes live in `openspec/parked/`; move one back to `openspec/changes/` to resume.
 For small fixes, skip what isn't needed, but still keep the specs true.
 
 ## Agents and skills

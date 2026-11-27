@@ -1,9 +1,7 @@
-import importlib
 import logging
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -14,12 +12,12 @@ from coffer.analytics.portfolio import (
     PortfolioSummary,
     portfolio_summary,
 )
+from coffer.core.db import get_owned
+from coffer.market import service as market
 from coffer.portfolio.models import Holding
 from coffer.portfolio.schemas import HoldingCreate, HoldingUpdate
 
 log = logging.getLogger(__name__)
-
-MARKET_SERVICE = "coffer.market.service"
 
 
 def list_for_user(db: Session, user_id: int) -> list[Holding]:
@@ -28,7 +26,7 @@ def list_for_user(db: Session, user_id: int) -> list[Holding]:
 
 
 def get(db: Session, user_id: int, holding_id: int) -> Holding | None:
-    return db.scalar(select(Holding).where(Holding.id == holding_id, Holding.user_id == user_id))
+    return get_owned(db, Holding, user_id, holding_id)
 
 
 def create(db: Session, user_id: int, data: HoldingCreate) -> Holding:
@@ -57,14 +55,6 @@ def delete(db: Session, user_id: int, holding_id: int) -> bool:
     db.delete(holding)
     db.commit()
     return True
-
-
-def _market() -> Any | None:
-    """coffer.market.service loaded dynamically: the portfolio must work without it."""
-    try:
-        return importlib.import_module(MARKET_SERVICE)
-    except ImportError:
-        return None
 
 
 def quote_ticker(symbol: str, asset_class: str) -> str:
@@ -101,11 +91,8 @@ def holding_currencies(db: Session) -> list[str]:
 def fetch_prices(symbols: list[str], db: Session | None = None) -> dict[str, Price] | None:
     """Market prices (with quote currency) by symbol; None when market data is unavailable.
 
-    A missing module, MarketDataUnavailable or any other provider failure degrades to None.
+    MarketDataUnavailable or any other provider failure degrades to None.
     """
-    market = _market()
-    if market is None:
-        return None
     if not symbols:
         return {}
     try:
@@ -133,14 +120,10 @@ def fetch_fx_rates(
 
     When `as_of` is given it is filled with the timestamp of each rate.
     """
-    market = _market()
-    get_fx_quote = getattr(market, "get_fx_quote", None) if market is not None else None
     rates: dict[str, Decimal] = {}
-    if get_fx_quote is None:
-        return rates
     for ccy in sorted(currencies - {BASE_CURRENCY}):
         try:
-            found = get_fx_quote(ccy, BASE_CURRENCY, db)
+            found = market.get_fx_quote(ccy, BASE_CURRENCY, db)
         except Exception:  # contract says it never raises; stay defensive
             log.warning("fx rate unavailable for %s", ccy, exc_info=True)
             continue

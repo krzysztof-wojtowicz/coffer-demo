@@ -2,11 +2,10 @@ import datetime as dt
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_serializer, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from coffer.core.clock import today
-
-MAX_ABS_AMOUNT = Decimal("1000000000")
+from coffer.core.money import MAX_ABS_AMOUNT, MoneyStr
 
 
 class OpeningBalanceIn(BaseModel):
@@ -41,9 +40,5 @@ class OpeningBalanceIn(BaseModel):
 class OpeningBalanceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    amount: Decimal
+    amount: MoneyStr
     as_of: dt.date
-
-    @field_serializer("amount")
-    def _ser(self, value: Decimal) -> str:
-        return f"{value:.2f}"

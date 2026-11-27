@@ -54,7 +54,7 @@ def net_worth(db: Session, user_id: int, today: dt.date) -> NetWorth:
     views = list_views(db, user_id, dt.date.min, today + dt.timedelta(days=1))
     opening = cash_service.get(db, user_id)
     amounts = cash_amounts(
-        [(v.date, v.base_amount) for v in views], today, opening.as_of if opening else None
+        [(v.date, v.amount) for v in views], today, opening.as_of if opening else None
     )
     result = portfolio_service.summary(db, user_id)
     return compute_net_worth(

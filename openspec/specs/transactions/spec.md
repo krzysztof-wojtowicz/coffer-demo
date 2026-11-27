@@ -84,7 +84,7 @@ A row SHALL be treated as a duplicate when a saved transaction has the same date
 - **THEN** one row is new and one is a duplicate
 
 ### Requirement: Automatic categorization (F07, N05)
-The system SHALL assign a category to each imported row: first by an exact match with a description the user categorized before (learning from the user's own corrections, F08), then by keyword rules. A row with no match SHALL get the default category and a "to review" flag. Keyword rules SHALL categorize at least 80% of the 200-transaction test set correctly (test `tests/imports/test_n05.py`).
+The system SHALL assign a category to each imported row: first by an exact match with a description the user categorized before (learning from the user's own corrections, F08), then by keyword rules. A row with no match SHALL get the default category and a "to review" flag. Keyword rules SHALL categorize at least 80% of the 200-transaction test set correctly (test `tests/imports/test_imports_parsing.py`).
 
 #### Scenario: Learned category
 - **WHEN** an imported description exactly matches one the user previously re-categorized

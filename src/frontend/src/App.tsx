@@ -1,7 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
-import { AssistantPage } from './features/assistant/AssistantPage'
-import { RunDetailPage } from './features/assistant/RunDetailPage'
 import { AccountPage } from './features/auth/AccountPage'
 import { AuthPage } from './features/auth/AuthPage'
 import { useMe } from './features/auth/queries'
@@ -28,8 +26,6 @@ export default function App() {
         <Route path="/import" element={<Navigate to="/transactions" replace />} />
         <Route path="/profile" element={<Navigate to="/account" replace />} />
         <Route path="/portfolio" element={<PortfolioPage />} />
-        <Route path="/assistant" element={<AssistantPage />} />
-        <Route path="/assistant/runs/:id" element={<RunDetailPage />} />
         <Route path="/account" element={<AccountPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
