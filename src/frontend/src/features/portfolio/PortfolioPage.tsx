@@ -1,13 +1,16 @@
 import { useState } from 'react'
+import { AllocationChart } from './AllocationChart'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { Money } from '../../components/Money'
+import { Signed } from '../../components/Signed'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { Spinner } from '../../components/ui/Spinner'
+import { Stat } from '../../components/ui/Stat'
 import { pl } from '../../i18n/pl'
-import { cn } from '../../lib/cn'
+import { formatMoney, formatPct } from '../../lib/format'
 import { HoldingForm, portfolioErrorMessage } from './HoldingForm'
 import {
   useDeleteHolding,
@@ -21,49 +24,26 @@ import {
 
 const t = pl.portfolio
 
-function formatAmount(value: string, currency: string): string {
-  try {
-    return new Intl.NumberFormat('pl-PL', { style: 'currency', currency }).format(Number(value))
-  } catch {
-    return `${value} ${currency}`
-  }
-}
-
-function Pct({ value }: { value: string | null }) {
+function GainPct({ value }: { value: string | null }) {
   if (value === null) return <span className="text-muted">–</span>
-  const neg = value.startsWith('-')
-  const zero = Number(value) === 0
-  return (
-    <span className={cn('tabular-nums', neg && 'text-negative', !neg && !zero && 'text-positive')}>
-      {neg || zero ? '' : '+'}
-      {value.replace('.', ',')}%
-    </span>
-  )
+  return <Signed kind="pct" value={value} />
 }
 
 function SummaryTiles({ s }: { s: PortfolioSummary }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <Card>
-        <div className="text-sm text-muted">{t.totalValue}</div>
-        <div className="mt-1 text-2xl font-semibold">
-          <Money value={s.total_value} />
-        </div>
+        <Stat label={t.totalValue} value={<Money value={s.total_value} />} />
       </Card>
       <Card>
-        <div className="text-sm text-muted">{t.totalCost}</div>
-        <div className="mt-1 text-2xl font-semibold">
-          <Money value={s.total_cost} />
-        </div>
+        <Stat label={t.totalCost} value={<Money value={s.total_cost} />} />
       </Card>
       <Card>
-        <div className="text-sm text-muted">{t.totalGain}</div>
-        <div className="mt-1 text-2xl font-semibold">
-          <Money value={s.total_gain} colored />
-        </div>
-        <div className="text-sm">
-          <Pct value={s.total_gain_pct} />
-        </div>
+        <Stat
+          label={t.totalGain}
+          value={<Signed value={s.total_gain} />}
+          delta={<GainPct value={s.total_gain_pct} />}
+        />
       </Card>
     </div>
   )
@@ -75,28 +55,7 @@ function Allocation({ s }: { s: PortfolioSummary }) {
       {s.allocation.length === 0 ? (
         <p className="text-muted">{t.noAllocation}</p>
       ) : (
-        <ul className="space-y-3">
-          {s.allocation.map((a) => (
-            <li key={a.asset_class}>
-              <div className="flex justify-between gap-2 text-sm">
-                <span>{t.classes[a.asset_class]}</span>
-                <span className="tabular-nums">
-                  <Money value={a.value} /> · {a.share_pct.replace('.', ',')}%
-                </span>
-              </div>
-              <div
-                className="mt-1 h-2 rounded-full bg-surface-2"
-                role="meter"
-                aria-label={t.classes[a.asset_class]}
-                aria-valuenow={Number(a.share_pct)}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <div className="h-2 rounded-full bg-accent" style={{ width: `${Math.min(100, Number(a.share_pct))}%` }} />
-              </div>
-            </li>
-          ))}
-        </ul>
+        <AllocationChart allocation={s.allocation} />
       )}
     </Card>
   )
@@ -159,9 +118,9 @@ function HoldingsTable({
                     </td>
                     <td className="py-2 pr-3">{t.classes[v.asset_class]}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{v.quantity.replace('.', ',')}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{formatAmount(v.cost_basis, v.amount_currency)}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{formatMoney(v.cost_basis, v.amount_currency)}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">
-                      <div>{formatAmount(v.current_value, v.amount_currency)}</div>
+                      <div>{formatMoney(v.current_value, v.amount_currency)}</div>
                       <Badge tone={v.value_source === 'market' ? 'info' : 'neutral'}>
                         {t.valueSource[v.value_source]}
                       </Badge>
@@ -170,12 +129,12 @@ function HoldingsTable({
                       )}
                     </td>
                     <td className="py-2 pr-3 text-right tabular-nums">
-                      <div className={cn(v.gain.startsWith('-') ? 'text-negative' : Number(v.gain) > 0 && 'text-positive')}>
-                        {formatAmount(v.gain, v.amount_currency)}
+                      <div>
+                        <Signed value={v.gain} currency={v.amount_currency} />
                       </div>
-                      <Pct value={v.gain_pct} />
+                      <GainPct value={v.gain_pct} />
                     </td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{v.share_pct === null ? '–' : `${v.share_pct.replace('.', ',')}%`}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{formatPct(v.share_pct)}</td>
                     <td className="py-2 text-right whitespace-nowrap">
                       {h && (
                         <Button variant="ghost" size="sm" onClick={() => onEdit(h)}>

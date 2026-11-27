@@ -9,8 +9,8 @@ type Props = ComponentPropsWithRef<'button'> & {
 }
 
 const variants = {
-  primary: 'bg-accent text-bg hover:bg-accent-strong',
-  secondary: 'border border-border bg-surface-2 text-text hover:bg-border',
+  primary: 'bg-accent-strong text-white hover:brightness-90',
+  secondary: 'bg-surface-2 text-text hover:bg-surface-2/70 hover:text-text',
   ghost: 'text-text hover:bg-surface-2',
   danger: 'bg-negative text-bg hover:bg-negative/90',
 }
@@ -35,7 +35,7 @@ export function Button({
       aria-busy={loading || undefined}
       onClick={loading ? undefined : onClick}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60',
+        'inline-flex items-center justify-center gap-2 rounded font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60',
         variants[variant],
         sizes[size],
         className,

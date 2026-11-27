@@ -13,10 +13,10 @@ export function Card({
   className?: string
 }) {
   return (
-    <section className={cn('rounded-xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgb(0_0_0/0.12),0_4px_16px_rgb(0_0_0/0.06)]', className)}>
+    <section className={cn('rounded-md bg-linear-to-b from-surface to-surface/60 p-5 shadow-[inset_0_1px_0_rgb(255_255_255/0.04),0_8px_24px_rgb(0_0_0/0.25)]', className)}>
       {(title || actions) && (
         <header className="mb-4 flex items-center justify-between gap-2">
-          {title && <h2 className="border-l-2 border-accent pl-2.5 text-base font-semibold tracking-tight text-text">{title}</h2>}
+          {title && <h2 className="text-sm font-medium text-muted">{title}</h2>}
           {actions && <div className="flex items-center gap-2">{actions}</div>}
         </header>
       )}

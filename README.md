@@ -36,7 +36,7 @@ Coffer is a personal-finance app. It gathers your transactions and investments i
 **Account**
 - Register with e-mail and password, log in and out. Everyone sees only their own data.
 - The *Konto* page: the investment profile on top, then *Bezpieczeństwo konta* (change password, log out of all devices, permanently delete the account with all data).
-- Four tabs (*Podsumowanie*, *Transakcje*, *Portfel*, *Konto*); the header has a light/dark theme switch, your e-mail and *Wyloguj*.
+- Four tabs (*Podsumowanie*, *Transakcje*, *Portfel*, *Konto*); the header shows your e-mail and *Wyloguj*. The app uses a single dark theme.
 
 ## Running locally
 ```bash

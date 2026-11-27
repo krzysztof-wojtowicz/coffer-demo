@@ -3,7 +3,6 @@ import { useLogout } from '../features/auth/queries'
 import { pl } from '../i18n/pl'
 import { cn } from '../lib/cn'
 import { Logo } from './Logo'
-import { ThemeToggle } from './ThemeToggle'
 import { Button } from './ui/Button'
 
 const links = [
@@ -16,8 +15,8 @@ const links = [
 export function Layout({ email }: { email: string }) {
   const logout = useLogout()
   return (
-    <div className="min-h-screen bg-bg text-text">
-      <header className="border-b border-accent/40 bg-surface text-text shadow-sm">
+    <div className="min-h-screen text-text">
+      <header className="sticky top-0 z-30 border-b border-border bg-bg/70 text-text backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-x-4 px-4 py-3">
           <span className="flex shrink-0 items-center gap-2">
             <Logo />
@@ -31,7 +30,7 @@ export function Layout({ email }: { email: string }) {
                 end={l.end}
                 className={({ isActive }) =>
                   cn(
-                    'rounded-md px-3 py-1.5 text-sm',
+                    'rounded px-3 py-1.5 text-sm',
                     isActive ? 'bg-accent-soft font-semibold text-accent' : 'text-muted hover:bg-surface-2 hover:text-text',
                   )
                 }
@@ -41,7 +40,6 @@ export function Layout({ email }: { email: string }) {
             ))}
           </nav>
           <div className="flex shrink-0 items-center gap-3">
-            <ThemeToggle />
             <span className="hidden max-w-[12rem] truncate text-sm text-muted sm:inline">{email}</span>
             <Button variant="secondary" size="sm" onClick={() => logout.mutate()}>
               {pl.nav.logout}

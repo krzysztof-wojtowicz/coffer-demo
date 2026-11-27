@@ -32,7 +32,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     auth.mutate({ email, password }, { onSuccess: () => navigate('/') })
   }
   return (
-    <main className="flex min-h-screen items-center justify-center bg-bg px-4">
+    <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-4">
         <p className="flex items-center justify-center gap-3 text-3xl font-bold text-accent">
           <Logo className="size-10" />

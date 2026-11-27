@@ -19,3 +19,5 @@ The custom UI components (`Select`, `DatePicker`, `ConfirmDialog`, the portal po
 
 ## Out of scope
 A full WCAG audit of the app and testing with real screen readers on devices.
+
+> **Note (2026-11-27):** the `ui-refactor` change removes the light theme and `ThemeToggle`. When resuming, read "both themes" as the dark theme only and drop the theme-toggle items.

@@ -116,7 +116,10 @@ describe('PortfolioPage', () => {
     expect(await screen.findByText('Apple')).toBeTruthy()
     expect(document.body.textContent).toContain('Wartość portfela')
     expect(document.body.textContent).toContain('+20,0%')
-    expect(screen.getByRole('meter', { name: 'Akcje' }).getAttribute('aria-valuenow')).toBe('100')
+    const chart = screen.getByRole('img', { name: /Akcje 100,0%/ })
+    expect(chart.getAttribute('aria-label')).toContain('Akcje 100,0%')
+    const legendRow = screen.getAllByText('Akcje').map((e) => e.closest('li')).find(Boolean)
+    expect(legendRow?.textContent).toContain('100,0%')
     expect(document.body.textContent).not.toContain('Notowania rynkowe są chwilowo niedostępne')
   })
 

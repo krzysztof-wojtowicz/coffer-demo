@@ -1,7 +1,7 @@
 import { useRef, useState, type DragEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ErrorMessage } from '../../components/ErrorMessage'
-import { Money } from '../../components/Money'
+import { Signed } from '../../components/Signed'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
@@ -121,7 +121,7 @@ function UploadStep({
           }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
-          className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 border-dashed p-8 text-center text-muted ${
+          className={`flex cursor-pointer flex-col items-center gap-1 rounded-md border-2 border-dashed p-8 text-center text-muted ${
             dragging ? 'border-accent bg-accent-soft' : 'border-border'
           }`}
         >
@@ -274,7 +274,7 @@ function PreviewStep({
                 <td className="py-2 pr-3 whitespace-nowrap">{r.date ?? ''}</td>
                 <td className="py-2 pr-3">{r.description}</td>
                 <td className="py-2 pr-3 text-right">
-                  {r.amount !== null && <Money value={r.amount} colored />}
+                  {r.amount !== null && <Signed value={r.amount} />}
                 </td>
                 <td className="py-2 pr-3">
                   {r.status !== 'error' && (

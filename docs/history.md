@@ -57,6 +57,9 @@ Until the refactoring, the app ran on free plans: the SPA on Vercel, which rewro
 ## AI assistant removed (Nov 2026)
 To simplify the refactoring, the AI assistant was removed (change `remove-ai-agent`): the `coffer.agent` module, all LLM clients (Ollama, OpenAI, Gemini, Anthropic), the MCP market server, `/api/agent/*`, `GET /api/market/quotes`, the assistant tab, and the tables `agent_runs`, `suggestions` and `llm_usage_daily` (dropped by a new migration). The investment profile, quotes, FX and the price job stay. Stages 2, 3 and 5 above describe the assistant as it was. It will be rebuilt for local LLMs after the refactor (see the [roadmap](roadmap.md)).
 
+## UI refactor (Nov 2026)
+Change `ui-refactor`: the light/dark/system theme switch was removed and the app is dark only ("night ledger" tokens, including `chart-1..7`). Duplicated markup became shared `Signed`, `Stat`, `Bar`, `BarList`; `lib/money.ts` was folded into `lib/format.ts`; the allocation bars became an SVG donut (`AllocationChart`); Geist fonts are self-hosted. Behaviour is unchanged. See [architecture.md](architecture.md) §5.
+
 ## Open follow-ups from reviews
 - Expired `auth_sessions` and abandoned import drafts are never purged (see [data-model.md](data-model.md) §2h).
 - `OriginMiddleware` lets requests without an `Origin` header through on purpose, relying on SameSite=Lax. This should be revisited if the app is hosted again.
