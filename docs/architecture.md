@@ -95,13 +95,13 @@ flowchart LR
     subgraph core_layer["Modules"]
         accounts["coffer.accounts<br/>(deps.CurrentUser)"]
         transactions["coffer.transactions"]
-        budget["coffer.budget<br/>insights, net worth"]
+        budget["coffer.budget<br/>trend, net worth"]
         cash["coffer.cash<br/>opening balance"]
         imports["coffer.imports"]
         profile["coffer.profile"]
         portfolio["coffer.portfolio"]
         market["coffer.market<br/>service, scheduler"]
-        analytics["coffer.analytics<br/>(pure: month, compare,<br/>net_worth, portfolio, allocation (target, gap), shares, ...)"]
+        analytics["coffer.analytics<br/>(pure: month, trend,<br/>net_worth, portfolio, allocation (target, gap), shares, ...)"]
         core["coffer.core<br/>config, db, money, months, origin"]
     end
 
@@ -119,7 +119,7 @@ flowchart LR
     transactions -->|"TxView"| analytics
     transactions --> core
     budget -->|"service.list_views"| transactions
-    budget -->|"month_summary, compare"| analytics
+    budget -->|"month_summary, trend"| analytics
     budget --> cash
     budget --> portfolio
     budget --> accounts
@@ -167,7 +167,7 @@ flowchart LR
     subgraph pages["src/frontend/src/features (React Router, App.tsx)"]
         auth["auth<br/>AuthPage, useMe"]
         tx["transactions<br/>TransactionsPage, TransactionRow, TransactionForm"]
-        bud["budget<br/>SummaryPage, NetWorthCard, InsightsCard"]
+        bud["budget<br/>SummaryPage, NetWorthCard, TrendChart, CategoryTrends"]
         imp["import<br/>ImportFlow (panel in TransactionsPage)"]
         prof["profile<br/>ProfileSection (in AccountPage)"]
         port["portfolio<br/>PortfolioPage"]
@@ -185,7 +185,7 @@ flowchart LR
     subgraph endpoints["Backend /api/*"]
         e_auth["/api/auth/{register,login,logout,me}"]
         e_tx["/api/transactions (GET, POST, PATCH, DELETE),<br/>/api/categories"]
-        e_bud["/api/budget/{month}, /api/budget/{month}/insights,<br/>/api/budget/net-worth"]
+        e_bud["/api/budget/{month}, /api/budget/{month}/trend?months=3, 6 or 12,<br/>/api/budget/net-worth"]
         e_imp["/api/imports, /api/imports/banks,<br/>/api/imports/{draft_id}/commit"]
         e_prof["/api/profile"]
         e_port["/api/portfolio/holdings, /api/portfolio/summary"]

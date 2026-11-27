@@ -20,7 +20,7 @@ Coffer is a personal-finance app. It gathers your transactions and investments i
 **Summary**
 - The *Majątek* (net worth) card shows cash on accounts, portfolio value and net worth. Cash is the opening balance you enter (amount and date) plus your transactions since that date. Without one, all transactions count from zero, so the result may not match your bank. The card flags a portfolio that isn't fully priced.
 - For the chosen month: income, expenses and balance tiles (all transactions). The surplus counts budget categories only.
-- Expenses by category with shares, a comparison with the previous month, and an *Wnioski* (insights) card with the fastest-growing categories.
+- A trend over the last 3, 6 or 12 months (window selector): income, expenses and balance against the window average, a chart, and per-category trends.
 - A short portfolio card.
 
 **Investment profile** (top of the *Konto* tab)

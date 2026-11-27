@@ -1,25 +1,17 @@
 import datetime as dt
-from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from coffer.analytics.compare import CategoryChange, CategoryGrowth, compare_months, top_growth
 from coffer.analytics.month import MonthSummary
 from coffer.analytics.month import month_summary as compute_month_summary
 from coffer.analytics.net_worth import NetWorth, cash_amounts, portfolio_is_complete
 from coffer.analytics.net_worth import net_worth as compute_net_worth
+from coffer.analytics.trend import Trend
+from coffer.analytics.trend import trend as compute_trend
 from coffer.cash import service as cash_service
 from coffer.core.months import parse_month
 from coffer.portfolio import service as portfolio_service
 from coffer.transactions.service import list_views
-
-
-@dataclass(frozen=True)
-class MonthInsights:
-    month: str
-    previous_month: str
-    comparison: list[CategoryChange]
-    top_growth: list[CategoryGrowth]
 
 
 def month_summary(db: Session, user_id: int, month: str) -> MonthSummary:
@@ -58,12 +50,5 @@ def month_summaries(db: Session, user_id: int, month: str, count: int) -> list[M
     return [compute_month_summary(m, views) for m in months]
 
 
-def month_insights(db: Session, user_id: int, month: str) -> MonthInsights:
-    summaries = month_summaries(db, user_id, month, 4)
-    current, previous, history = summaries[0], summaries[1], summaries[1:]
-    return MonthInsights(
-        month=month,
-        previous_month=previous.month,
-        comparison=compare_months(current, previous),
-        top_growth=top_growth(current, history),
-    )
+def trend(db: Session, user_id: int, month: str, count: int) -> Trend:
+    return compute_trend(month_summaries(db, user_id, month, count)[::-1])

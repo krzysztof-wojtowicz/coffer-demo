@@ -67,8 +67,8 @@ def test_cash_uses_opening_balance(auth_client, db, user, category_id, monkeypat
     cat = category_id("Inne")
     own = category_id("Przelewy własne")
     d = TODAY - dt.timedelta(days=10)
-    add_tx(db, user, d - dt.timedelta(days=5), "-700.00", cat)  # before: inside opening
-    add_tx(db, user, d, "-300.00", cat)  # same day: inside opening
+    add_tx(db, user, d - dt.timedelta(days=5), "-700.00", cat)  # before as_of: not counted
+    add_tx(db, user, d, "-300.00", cat)  # on as_of: counted
     add_tx(db, user, d + dt.timedelta(days=1), "100.00", cat)
     add_tx(db, user, TODAY, "-40.25", own)  # out-of-budget category still counts
     add_tx(db, user, TODAY + dt.timedelta(days=1), "999.00", cat)  # future
@@ -76,10 +76,37 @@ def test_cash_uses_opening_balance(auth_client, db, user, category_id, monkeypat
     assert auth_client.get(NW).json()["opening_balance_set"] is False
     auth_client.put(URL, json={"amount": "2000.00", "as_of": d.isoformat()})
     b = auth_client.get(NW).json()
-    assert b["cash_balance"] == "2059.75"
+    assert b["cash_balance"] == "1759.75"
     assert b["opening_balance_set"] is True
     auth_client.delete(URL)
     assert auth_client.get(NW).json()["cash_balance"] == "-940.25"
+
+
+def test_opening_balance_day_transactions_count(auth_client, db, user, category_id, monkeypatch):
+    fake_market(monkeypatch, {})
+    cat = category_id("Inne")
+    d = TODAY - dt.timedelta(days=3)
+    auth_client.put(URL, json={"amount": "5000.00", "as_of": d.isoformat()})
+    add_tx(db, user, d, "8500.00", cat)
+    add_tx(db, user, d, "-264.15", cat)
+    assert auth_client.get(NW).json()["cash_balance"] == "13235.85"
+
+
+def test_transaction_before_opening_day_does_not_count(
+    auth_client, db, user, category_id, monkeypatch
+):
+    fake_market(monkeypatch, {})
+    d = TODAY - dt.timedelta(days=3)
+    auth_client.put(URL, json={"amount": "5000.00", "as_of": d.isoformat()})
+    add_tx(db, user, d - dt.timedelta(days=1), "-999.00", category_id("Inne"))
+    assert auth_client.get(NW).json()["cash_balance"] == "5000.00"
+
+
+def test_cash_amounts_counts_as_of_day():
+    today = dt.date(2026, 6, 1)
+    as_of = dt.date(2026, 5, 1)
+    dated = [(as_of - dt.timedelta(days=1), Decimal("7")), (as_of, Decimal("3"))]
+    assert cash_balance(cash_amounts(dated, today, as_of)) == Decimal("3.00")
 
 
 def test_regression_cash_counts_out_of_budget_and_ignores_month_filter(
@@ -105,7 +132,7 @@ def test_cash_property(opening, as_of, rows):
     base = lambda n: today + dt.timedelta(days=n)  # noqa: E731
     dated = [(base(n), a) for n, a in rows]
     got = cash_balance(cash_amounts(dated, today, base(as_of)), opening)
-    expected = opening + sum((a for n, a in rows if as_of < n <= 0), Decimal(0))
+    expected = opening + sum((a for n, a in rows if as_of <= n <= 0), Decimal(0))
     assert got == expected
 
 

@@ -21,8 +21,8 @@ class NetWorth:
 def cash_amounts(
     dated: Iterable[tuple[date, Decimal]], today: date, as_of: date | None = None
 ) -> list[Decimal]:
-    """Amounts counted in cash: dated after `as_of` (already in the opening balance) up to today."""
-    return [a for d, a in dated if d <= today and (as_of is None or d > as_of)]
+    """Amounts counted in cash: dated from `as_of` on (the opening balance is start-of-day)."""
+    return [a for d, a in dated if d <= today and (as_of is None or d >= as_of)]
 
 
 def cash_balance(amounts: Iterable[Decimal], opening: Decimal = ZERO) -> Decimal:

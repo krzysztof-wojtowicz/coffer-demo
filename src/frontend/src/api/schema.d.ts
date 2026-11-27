@@ -194,15 +194,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/budget/{month}/insights": {
+    "/api/budget/{month}/trend": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Insights */
-        get: operations["get_insights_api_budget__month__insights_get"];
+        /** Get Trend */
+        get: operations["get_trend_api_budget__month__trend_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -420,6 +420,19 @@ export interface components {
             /** Share Pct */
             share_pct: string;
         };
+        /** AverageOut */
+        AverageOut: {
+            /** Income */
+            income: string;
+            /** Expenses */
+            expenses: string;
+            /** Balance */
+            balance: string;
+            /** Surplus */
+            surplus: string;
+            /** Savings Rate */
+            savings_rate: string | null;
+        };
         /** BankOut */
         BankOut: {
             /** Id */
@@ -433,36 +446,6 @@ export interface components {
             file: string;
             /** Bank */
             bank: string;
-        };
-        /** CategoryChangeOut */
-        CategoryChangeOut: {
-            /** Category Id */
-            category_id: number;
-            /** Category Name */
-            category_name: string;
-            /** Current */
-            current: string;
-            /** Previous */
-            previous: string;
-            /** Change */
-            change: string;
-            /** Change Pct */
-            change_pct: string | null;
-        };
-        /** CategoryGrowthOut */
-        CategoryGrowthOut: {
-            /** Category Id */
-            category_id: number;
-            /** Category Name */
-            category_name: string;
-            /** Current */
-            current: string;
-            /** Average 3M */
-            average_3m: string;
-            /** Increase */
-            increase: string;
-            /** Increase Pct */
-            increase_pct: string | null;
         };
         /** CategoryOut */
         CategoryOut: {
@@ -483,6 +466,28 @@ export interface components {
             category_name: string;
             /** Expenses */
             expenses: string;
+        };
+        /** CategoryTrendOut */
+        CategoryTrendOut: {
+            /** Category Id */
+            category_id: number;
+            /** Category Name */
+            category_name: string;
+            /** Amounts */
+            amounts: string[];
+            /** Average */
+            average: string | null;
+            /** Change */
+            change: string | null;
+            /** Change Pct */
+            change_pct: string | null;
+        };
+        /** ChangeOut */
+        ChangeOut: {
+            /** Amount */
+            amount: string;
+            /** Pct */
+            pct: string | null;
         };
         /** ClassGapOut */
         ClassGapOut: {
@@ -704,23 +709,27 @@ export interface components {
             /** Error */
             error: string | null;
         };
-        /** InsightsOut */
-        InsightsOut: {
-            /** Month */
-            month: string;
-            /** Previous Month */
-            previous_month: string;
-            /** Comparison */
-            comparison: components["schemas"]["CategoryChangeOut"][];
-            /** Top Growth */
-            top_growth: components["schemas"]["CategoryGrowthOut"][];
-        };
         /** LoginIn */
         LoginIn: {
             /** Email */
             email: string;
             /** Password */
             password: string;
+        };
+        /** MonthPointOut */
+        MonthPointOut: {
+            /** Month */
+            month: string;
+            /** Income */
+            income: string;
+            /** Expenses */
+            expenses: string;
+            /** Balance */
+            balance: string;
+            /** Surplus */
+            surplus: string;
+            /** Savings Rate */
+            savings_rate: string | null;
         };
         /** MonthSummaryOut */
         MonthSummaryOut: {
@@ -794,6 +803,11 @@ export interface components {
         PasswordConfirm: {
             /** Password */
             password: string;
+        };
+        /** PointsChangeOut */
+        PointsChangeOut: {
+            /** Amount */
+            amount: string;
         };
         /** PortfolioSummaryOut */
         PortfolioSummaryOut: {
@@ -928,6 +942,31 @@ export interface components {
             /** Category Id */
             category_id?: number | null;
         };
+        /** TrendChangeOut */
+        TrendChangeOut: {
+            income: components["schemas"]["ChangeOut"];
+            expenses: components["schemas"]["ChangeOut"];
+            balance: components["schemas"]["ChangeOut"];
+            surplus: components["schemas"]["ChangeOut"];
+            savings_rate: components["schemas"]["PointsChangeOut"] | null;
+        };
+        /** TrendOut */
+        TrendOut: {
+            /** Month */
+            month: string;
+            /** Months */
+            months: components["schemas"]["MonthPointOut"][];
+            average: components["schemas"]["AverageOut"] | null;
+            change: components["schemas"]["TrendChangeOut"] | null;
+            /** Categories */
+            categories: components["schemas"]["CategoryTrendOut"][];
+        };
+        /**
+         * TrendWindow
+         * @description IntEnum, not Literal: query strings are coerced to int only for enums.
+         * @enum {integer}
+         */
+        TrendWindow: 3 | 6 | 12;
         /** UserOut */
         UserOut: {
             /** Id */
@@ -1394,9 +1433,11 @@ export interface operations {
             };
         };
     };
-    get_insights_api_budget__month__insights_get: {
+    get_trend_api_budget__month__trend_get: {
         parameters: {
-            query?: never;
+            query?: {
+                months?: components["schemas"]["TrendWindow"];
+            };
             header?: never;
             path: {
                 month: string;
@@ -1411,7 +1452,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InsightsOut"];
+                    "application/json": components["schemas"]["TrendOut"];
                 };
             };
             /** @description Validation Error */

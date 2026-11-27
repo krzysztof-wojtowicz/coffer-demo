@@ -196,7 +196,7 @@ export function HoldingForm({ editing, onDone }: { editing: Holding | null; onDo
             <Hint>{t.noteHint}</Hint>
           </Field>
         )}
-        <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-1">
+        <div className="flex gap-2 self-start sm:col-span-2 lg:col-span-1 lg:mt-6">
             {cfg && (
               <Button type="submit" loading={mutation.isPending}>
                 {editing ? t.update : t.save}

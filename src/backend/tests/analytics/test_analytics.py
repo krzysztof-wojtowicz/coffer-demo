@@ -13,7 +13,6 @@ from coffer.analytics.allocation import (
     allocation_gap,
     target_allocation,
 )
-from coffer.analytics.compare import compare_months, top_growth
 from coffer.analytics.month import CategoryTotal, MonthSummary, TxView, month_summary
 from coffer.analytics.net_worth import net_worth, portfolio_is_complete
 from coffer.analytics.portfolio import (
@@ -23,6 +22,7 @@ from coffer.analytics.portfolio import (
     portfolio_summary,
     value_holding,
 )
+from coffer.analytics.trend import trend
 
 D = Decimal
 M = "2026-03"
@@ -44,6 +44,7 @@ def test_empty_month():
         expenses=D("0.00"),
         balance=D("0.00"),
         surplus=D("0.00"),
+        budget_income=D("0.00"),
         by_category=[],
     )
 
@@ -163,107 +164,166 @@ def test_month_summary_invariants_n04(txs):
     assert s.expenses == -sum((t.amount for t in relevant if t.amount < 0), D("0.00"))
 
 
-# --- compare_months / top_growth ---
+# --- trend ---
+
+OWN = (9, "Przelewy własne", False)
+INV = (8, "Inwestycje", False)
+SAL = (7, "Wynagrodzenie", True)
+FOOD = (1, "Jedzenie", True)
+CAR = (2, "Transport", True)
 
 
-def ms(month: str, cats: dict[int, tuple[str, str, bool]]) -> MonthSummary:
-    by = [CategoryTotal(cid, n, D(v), b) for cid, (n, v, b) in cats.items()]
-    total = sum((c.expenses for c in by), D("0.00"))
-    return MonthSummary(month, D("0.00"), total, -total, -total, by)
+def mt(month, *items):
+    """Month summary from (amount, (cid, name, in_budget)) items, all dated on the 5th."""
+    d = date.fromisoformat(f"{month}-05")
+    return month_summary(month, [TxView(d, D(a), *c) for a, c in items])
 
 
 def test_category_total_in_budget_default_true():
     assert CategoryTotal(1, "x", D("1.00")).in_budget is True
 
 
-def test_compare_months_changes_and_order():
-    cur = ms("2025-03", {1: ("A", "150.00", True), 2: ("B", "10.00", True)})
-    prev = ms("2025-02", {1: ("A", "100.00", True), 3: ("C", "40.00", True)})
-    out = compare_months(cur, prev)
-    by = {c.category_id: c for c in out}
-    assert set(by) == {1, 2, 3}
-    assert by[1].change == D("50.00") and by[1].change_pct == D("50.0")
-    assert by[2].previous == D("0.00") and by[2].change_pct is None
-    assert by[3].current == D("0.00") and by[3].change == D("-40.00")
-    assert by[3].change_pct == D("-100.0")
-    assert [c.category_id for c in out] == [1, 3, 2]  # by |change|
+def test_trend_months_oldest_first_and_last_is_month():
+    t = trend([mt("2026-01"), mt("2026-02"), mt("2026-03")])
+    assert t.month == "2026-03"
+    assert [p.month for p in t.months] == ["2026-01", "2026-02", "2026-03"]
 
 
-def test_compare_tie_sorted_by_name():
-    cur = ms("2025-03", {1: ("Zeta", "10.00", True), 2: ("Alfa", "10.00", True)})
-    assert [c.category_name for c in compare_months(cur, ms("2025-02", {}))] == ["Alfa", "Zeta"]
+def test_trend_savings_rate_example():
+    t = trend([mt("2026-03", ("8500.00", SAL), ("-3712.16", FOOD))])
+    p = t.months[-1]
+    assert p.surplus == D("4787.84")
+    assert p.savings_rate == D("56.3")
 
 
-@pytest.mark.parametrize(
-    ("current", "previous", "pct"),
-    [("112.25", "100.00", "12.3"), ("1.00", "3.00", "-66.7"), ("5.00", "5.00", "0.0")],
-)
-def test_change_pct_rounds_half_up(current, previous, pct):
-    [row] = compare_months(
-        ms("2025-03", {1: ("A", current, True)}), ms("2025-02", {1: ("A", previous, True)})
+def test_trend_savings_rate_unchanged_by_own_transfers():
+    t = trend(
+        [mt("2026-03", ("8500.00", SAL), ("-3712.16", FOOD), ("1000.00", OWN), ("-1000.00", OWN))]
     )
-    assert row.change_pct == D(pct)
+    p = t.months[-1]
+    assert p.income == D("9500.00")
+    assert p.surplus == D("4787.84")
+    assert p.savings_rate == D("56.3")
 
 
-def test_top_growth_rules():
-    cur = ms(
-        "2025-03",
-        {
-            1: ("A", "100.00", True),
-            2: ("B", "300.00", True),
-            3: ("C", "50.00", False),  # not in budget
-            4: ("D", "10.00", True),  # decreased
-            5: ("E", "200.00", True),
-            6: ("F", "150.00", True),
-        },
+def test_trend_investment_sale_counts_in_income_not_in_rate():
+    t = trend([mt("2026-03", ("8500.00", SAL), ("-3712.16", FOOD), ("2000.00", INV))])
+    p = t.months[-1]
+    assert p.income == D("10500.00")
+    assert p.savings_rate == D("56.3")
+
+
+def test_trend_savings_rate_null_without_budget_income():
+    t = trend([mt("2026-03", ("2000.00", INV), ("500.00", OWN), ("-100.00", FOOD))])
+    assert t.months[-1].savings_rate is None
+    assert trend([mt("2026-03")]).months[-1].savings_rate is None
+
+
+def test_trend_average_and_change_example():
+    t = trend(
+        [
+            mt("2026-01", ("-3000.00", FOOD)),
+            mt("2026-02", ("-5000.00", FOOD)),
+            mt("2026-03", ("-4400.00", FOOD)),
+        ]
     )
-    hist = [ms("2025-02", {4: ("D", "100.00", True)}), ms("2025-01", {}), ms("2024-12", {})]
-    out = top_growth(cur, hist)
-    assert [g.category_id for g in out] == [2, 5, 6]
-    assert out[0].average_3m == D("0.00") and out[0].increase == D("300.00")
-    assert out[0].increase_pct is None
-    assert len(top_growth(cur, hist, n=1)) == 1
+    assert t.average.expenses == D("4000.00")
+    assert t.change.expenses.amount == D("400.00")
+    assert t.change.expenses.pct == D("10.0")
 
 
-def test_top_growth_average_counts_missing_months_as_zero():
-    cur = ms("2025-03", {1: ("A", "90.00", True)})
-    hist = [
-        ms("2025-02", {}),
-        ms("2025-01", {1: ("A", "60.00", True)}),
-        ms("2024-12", {1: ("A", "30.00", True)}),
-    ]
-    g = top_growth(cur, hist)[0]
-    assert g.average_3m == D("30.00") and g.increase == D("60.00")
+def test_trend_empty_earlier_months_not_averaged():
+    t = trend(
+        [
+            mt("2026-01", ("-3000.00", FOOD)),
+            mt("2026-02"),
+            mt("2026-03"),
+            mt("2026-04", ("-4000.00", FOOD)),
+        ]
+    )
+    assert t.average.expenses == D("3000.00")
+    assert t.change.expenses.amount == D("1000.00")
 
 
-def test_top_growth_with_fewer_than_three_months_uses_available():
-    cur = ms("2025-03", {1: ("A", "90.00", True)})
-    g = top_growth(cur, [ms("2025-02", {1: ("A", "60.00", True)})])[0]
-    assert g.average_3m == D("60.00") and g.increase == D("30.00")
+def test_trend_no_earlier_data_gives_null_average_and_change():
+    t = trend([mt("2026-01"), mt("2026-02"), mt("2026-03", ("-10.00", FOOD))])
+    assert t.average is None
+    assert t.change is None
 
 
-CATS = [(1, "A", True), (2, "B", True), (3, "Inwestycje", False)]
+def test_trend_average_savings_rate_is_average_surplus_over_average_budget_income():
+    t = trend(
+        [
+            mt("2026-01", ("1000.00", SAL), ("-500.00", FOOD)),
+            mt("2026-02", ("3000.00", SAL), ("-2500.00", FOOD)),
+            mt("2026-03", ("2000.00", SAL), ("-500.00", FOOD)),
+        ]
+    )
+    # average surplus 500 / average income 2000 = 25.0; this month 75.0 -> +50.0 points
+    assert t.average.savings_rate == D("25.0")
+    assert t.change.savings_rate.amount == D("50.0")
 
 
-def _summary(month: str, items: list[tuple[int, int]]):
-    txs = [TxView(date.fromisoformat(f"{month}-05"), -D(c) / 100, *CATS[i]) for i, c in items]
-    return month_summary(month, txs)
+def test_trend_category_amounts_zero_filled():
+    t = trend(
+        [
+            mt("2026-01", ("-926.09", FOOD)),
+            mt("2026-02", ("-5.00", CAR)),
+            mt("2026-03", ("-1895.24", FOOD)),
+        ]
+    )
+    food = next(c for c in t.categories if c.category_name == "Jedzenie")
+    assert food.amounts == [D("926.09"), D("0.00"), D("1895.24")]
 
 
-month_items = st.lists(st.tuples(st.integers(0, 2), st.integers(1, 10**7)), max_size=15)
+def test_trend_excludes_out_of_budget_categories():
+    t = trend([mt("2026-03", ("-500.00", INV), ("-100.00", OWN), ("-10.00", FOOD))])
+    assert [c.category_name for c in t.categories] == ["Jedzenie"]
 
 
-@given(month_items, month_items)
-def test_comparison_sums_to_expenses(cur, prev):
-    c, p = _summary("2026-03", cur), _summary("2026-02", prev)
-    assert sum((x.current for x in compare_months(c, p)), D("0.00")) == c.expenses
+def test_trend_category_average_counts_missing_as_zero_over_months_with_data():
+    t = trend(
+        [
+            mt("2026-01", ("-100.00", FOOD)),
+            mt("2026-02"),
+            mt("2026-03", ("-10.00", CAR)),
+            mt("2026-04", ("-300.00", FOOD)),
+        ]
+    )
+    food = next(c for c in t.categories if c.category_name == "Jedzenie")
+    assert food.average == D("50.00")
+    assert food.change == D("250.00")
+    assert food.change_pct == D("500.0")
 
 
-@given(month_items, st.lists(month_items, min_size=3, max_size=3))
-def test_top_growth_limited_and_budget_only(cur, hist):
-    result = top_growth(_summary("2026-03", cur), [_summary("2026-02", h) for h in hist])
-    assert len(result) <= 3
-    assert all(g.category_id != 3 and g.increase > 0 for g in result)
+def test_trend_new_category_has_zero_average_and_null_pct():
+    t = trend([mt("2026-02", ("-10.00", CAR)), mt("2026-03", ("-40.00", FOOD))])
+    food = next(c for c in t.categories if c.category_name == "Jedzenie")
+    assert food.average == D("0.00")
+    assert food.change == D("40.00")
+    assert food.change_pct is None
+
+
+def test_trend_category_ordering():
+    zeta, alfa = (11, "Zeta", True), (12, "Alfa", True)
+    t = trend(
+        [
+            mt("2026-02", ("-900.00", CAR), ("-10.00", FOOD)),
+            mt("2026-03", ("-50.00", FOOD), ("-50.00", zeta), ("-50.00", alfa), ("-70.00", CAR)),
+        ]
+    )
+    # month expenses desc (Transport 70), then window total desc, then name
+    assert [c.category_name for c in t.categories] == ["Transport", "Jedzenie", "Alfa", "Zeta"]
+
+
+@given(st.lists(tx_strategy, max_size=40))
+def test_trend_months_sum_to_all_transactions_n04(txs):
+    months = ["2026-02", "2026-03", "2026-04"]
+    inside = [t for t in txs if t.date.strftime("%Y-%m") in months]
+    t = trend([month_summary(m, txs) for m in months])
+    assert sum((p.balance for p in t.months), D("0.00")) == sum(
+        (x.amount for x in inside), D("0.00")
+    )
 
 
 # --- net_worth ---

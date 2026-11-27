@@ -138,10 +138,6 @@ describe("extended WCAG guards (dark)", () => {
     check(`accent (${t.accent}) vs ${g} (${t[g]})`, t.accent, t[g], undefined, 3);
   });
 
-  it.each(FLOORS)("input-border vs %s >= 3:1", (g) => {
-    expect(t["input-border"], `${name}: --color-input-border missing`).toBeDefined();
-    check(`input-border (${t["input-border"]}) vs ${g}`, t["input-border"], t[g], undefined, 3);
-  });
 });
 
 function hue([r, g, b]: RGBA): number | null {

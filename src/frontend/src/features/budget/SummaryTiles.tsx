@@ -1,51 +1,77 @@
-import { ErrorMessage } from '../../components/ErrorMessage'
+import type { ReactNode } from 'react'
 import { Money } from '../../components/Money'
 import { Signed } from '../../components/Signed'
-import { BarList } from '../../components/ui/BarList'
 import { Card } from '../../components/ui/Card'
 import { Stat } from '../../components/ui/Stat'
-import { Spinner } from '../../components/ui/Spinner'
 import { pl } from '../../i18n/pl'
-import { apiErrorMessage } from '../../lib/errors'
-import { useBudget } from './queries'
+import { cn } from '../../lib/cn'
+import { formatPct, signOf } from '../../lib/format'
+import type { Trend } from './queries'
 
-export function SummaryTiles({ month }: { month: string }) {
-  const { data, error, isLoading } = useBudget(month)
-  if (isLoading) return <Spinner />
-  if (error) return <ErrorMessage message={apiErrorMessage(error)} />
-  if (!data) return null
-  // Tylko do szerokości paska; wyświetlane są wyłącznie stringi z API.
-  const total = Math.abs(Number(data.expenses)) || 0
-  const share = (v: string) => (total > 0 ? Math.min(100, (Math.abs(Number(v)) / total) * 100) : 0)
+const t = pl.summary
+
+type Change = { amount: string }
+
+/** Percentage-point difference, e.g. "−10,0 p.p."; the API value is already rounded. */
+function Pp({ value }: { value: string }) {
+  const sign = signOf(value)
+  const text = value.replace('.', ',').replace('-', '−')
   return (
-    <>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card>
-          <Stat label={pl.summary.income} value={<Money value={data.income} />} testId="tile-income" />
-        </Card>
-        <Card>
-          <Stat label={pl.summary.expenses} value={<Money value={data.expenses} />} testId="tile-expenses" />
-        </Card>
-        <Card>
-          {/* Balance = balance of all transactions in the month (no client-side math). */}
-          <Stat label={pl.summary.balance} value={<Signed value={data.balance} />} testId="tile-balance" />
-        </Card>
-      </div>
-      <Card title={pl.summary.byCategory}>
-        {data.by_category.length === 0 ? (
-          <p className="text-muted">{pl.summary.noExpenses}</p>
-        ) : (
-          <BarList
-            role="meter"
-            items={data.by_category.map((c) => ({
-              key: String(c.category_id),
-              label: c.category_name,
-              value: <Money value={c.expenses} />,
-              pct: share(c.expenses),
-            }))}
-          />
-        )}
-      </Card>
-    </>
+    <span className={cn('font-mono tabular-nums', sign > 0 && 'text-positive', sign < 0 && 'text-negative')}>
+      {sign > 0 ? '+' : ''}
+      {text} {t.ppUnit}
+    </span>
+  )
+}
+
+/** Change vs the window average; `invert` for figures where more is worse. */
+function Delta({ change, invert, pp }: { change: Change | null | undefined; invert?: boolean; pp?: boolean }) {
+  return (
+    <span className="text-xs text-muted">
+      {change ? (
+        <>
+          {pp ? <Pp value={change.amount} /> : <Signed value={change.amount} signed invert={invert} />} {t.vsAverage}
+        </>
+      ) : (
+        t.noData
+      )}
+    </span>
+  )
+}
+
+function Tile({ label, value, delta, testId }: { label: string; value: ReactNode; delta: ReactNode; testId: string }) {
+  return (
+    <Card>
+      <Stat label={label} value={value} delta={delta} testId={testId} />
+    </Card>
+  )
+}
+
+export function SummaryTiles({ trend }: { trend: Trend }) {
+  const last = trend.months[trend.months.length - 1]
+  if (!last) return null
+  const c = trend.change
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Tile label={t.income} value={<Money value={last.income} />} delta={<Delta change={c?.income} />} testId="tile-income" />
+      <Tile
+        label={t.expenses}
+        value={<Money value={last.expenses} />}
+        delta={<Delta change={c?.expenses} invert />}
+        testId="tile-expenses"
+      />
+      <Tile
+        label={t.balance}
+        value={<Signed value={last.balance} />}
+        delta={<Delta change={c?.balance} />}
+        testId="tile-balance"
+      />
+      <Tile
+        label={t.savingsRate}
+        value={last.savings_rate === null ? formatPct(null) : formatPct(last.savings_rate)}
+        delta={<Delta change={c?.savings_rate} pp />}
+        testId="tile-savings"
+      />
+    </div>
   )
 }

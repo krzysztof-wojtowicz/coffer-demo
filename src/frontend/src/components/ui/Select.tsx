@@ -14,9 +14,6 @@ import { cn } from '../../lib/cn'
 import { controlClass } from './Input'
 import { Popover } from './popover'
 
-const ghostClass =
-  'rounded bg-surface-2 px-3 py-2 text-sm font-normal text-text hover:bg-surface-2/60 hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-accent'
-
 type Opt = { value: string; label: string; disabled: boolean }
 
 function text(node: ReactNode): string {
@@ -54,7 +51,7 @@ export type SelectProps = {
   required?: boolean
   id?: string
   className?: string
-  /** `ghost`: borderless, for filter bars. Form fields keep the bordered default. */
+  /** `ghost`: highlights the control when moved off the first option, for filter bars. */
   variant?: 'default' | 'ghost'
   'aria-label'?: string
 }
@@ -162,7 +159,7 @@ export function Select({
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={onKeyDown}
         className={cn(
-          variant === 'ghost' ? ghostClass : controlClass,
+          controlClass,
           'flex w-full items-center justify-between gap-2 text-left disabled:opacity-60',
           // A filter that has moved off its first (default) option is highlighted.
           variant === 'ghost' && selectedIdx > 0 && 'text-accent',

@@ -1,19 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/client'
 
-export function useBudget(month: string) {
-  return useQuery({
-    queryKey: ['budget', month],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/api/budget/{month}', {
-        params: { path: { month } },
-      })
-      if (error) throw error
-      return data
-    },
-  })
-}
-
 export function useNetWorth() {
   return useQuery({
     queryKey: ['net-worth'],
@@ -25,15 +12,17 @@ export function useNetWorth() {
   })
 }
 
-export function useInsights(month: string) {
+export function useTrend(month: string, months: number) {
   return useQuery({
-    queryKey: ['budget', 'insights', month],
+    queryKey: ['budget', 'trend', month, months],
     queryFn: async () => {
-      const { data, error } = await api.GET('/api/budget/{month}/insights', {
-        params: { path: { month } },
+      const { data, error } = await api.GET('/api/budget/{month}/trend', {
+        params: { path: { month }, query: { months: months as 3 | 6 | 12 } },
       })
       if (error) throw error
       return data
     },
   })
 }
+
+export type Trend = NonNullable<ReturnType<typeof useTrend>['data']>
