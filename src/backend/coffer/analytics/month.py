@@ -32,6 +32,7 @@ class MonthSummary:
     expenses: Decimal
     balance: Decimal
     surplus: Decimal
+    budget_income: Decimal  # positive in-budget amounts; base of the savings rate
     by_category: list[CategoryTotal]
 
 
@@ -42,6 +43,7 @@ def month_summary(month: str, txs: Iterable[TxView]) -> MonthSummary:
     income = ZERO
     expenses = ZERO
     budget_balance = ZERO
+    budget_income = ZERO
     names: dict[int, str] = {}
     budget_flags: dict[int, bool] = {}
     per_category: dict[int, Decimal] = defaultdict(lambda: ZERO)
@@ -51,6 +53,8 @@ def month_summary(month: str, txs: Iterable[TxView]) -> MonthSummary:
         amount = quantize(tx.amount)
         if tx.in_budget:
             budget_balance += amount
+            if amount > 0:
+                budget_income += amount
         if amount > 0:
             income += amount
         elif amount < 0:
@@ -75,5 +79,6 @@ def month_summary(month: str, txs: Iterable[TxView]) -> MonthSummary:
         expenses=expenses,
         balance=balance,
         surplus=max(quantize(budget_balance), ZERO),
+        budget_income=quantize(budget_income),
         by_category=by_category,
     )

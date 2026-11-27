@@ -25,6 +25,7 @@ export function DatePicker({
   disabled,
   min,
   max,
+  className,
   'aria-label': ariaLabel,
 }: {
   value: string
@@ -34,6 +35,7 @@ export function DatePicker({
   disabled?: boolean
   min?: string
   max?: string
+  className?: string
   'aria-label'?: string
 }) {
   const selected = parseIso(value)
@@ -116,7 +118,7 @@ export function DatePicker({
         aria-required={required || undefined}
         onClick={() => (open ? setOpen(false) : openCal())}
         onKeyDown={onKeyDown}
-        className={cn(controlClass, 'flex w-full items-center justify-between gap-2 text-left disabled:opacity-60')}
+        className={cn(controlClass, 'flex w-full items-center justify-between gap-2 text-left disabled:opacity-60', className)}
       >
         <span className={selected ? '' : 'text-muted'}>{selected ? value : pl.datePicker.choose}</span>
         <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-muted" fill="currentColor">

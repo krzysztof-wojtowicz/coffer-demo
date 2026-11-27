@@ -94,7 +94,7 @@ def test_non_budget_categories_counted_but_not_in_surplus(auth_client, db, user,
 )
 def test_invalid_month_422(auth_client, bad):
     assert auth_client.get(f"/api/budget/{bad}").status_code == 422
-    assert auth_client.get(f"/api/budget/{bad}/insights").status_code == 422
+    assert auth_client.get(f"/api/budget/{bad}/trend").status_code == 422
 
 
 def test_summary_is_per_user(auth_client, other_auth_client, db, user, make_user, category_id):
@@ -125,62 +125,100 @@ def test_month_balances_sum_to_cash_balance(auth_client, db, user, category_id, 
     assert total == cash == Decimal("1559.75")
 
 
-# --- Requirement: Month comparison and top growth ---
+# --- Requirement: Spending trend window ---
 
 
-def test_insights_comparison_and_growth(auth_client, db, user, category_id):
+def test_trend_default_window_six_months_oldest_first(auth_client, db, user, category_id):
+    add_tx(db, user, date(2026, 11, 3), "8500.00", category_id("Inne"))
+    add_tx(db, user, date(2026, 11, 4), "-3712.16", category_id("Jedzenie"))
+    r = auth_client.get("/api/budget/2026-11/trend")
+    assert r.status_code == 200
+    body = r.json()
+    assert [m["month"] for m in body["months"]] == [f"2026-{n:02d}" for n in range(6, 12)]
+    last = body["months"][-1]
+    assert last["income"] == "8500.00"
+    assert last["expenses"] == "3712.16"
+    assert last["surplus"] == "4787.84"
+    assert last["savings_rate"] == "56.3"
+
+
+def test_trend_window_crosses_year(auth_client):
+    body = auth_client.get("/api/budget/2026-01/trend?months=3").json()
+    assert [m["month"] for m in body["months"]] == ["2025-11", "2025-12", "2026-01"]
+
+
+@pytest.mark.parametrize("n", [3, 6, 12])
+def test_trend_supported_windows(auth_client, n):
+    body = auth_client.get(f"/api/budget/2026-11/trend?months={n}").json()
+    assert len(body["months"]) == n
+
+
+@pytest.mark.parametrize("n", ["4", "0", "13", "abc"])
+def test_trend_unsupported_window_422(auth_client, n):
+    assert auth_client.get(f"/api/budget/2026-11/trend?months={n}").status_code == 422
+
+
+def test_trend_own_transfers_do_not_change_rate(auth_client, db, user, category_id):
+    add_tx(db, user, date(2026, 11, 3), "8500.00", category_id("Inne"))
+    add_tx(db, user, date(2026, 11, 4), "-3712.16", category_id("Jedzenie"))
+    add_tx(db, user, date(2026, 11, 5), "1000.00", category_id("Przelewy własne"))
+    add_tx(db, user, date(2026, 11, 5), "-1000.00", category_id("Przelewy własne"))
+    last = auth_client.get("/api/budget/2026-11/trend").json()["months"][-1]
+    assert last["income"] == "9500.00"
+    assert last["surplus"] == "4787.84"
+    assert last["savings_rate"] == "56.3"
+
+
+def test_trend_savings_rate_null_without_budget_income(auth_client, db, user, category_id):
+    add_tx(db, user, date(2026, 11, 3), "2000.00", category_id("Inwestycje"))
+    last = auth_client.get("/api/budget/2026-11/trend").json()["months"][-1]
+    assert last["income"] == "2000.00"
+    assert last["savings_rate"] is None
+
+
+def test_trend_average_change_and_categories(auth_client, db, user, category_id):
     food, tr = category_id("Jedzenie"), category_id("Transport")
-    add_tx(db, user, date(2026, 3, 2), "-300.00", food)
-    add_tx(db, user, date(2026, 3, 3), "-50.00", tr)
-    add_tx(db, user, date(2026, 2, 3), "-100.00", food)
-    add_tx(db, user, date(2026, 1, 3), "-100.00", food)
-    add_tx(db, user, date(2025, 12, 3), "-100.00", food)
-    body = auth_client.get("/api/budget/2026-03/insights").json()
-    assert "limits" not in body
-    assert body["previous_month"] == "2026-02"
-    assert body["comparison"][0] == {
-        "category_id": food,
-        "category_name": "Jedzenie",
-        "current": "300.00",
-        "previous": "100.00",
-        "change": "200.00",
-        "change_pct": "200.0",
-    }
-    # previous month was zero
-    assert body["comparison"][1]["category_name"] == "Transport"
-    assert body["comparison"][1]["previous"] == "0.00"
-    assert body["comparison"][1]["change_pct"] is None
-    growth = {g["category_name"]: g for g in body["top_growth"]}
-    assert growth["Jedzenie"]["average_3m"] == "100.00"
-    assert growth["Transport"]["average_3m"] == "0.00"
-    assert growth["Transport"]["increase_pct"] is None
+    add_tx(db, user, date(2026, 8, 3), "-3000.00", food)
+    add_tx(db, user, date(2026, 10, 3), "-5000.00", food)
+    add_tx(db, user, date(2026, 11, 3), "-4400.00", food)
+    add_tx(db, user, date(2026, 11, 4), "-20.00", tr)
+    add_tx(db, user, date(2026, 11, 4), "-999.00", category_id("Inwestycje"))
+    body = auth_client.get("/api/budget/2026-11/trend").json()
+    assert body["average"]["expenses"] == "4000.00"
+    assert body["change"]["expenses"] == {"amount": "1419.00", "pct": "35.5"}
+    cats = {c["category_name"]: c for c in body["categories"]}
+    assert "Inwestycje" not in cats
+    assert [c["category_name"] for c in body["categories"]] == ["Jedzenie", "Transport"]
+    assert cats["Jedzenie"]["amounts"] == ["0.00", "0.00", "3000.00", "0.00", "5000.00", "4400.00"]
+    assert cats["Transport"]["average"] == "0.00"
+    assert cats["Transport"]["change"] == "20.00"
+    assert cats["Transport"]["change_pct"] is None
 
 
-def test_insights_fewer_than_three_prior_months_uses_available(auth_client, db, user, category_id):
+def test_trend_no_earlier_data_has_null_average(auth_client, db, user, category_id):
+    add_tx(db, user, date(2026, 11, 3), "-10.00", category_id("Jedzenie"))
+    body = auth_client.get("/api/budget/2026-11/trend").json()
+    assert body["average"] is None
+    assert body["change"] is None
+
+
+def test_trend_is_per_user(auth_client, other_auth_client, db, user, make_user, category_id):
     food = category_id("Jedzenie")
-    add_tx(db, user, date(2025, 1, 5), "-60.00", food)  # only one earlier month has data
-    add_tx(db, user, date(2025, 3, 5), "-90.00", food)
-    [g] = auth_client.get("/api/budget/2025-03/insights").json()["top_growth"]
-    assert g["average_3m"] == "20.00"  # (60 + 0 + 0) / 3: missing months count as zero
-    assert g["increase"] == "70.00"
-    assert g["increase_pct"] == "350.0"
+    add_tx(db, user, date(2026, 11, 3), "-10.00", food)
+    add_tx(db, make_user(email="third@example.com"), date(2026, 11, 3), "-99.00", food)
+    mine = auth_client.get("/api/budget/2026-11/trend").json()
+    theirs = other_auth_client.get("/api/budget/2026-11/trend").json()
+    assert mine["months"][-1]["expenses"] == "10.00"
+    assert theirs["months"][-1]["expenses"] == "0.00"
+    assert theirs["categories"] == []
 
 
-def test_insights_empty_and_previous_month_crosses_year(auth_client):
-    body = auth_client.get("/api/budget/2026-01/insights").json()
-    assert body == {
-        "month": "2026-01",
-        "previous_month": "2025-12",
-        "comparison": [],
-        "top_growth": [],
-    }
+def test_trend_requires_session(client):
+    assert client.get("/api/budget/2026-11/trend").status_code == 401
 
 
-def test_insights_are_per_user(auth_client, other_auth_client, db, make_user, category_id):
-    food = category_id("Jedzenie")
-    add_tx(db, make_user(email="third@example.com"), date(2025, 3, 5), "-999.00", food)
-    body = other_auth_client.get("/api/budget/2025-03/insights").json()
-    assert body["comparison"] == [] and body["top_growth"] == []
+def test_insights_endpoint_removed(auth_client):
+    assert auth_client.get("/api/budget/2026-03/insights").status_code == 404
 
 
 # --- Requirement: Category limits (removed) ---

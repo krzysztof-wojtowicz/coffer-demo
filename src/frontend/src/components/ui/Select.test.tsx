@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Select } from './Select'
 
 afterEach(cleanup)
@@ -55,6 +55,24 @@ describe('Select', () => {
     await userEvent.keyboard('{Enter}{Escape}')
     expect(screen.queryByRole('listbox')).toBeNull()
     expect(seen).toEqual(['c', 'a'])
+  })
+
+  it('otwiera listę nad polem z maxHeight, gdy na dole brakuje miejsca', async () => {
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 700, bottom: 730, left: 20, right: 220, width: 200, height: 30, x: 20, y: 700, toJSON: () => ({}),
+    })
+    const sh = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(300)
+    vi.stubGlobal('innerHeight', 768)
+    render(<Harness />)
+    await userEvent.click(screen.getByRole('combobox'))
+    const panel = screen.getByRole('listbox').parentElement as HTMLElement
+    expect(panel.style.bottom).toBe('72px')
+    expect(panel.style.top).toBe('')
+    expect(panel.style.maxHeight).toBe('688px')
+    expect(panel.style.visibility).toBe('visible')
+    rect.mockRestore()
+    sh.mockRestore()
+    vi.unstubAllGlobals()
   })
 
   it('zamyka się po kliknięciu poza', async () => {

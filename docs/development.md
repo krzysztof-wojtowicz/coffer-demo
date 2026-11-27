@@ -72,7 +72,7 @@ coffer/
     │       ├── accounts/     registration, login, sessions, CurrentUser
     │       ├── transactions/ transactions and categories
     │       ├── imports/      CSV import: parser, banks, categorization, de-duplication
-    │       ├── budget/       month view, insights, net worth
+    │       ├── budget/       month view, trends, net worth
     │       ├── cash/         opening balance
     │       ├── analytics/    pure functions for totals and shares
     │       ├── profile/      investment profile

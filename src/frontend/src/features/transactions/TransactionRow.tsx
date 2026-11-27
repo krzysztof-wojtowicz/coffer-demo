@@ -101,10 +101,11 @@ function EditForm({
     <form onSubmit={submit} className="mt-3 space-y-3 rounded-md bg-surface-2 p-3">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Field label={pl.transactions.date}>
-          <DatePicker required value={date} onChange={setDate} />
+          <DatePicker required className="bg-surface!" value={date} onChange={setDate} />
         </Field>
         <Field label={pl.transactions.amount}>
           <Input
+            className="bg-surface!"
             type="text"
             inputMode="decimal"
             required
@@ -115,6 +116,7 @@ function EditForm({
         </Field>
         <Field label={pl.transactions.description}>
           <Input
+            className="bg-surface!"
             type="text"
             required
             value={description}
@@ -122,7 +124,7 @@ function EditForm({
           />
         </Field>
         <Field label={pl.transactions.category}>
-          <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+          <Select className="bg-surface!" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}

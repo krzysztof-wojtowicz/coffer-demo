@@ -34,7 +34,7 @@ What the ER diagram doesn't show:
 - **`import_drafts`** (`imports`): an expired draft is removed only when the **same** user accesses imports again.
 - **`investment_profiles`** (`profile`): `preferred_classes` is JSONB and uses the shared asset-class list (`AssetClass` in `coffer/analytics/allocation.py`: `stock, etf, bond, real_estate, commodity, crypto, cash`).
 - **`market_quotes`**: global, one row per symbol per day (UPSERT). FX rates are stored here as `<CCY>PLN=X` pairs; there is no `fx_rates` table.
-- **`opening_balances`** (`cash`): the amount may be negative; the balance is valid at the end of `as_of`, and later transactions add to it.
+- **`opening_balances`** (`cash`): the amount may be negative; the balance is valid at the start of `as_of`, and transactions dated on or after it add to it.
 
 ### 1.3 Known issues (most serious first)
 

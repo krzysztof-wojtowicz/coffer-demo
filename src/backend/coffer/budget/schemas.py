@@ -35,26 +35,52 @@ class NetWorthOut(_Out):
     as_of: date
 
 
-class CategoryChangeOut(_Out):
+class MonthPointOut(_Out):
+    month: str
+    income: MoneyStr
+    expenses: MoneyStr
+    balance: MoneyStr
+    surplus: MoneyStr
+    savings_rate: PctStr | None
+
+
+class AverageOut(_Out):
+    income: MoneyStr
+    expenses: MoneyStr
+    balance: MoneyStr
+    surplus: MoneyStr
+    savings_rate: PctStr | None
+
+
+class ChangeOut(_Out):
+    amount: MoneyStr
+    pct: PctStr | None
+
+
+class PointsChangeOut(_Out):
+    amount: PctStr  # percentage points
+
+
+class TrendChangeOut(_Out):
+    income: ChangeOut
+    expenses: ChangeOut
+    balance: ChangeOut
+    surplus: ChangeOut
+    savings_rate: PointsChangeOut | None
+
+
+class CategoryTrendOut(_Out):
     category_id: int
     category_name: str
-    current: MoneyStr
-    previous: MoneyStr
-    change: MoneyStr
+    amounts: list[MoneyStr]
+    average: MoneyStr | None
+    change: MoneyStr | None
     change_pct: PctStr | None
 
 
-class CategoryGrowthOut(_Out):
-    category_id: int
-    category_name: str
-    current: MoneyStr
-    average_3m: MoneyStr
-    increase: MoneyStr
-    increase_pct: PctStr | None
-
-
-class InsightsOut(_Out):
+class TrendOut(_Out):
     month: str
-    previous_month: str
-    comparison: list[CategoryChangeOut]
-    top_growth: list[CategoryGrowthOut]
+    months: list[MonthPointOut]
+    average: AverageOut | None
+    change: TrendChangeOut | None
+    categories: list[CategoryTrendOut]
