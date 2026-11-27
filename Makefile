@@ -1,7 +1,7 @@
 BACKEND = cd src/backend && uv run
 FRONTEND = cd src/frontend
 
-.PHONY: setup db-up db-down migrate dev-api dev-web test-backend lint check-web check-web-clean check openapi seed mcp-market prices migrate-remote seed-remote
+.PHONY: setup db-up db-down migrate dev-api dev-web test-backend lint check-web check-web-clean check openapi seed mcp-market prices migrate-remote seed-remote openspec-skills
 
 setup:
 	cd src/backend && uv sync
@@ -66,3 +66,10 @@ mcp-market:
 
 prices:
 	$(BACKEND) python -m coffer.scripts.refresh_prices
+
+# Refresh OpenSpec skills for Claude Code as real files in .claude/skills (openspec 2.x writes
+# symlinks into .agents/, which we don't keep).
+openspec-skills:
+	openspec update --force .
+	for d in .claude/skills/openspec-*; do [ -L "$$d" ] && cp -RL "$$d" "$$d.tmp" && rm "$$d" && mv "$$d.tmp" "$$d"; done; true
+	rm -rf .agents

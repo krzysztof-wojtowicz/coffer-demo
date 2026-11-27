@@ -1,162 +1,50 @@
-# Baza danych w chmurze: Neon
+# Database: Neon
 
-Produkcyjna baza Coffer to darmowy Postgres w [Neon](https://neon.tech) (plan Free nie wygasa).
-Lokalnie nadal używamy Postgresa z `compose.yaml` (`make db-up`), a Neon tylko dla wdrożenia.
+Production uses a free Postgres on [Neon](https://neon.tech) (the Free plan doesn't expire). Locally we keep using Postgres from `compose.yaml` (`make db-up`).
 
-```
-Render (backend, Frankfurt) ──► Neon (Postgres, AWS eu-central-1 / Frankfurt)
-```
+## What the code already handles
+- **Neon URLs work as-is.** The app and Alembic accept `postgres://` and `postgresql://` and switch the scheme to `postgresql+psycopg://`; `?sslmode=require&channel_binding=require` is kept (`coffer/core/db_url.py`, validator in `coffer/core/config.py`).
+- **Connection pool** (`coffer/core/db.py`): `pool_pre_ping=True` (drops connections Neon closed while asleep), `pool_size=5`, `max_overflow=5`, `pool_recycle=300`.
+- **Pooled endpoint:** if the host contains `-pooler`, psycopg prepared statements are disabled (`prepare_threshold=None`) for PgBouncer transaction mode.
+- `make migrate-remote` and `make seed-remote` (below). Nothing seeds production automatically.
+- `COFFER_DATABASE_URL` is hidden in `repr(Settings)`; never log it or commit it.
 
-## Co jest gotowe w kodzie
+## Direct or pooled?
+Use the **direct** URL (`ep-xxx.eu-central-1.aws.neon.tech`): Render runs one instance with at most 10 connections, and its start command runs `alembic upgrade head` with the same URL. Migrations through the pooler (PgBouncer) can break on session features. Switch the app to pooled (`ep-xxx-pooler…`) only with many instances, and keep running migrations with the direct URL.
 
-- **URL prosto z Neon działa.** Aplikacja i Alembic akceptują `postgres://` i `postgresql://`
-  i same zamieniają schemat na `postgresql+psycopg://` (psycopg 3). Parametry
-  `?sslmode=require&channel_binding=require` zostają bez zmian. Kod: `coffer/core/db_url.py`,
-  walidator w `coffer/core/config.py`.
-- **Pula połączeń** (`coffer/core/db.py`): `pool_pre_ping=True` (wykrywa połączenia zerwane,
-  gdy Neon uśpił bazę), `pool_size=5`, `max_overflow=5` (maks. 10 połączeń na instancję),
-  `pool_recycle=300` s (Neon zamyka bezczynne połączenia).
-- **Pooled endpoint:** gdy host zawiera `-pooler`, aplikacja wyłącza prepared statements psycopg
-  (`prepare_threshold=None`), bo PgBouncer w trybie transakcyjnym ich nie gwarantuje.
-- **Make:** `make migrate-remote` i `make seed-remote` (opis niżej). Nic nie seeduje produkcji
-  automatycznie.
-- `COFFER_DATABASE_URL` jest ukryty w `repr(Settings)`; nie loguj go i nie wklejaj do repo.
-
-## Direct czy pooled?
-
-Neon pokazuje dwa warianty connection stringa (przełącznik **Connection pooling** w oknie
-*Connect*):
-
-| Wariant | Host | Kiedy |
-|---|---|---|
-| **Direct** (zalecany) | `ep-xxx.eu-central-1.aws.neon.tech` | Migracje Alembic (zawsze), backend na Render z 1 instancją. Pełna sesja Postgresa, najmniej niespodzianek. |
-| **Pooled** | `ep-xxx-pooler.eu-central-1.aws.neon.tech` | Wiele instancji / dużo krótkich połączeń (serverless), gdy zbliżasz się do limitu połączeń. |
-
-U nas backend na Render ma jedną instancję i maks. 10 połączeń, a start command uruchamia
-`alembic upgrade head` z **tym samym** `COFFER_DATABASE_URL`. Dlatego ustawiamy **direct**.
-Migracje przez pooler (PgBouncer, tryb transakcyjny) mogą psuć się na funkcjach sesyjnych,
-więc gdybyście kiedyś przeszli na pooled dla aplikacji, migracje odpalajcie direct URL-em
-(`make migrate-remote`).
-
-## Krok po kroku
-
-### 1. Konto i projekt
-
-1. Wejdź na <https://neon.tech> → **Sign up** (najprościej przez GitHub lub Google). Karta
-   płatnicza nie jest potrzebna.
-2. **Create project**:
-   - *Project name*: `coffer`
-   - *Postgres version*: **16** (taka sama jak lokalnie w `compose.yaml`; 17 też zadziała)
-   - *Cloud provider / Region*: **AWS · Europe Central 1 (Frankfurt)** (`aws-eu-central-1`),
-     blisko backendu na Render (Frankfurt). Regionu projektu nie da się później zmienić.
-   - *Database name*: `neondb` (domyślna, może zostać).
-3. Po utworzeniu kliknij **Connect**: wybierz branch `main`, bazę `neondb`, rolę
-   `neondb_owner`, **wyłącz** *Connection pooling* (direct) i skopiuj connection string:
-
+## Setup
+1. Sign up at <https://neon.tech> (GitHub or Google; no card).
+2. **Create project**: name `coffer`, Postgres **16**, region **AWS Europe Central 1 (Frankfurt)** (can't be changed later), database `neondb`.
+3. **Connect**: branch `main`, role `neondb_owner`, *Connection pooling* **off**; copy the URL. The password is a secret: keep it out of the repo, issues and LLM chats.
+4. Migrate from your machine (after `make setup`):
+   ```bash
+   make migrate-remote COFFER_DATABASE_URL='postgresql://neondb_owner:PASSWORD@ep-...neon.tech/neondb?sslmode=require&channel_binding=require'
    ```
-   postgresql://neondb_owner:HASŁO@ep-xxx-yyy-123456.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
-   ```
+   Quote the URL (`&`, `?`). A ~1 s first connection is Neon waking up. Check with `cd src/backend && COFFER_DATABASE_URL='...' uv run alembic current`. A command-line variable wins over `.env`; never put the Neon URL in `.env`, or `make migrate/dev-api/seed` will hit production.
+5. Demo data (optional, deliberately): `make seed-remote CONFIRM=yes COFFER_DATABASE_URL='...'` creates `demo@coffer.local` with the **known** password from `seed_demo.py`. Without `CONFIRM=yes` it refuses.
+6. On Render, set `COFFER_DATABASE_URL` to the same direct URL. Each deploy runs migrations, so step 4 is only for the first setup or a sanity check.
 
-   Hasło jest sekretem: nie wklejaj go do repo, issue ani czatu z LLM.
+## Free plan limits (2026; check <https://neon.tech/pricing>)
+About 0.5 GB per project (the demo uses a few MB); monthly compute hours (enough for a small app at 0.25 CU); scale to zero after ~5 min idle (slower first query); a short restore window (hours) instead of full backups. When compute runs out, Neon suspends the DB until month end: the API returns 500 while `/api/health` still works.
 
-### 2. Migracje z własnego komputera
-
-Z katalogu głównego repo (wymaga `make setup`):
-
+## Backup and restore
+Before an important change (demo, migration), dump locally (`pg_dump` ≥ server version):
 ```bash
-make migrate-remote COFFER_DATABASE_URL='postgresql://neondb_owner:HASŁO@ep-...neon.tech/neondb?sslmode=require&channel_binding=require'
+docker run --rm -v "$PWD:/out" postgres:16 pg_dump '<neon-url>' -Fc -f /out/coffer.dump
+docker run --rm -v "$PWD:/out" postgres:16 pg_restore --no-owner -d '<neon-url>' /out/coffer.dump   # into an empty DB
 ```
+`coffer.dump` contains user data: never commit it. Alternative: Neon console → **Branches → Create branch** (instant copy-on-write).
 
-- Apostrofy są potrzebne (URL zawiera `&` i `?`).
-- Komenda nie wypisuje URL-a. Gdy pierwsze połączenie trwa ~1 s, to normalne: Neon wybudza
-  uśpioną bazę.
-- Sprawdzenie wersji schematu:
-  `cd src/backend && COFFER_DATABASE_URL='...' uv run alembic current` (powinno być `0004 (head)`
-  lub nowsze).
+## Reset (deletes ALL data)
+- SQL Editor: `DROP SCHEMA public CASCADE; CREATE SCHEMA public;`, then `make migrate-remote …` or redeploy Render; or
+- `cd src/backend && COFFER_DATABASE_URL='...' uv run alembic downgrade base`, then `make migrate-remote …`; or
+- create a new database/project and point Render at the new URL.
 
-Uwaga: zmienna z wiersza poleceń wygrywa z `.env`. Nie wpisuj URL-a Neon do `.env`, bo wtedy
-`make migrate`, `make dev-api` i `make seed` będą działać na produkcji.
-
-### 3. Dane demo (opcjonalnie, świadomie)
-
-```bash
-make seed-remote CONFIRM=yes COFFER_DATABASE_URL='postgresql://...'
-```
-
-Tworzy konto `demo@coffer.local` ze **znanym hasłem** z `coffer/scripts/seed_demo.py` i
-wymyślonymi transakcjami. Rób to tylko na bazie demonstracyjnej; bez `CONFIRM=yes` komenda
-odmawia.
-
-### 4. Render (backend)
-
-W usłudze backendu na Render → **Environment** ustaw `COFFER_DATABASE_URL` na **ten sam**
-direct connection string (bez zmian, z `postgresql://` i `sslmode=require`). Start command
-backendu uruchamia `alembic upgrade head`, więc każde wdrożenie samo dociągnie nowe migracje;
-krok 2 jest potrzebny tylko przy pierwszej konfiguracji albo do sprawdzenia, że URL działa.
-Szczegóły usługi: [backend.md](backend.md).
-
-## Limity planu Free (stan na 2026, sprawdź <https://neon.tech/pricing>)
-
-- ok. **0,5 GB** danych na projekt (Coffer z danymi demo zajmuje kilka MB),
-- limit godzin obliczeniowych na miesiąc (przy 0,25 CU wystarcza na stałą pracę małej
-  aplikacji),
-- **scale to zero** po ok. 5 min bez ruchu; pierwsze zapytanie po przerwie jest wolniejsze
-  (wybudzanie), `pool_pre_ping` odrzuca zerwane połączenia z puli,
-- limit połączeń direct zależy od rozmiaru compute (przy 0,25 CU ok. 100); pooler przyjmuje
-  ich znacznie więcej,
-- krótkie okno przywracania (history / instant restore: kilka godzin wstecz) zamiast
-  pełnych backupów.
-
-Po przekroczeniu limitu compute Neon wstrzymuje bazę do końca miesiąca: backend zwraca wtedy
-błędy 500, a `/api/health` dalej działa.
-
-## Backup
-
-Darmowe okno przywracania jest krótkie, więc przed ważną zmianą (np. demo, nowa migracja)
-zrób zrzut lokalnie (klient `pg_dump` w wersji ≥ wersji serwera; Docker z `compose.yaml` go ma):
-
-```bash
-docker run --rm -v "$PWD:/out" postgres:16 \
-  pg_dump 'postgresql://neondb_owner:HASŁO@ep-...neon.tech/neondb?sslmode=require' -Fc -f /out/coffer.dump
-```
-
-Przywrócenie (do pustej bazy):
-
-```bash
-docker run --rm -v "$PWD:/out" postgres:16 \
-  pg_restore --no-owner -d 'postgresql://...neondb?sslmode=require' /out/coffer.dump
-```
-
-Plik `coffer.dump` zawiera dane użytkowników: nie commituj go.
-
-Alternatywa w konsoli Neon: **Branches → Create branch** robi natychmiastową kopię
-(copy-on-write) bazy, z której można wrócić.
-
-## Reset bazy
-
-Usuwa **wszystkie** dane. Do wyboru:
-
-1. **SQL Editor w konsoli Neon** (najprościej):
-
-   ```sql
-   DROP SCHEMA public CASCADE;
-   CREATE SCHEMA public;
-   ```
-
-   potem `make migrate-remote COFFER_DATABASE_URL='...'` (albo redeploy backendu na Render,
-   który sam uruchomi migracje).
-2. **Alembic:** `cd src/backend && COFFER_DATABASE_URL='...' uv run alembic downgrade base`,
-   potem `make migrate-remote ...`.
-3. **Nowa baza:** w konsoli Neon *Databases → New database* (lub usuń i załóż projekt od nowa),
-   a nowy connection string ustaw w Render i odpal migracje.
-
-## Rozwiązywanie problemów
-
-- `password authentication failed` → zła rola lub hasło; w Neon *Roles → Reset password*,
-  zaktualizuj URL w Render.
-- `connection ... timeout` przy pierwszym połączeniu → baza się wybudza, spróbuj ponownie.
-- `SSL connection is required` → w URL brakuje `?sslmode=require`.
-- `prepared statement "_pg3_0" does not exist` → używasz pooled URL bez `-pooler` w hoście
-  (np. przez własny proxy); przejdź na direct URL.
-- `ModuleNotFoundError: psycopg2` → URL nie przeszedł przez `Settings` (np. własny skrypt
-  tworzy engine z surowego URL-a); użyj `coffer.core.db_url.normalize_database_url`.
+## Troubleshooting
+| Error | Cause |
+|---|---|
+| `password authentication failed` | wrong role or password; *Roles → Reset password*, update Render |
+| timeout on first connection | the DB is waking up; retry |
+| `SSL connection is required` | missing `?sslmode=require` |
+| `prepared statement "_pg3_0" does not exist` | a pooled connection without `-pooler` in the host; use the direct URL |
+| `ModuleNotFoundError: psycopg2` | an engine built from a raw URL; use `coffer.core.db_url.normalize_database_url` |

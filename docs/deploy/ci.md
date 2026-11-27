@@ -1,70 +1,40 @@
 # CI/CD (GitHub Actions)
 
-Repozytorium: `krzysztof-wojtowicz/coffer-demo` na GitHubie. Pliki w `.github/`.
+Repository `krzysztof-wojtowicz/coffer-demo`; files in `.github/`.
 
-## Workflowy
+## Workflows
 
-### `ci.yml` (CI)
-Uruchamia się przy pushu na `main`, przy każdym pull requeście do `main` i ręcznie. Gdy na tę samą gałąź przyjdzie nowy commit, poprzedni przebieg jest anulowany (`concurrency`). Uprawnienia: tylko `contents: read`.
+**`ci.yml` (CI)** runs on pushes to `main`, PRs to `main`, and manually. A new commit on the same branch cancels the previous run. Permissions: `contents: read`.
 
-| Job | Co robi |
+| Job | What it does |
 |---|---|
-| `backend` | Postgres 16 jako service (`coffer`/`coffer`, baza `coffer`; baza `coffer_test` jest zakładana przez `tests/conftest.py`), `uv sync --locked` z cache, `make lint` (ruff check + format, pyright, import-linter), `pytest` z pokryciem (`pytest-cov` doinstalowywany tylko w CI przez `uv run --with`). Raport `coverage.xml` jest artefaktem przebiegu (7 dni). |
-| `frontend` | Node 24 LTS z cache npm, `npm ci`, `tsc --noEmit -p tsconfig.app.json`, `vitest run`, `vite build`. Nie potrzebuje `openapi.json` (plik jest w `.gitignore`; frontend korzysta z zacommitowanego `src/api/schema.d.ts`). |
-| `openapi-sync` | Uruchamia `make openapi` (bez bazy: zrzut buduje tylko aplikację FastAPI) i failuje, jeśli `src/frontend/src/api/schema.d.ts` się zmienił. Naprawa: `make openapi` lokalnie i commit `schema.d.ts`. |
+| `backend` | Postgres 16 service, `uv sync --locked` with cache, `make lint` (ruff check + format, pyright, import-linter), `pytest` with coverage (`coverage.xml` artifact, 7 days) |
+| `frontend` | Node 24 LTS with npm cache, `npm ci`, `tsc --noEmit -p tsconfig.app.json`, `vitest run`, `vite build` |
+| `openapi-sync` | `make openapi` (no DB needed) and fail if `src/frontend/src/api/schema.d.ts` changed. Fix: run `make openapi` locally and commit. |
 
-LLM i rynek: CI nie ma żadnych sekretów LLM i ustawia `COFFER_LLM_PROVIDER=none`. Testy podmieniają klienta LLM (`get_llm_client` + `FakeLLM`), a `yfinance` jest zamockowany w `tests/market/conftest.py` i w testach integracyjnych, więc nic nie wychodzi do sieci.
+CI has no LLM secrets and sets `COFFER_LLM_PROVIDER=none`; tests use `FakeLLM` and mock `yfinance`, so nothing reaches the network.
 
-### `deploy.yml` (Deploy)
-Odpala się przez `workflow_run`, gdy workflow **CI** zakończy się sukcesem dla **pusha na `main`** (PR-y nie deployują). Można go też uruchomić ręcznie (Actions → Deploy → Run workflow).
+**`deploy.yml` (Deploy)** runs via `workflow_run` when CI succeeds for a **push to `main`** (PRs never deploy), or manually.
+- **Backend:** `curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL&ref=<sha>"`, so Render builds exactly the commit CI tested. Without the secret the step is skipped (green).
+- **Skipped runs** are normal: GitHub starts Deploy after *every* finished CI on `main`, including failed or cancelled ones.
+- **Frontend:** nothing in Actions; Vercel builds every push itself.
+- Keep **Auto-Deploy off** in Render (`autoDeploy: false`), or every push is built twice, including ones CI rejected.
 
-- **Backend (Render):** `curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL&ref=<sha>"`, czyli Render buduje dokładnie ten commit, który przeszedł CI (a nie nowszy, który mógł w międzyczasie trafić na `main`). Gdy sekretu nie ma, krok jest pomijany z komunikatem „Brak sekretu…” (workflow jest zielony).
-- **Przebiegi „skipped”:** GitHub uruchamia Deploy po *każdym* zakończonym CI na `main`, także po czerwonym lub anulowanym. Wtedy job jest pomijany (szary). Kilka przebiegów Deploy przy jednym commicie to nie podwójny deploy, tylko kilka przebiegów CI (np. anulowanych przez kolejne merge). Kolumna commit przy `workflow_run` pokazuje aktualny `main`, nie commit z CI.
-- **Frontend (Vercel):** nic nie robimy w Actions. Vercel po podpięciu repo sam buduje każdy push (`main` → produkcja, PR → preview). Root Directory w Vercel: `src/frontend`.
+**`migrations.yml`** runs Mondays 05:00 UTC, on PRs touching `alembic/` or `models.py`, and manually. On an empty Postgres it checks: exactly one `alembic heads`; `upgrade head`; `alembic check` (no model/migration drift); `downgrade base` + `upgrade head`.
 
-Ważne: jeśli backend deployuje się przez hook po CI, **wyłącz Auto-Deploy w Render** (Service → Settings → Build & Deploy → Auto-Deploy: `No`; w `render.yaml` byłoby to `autoDeploy: false`). Inaczej Render zbuduje każdy push dwa razy, także taki, którego CI nie przepuściło.
+**`dependabot.yml`** opens weekly PRs (Monday) for `uv`, `npm` and GitHub Actions; minor/patch updates are grouped per ecosystem.
 
-### `migrations.yml` (Migrations)
-Co poniedziałek o 05:00 UTC, przy PR zmieniających `alembic/` lub `models.py` i ręcznie. Na czystym Postgresie sprawdza:
-1. `alembic heads` zwraca dokładnie jedną głowę (inaczej: `alembic merge`),
-2. `alembic upgrade head` przechodzi,
-3. `alembic check` nie wykrywa rozjazdu modeli i migracji,
-4. `downgrade base` + ponowny `upgrade head` (czy downgrade'y działają).
+## `RENDER_DEPLOY_HOOK_URL` secret
+Render → backend service → **Settings → Deploy Hook** → copy (treat like a password) → GitHub → **Settings → Secrets and variables → Actions → New repository secret** named `RENDER_DEPLOY_HOOK_URL`.
 
-### `dependabot.yml`
-Raz w tygodniu (poniedziałek) PR-y z aktualizacjami dla `uv` (`src/backend`), `npm` (`src/frontend`) i GitHub Actions. Aktualizacje minor/patch są grupowane w jeden PR na ekosystem; major przychodzą osobno. Każdy taki PR przechodzi przez CI.
+## Dependabot policy
+- Never merge a Dependabot PR with red CI. If `main` is red, fix it first, then comment `@dependabot rebase`.
+- Major bumps of `mcp` and `typescript` are ignored in `dependabot.yml` because they break the build; read the changelog for other majors.
+- Merging several PRs in a row cancels earlier CI runs; the last run on `main` is the one that counts.
+- No auto-merge on purpose: without required checks, `gh pr merge --auto` would merge immediately.
 
-## Sekret `RENDER_DEPLOY_HOOK_URL`
-1. Render → serwis backendu → **Settings** → **Deploy Hook** → skopiuj URL (zawiera klucz, traktuj jak hasło).
-2. GitHub → repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
-3. Name: `RENDER_DEPLOY_HOOK_URL`, Secret: wklejony URL → **Add secret**.
+## Protecting `main` (repo admin)
+**Not enabled yet**, which is why some PRs were merged with red CI. Settings → **Rules → Rulesets → New branch ruleset**: name `main`, **Active**, target the default branch; enable **Restrict deletions**, **Block force pushes**, **Require a pull request before merging**, and **Require status checks to pass** (up to date) with `Backend (lint + tests)`, `Frontend (tsc + vitest + build)` and `OpenAPI types in sync`.
 
-### Polityka Dependabota
-- Nie merguj PR Dependabota z czerwonym CI. Gdy `main` było czerwone, najpierw napraw `main`, potem w PR napisz komentarz `@dependabot rebase`, poczekaj na zielone CI.
-- Aktualizacje **major** (np. `mcp` 1→2, TypeScript 5→7) potrafią zepsuć kod. `mcp` i `typescript` mają w `dependabot.yml` wyłączone podbicia major; przy innych major czytaj changelog.
-- Mergowanie kilku PR jeden po drugim anuluje CI poprzednich (`cancel-in-progress`); ostatni przebieg na `main` jest tym, który się liczy.
-- Automatycznego merge'a Dependabota (auto-merge) świadomie **nie** ma: bez wymaganych checków na `main` `gh pr merge --auto` zmergowałby PR od razu, bez czekania na CI. Można go rozważyć dopiero po włączeniu ochrony `main` i tylko dla patch/minor.
-
-## Ochrona `main` (do zrobienia przez admina repo)
-GitHub → **Settings** → **Rules** → **Rulesets** → **New ruleset** → **New branch ruleset**:
-1. Name: `main`, Enforcement status: **Active**.
-2. Target branches → **Add target** → **Include default branch**.
-3. Zaznacz **Restrict deletions** i **Block force pushes**.
-4. Zaznacz **Require a pull request before merging** (Required approvals: 0 lub 1).
-5. Zaznacz **Require status checks to pass** → **Require branches to be up to date before merging** → **Add checks** i dodaj dokładnie (wpisz nazwę, wybierz źródło *GitHub Actions*):
-   - `Backend (lint + tests)`
-   - `Frontend (tsc + vitest + build)`
-   - `OpenAPI types in sync`
-6. **Create**. Od teraz przycisk *Merge* w PR jest zablokowany, dopóki wszystkie trzy checki nie są zielone (dotyczy też PR Dependabota).
-
-Sprawdzenie (odczyt, 2026-11-06): `gh api repos/krzysztof-wojtowicz/coffer-demo/rulesets` zwraca `[]`, a branch protection → 404. Ochrona **nie jest włączona**, dlatego PR #12 i #13 weszły do `main` przy czerwonym CI.
-
-Bez uprawnień admina tej sekcji nie da się ustawić (osoba z rolą *Write* nie widzi zakładki Rules).
-
-## Badge do README
-```markdown
-[![CI](https://github.com/krzysztof-wojtowicz/coffer-demo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/krzysztof-wojtowicz/coffer-demo/actions/workflows/ci.yml)
-```
-
-## Lokalnie przed pushem
-`make check` (lint, testy backendu, front). `make check-web-clean` odtwarza job frontendu z CI (czyste `npm ci` + te same kroki) oraz `make openapi`, jeśli zmieniało się API.
+## Before pushing
+`make check`. `make check-web-clean` reproduces the CI frontend job (clean `npm ci` + the same steps); run `make openapi` if the API changed.

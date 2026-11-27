@@ -1,126 +1,45 @@
-# Wdrożenie frontendu (Vercel, plan Hobby)
+# Frontend: Vercel (Hobby plan)
 
-Frontend (`src/frontend`, React + Vite) to statyczny build w `dist/`. Hostujemy go za darmo na Vercel.
-Backend FastAPI działa osobno na Render: `https://coffer-api-p9ku.onrender.com` (patrz instrukcja backendu).
+The frontend (`src/frontend`, React + Vite) is a static build in `dist/` hosted free on Vercel. The backend runs on Render ([backend.md](backend.md)).
 
-## Jak to działa
+## How it works
+The app calls the API with relative paths (`/api/...`), and the session is an `HttpOnly`, `SameSite=Lax` cookie without a `Domain`, so the browser must see the API on the **same domain**. `src/frontend/vercel.json` does this:
+- **Rewrites:** `/api/:path*` → `https://coffer-api-p9ku.onrender.com/api/:path*` (Vercel acts as a reverse proxy, passing `Cookie`/`Set-Cookie` through unchanged); every other path → `/index.html` (SPA fallback). Static files are served before rewrites.
+- `x-vercel-enable-rewrite-caching: 0` on `/api/*`: API responses are never cached by the CDN.
+- `/assets/*` (hashed names) cached for a year (`immutable`); `index.html` with `no-cache`.
+- `buildCommand`: `npx tsc --noEmit -p tsconfig.app.json && npx vite build` (same as `make check-web`). Not `npm run build`, because `tsc -b` also checks `vite.config.ts`, which fails type-checking (`vitest` bundles its own `vite`).
+- The build needs neither the backend nor `openapi.json`: API types are in the committed `src/api/schema.d.ts`. After an API change, run `make openapi` and commit it.
 
-Aplikacja woła API ścieżkami względnymi (`/api/...`), a sesja to ciasteczko `httponly`, `samesite=lax`
-bez atrybutu `Domain`. Dlatego przeglądarka musi widzieć API pod **tą samą domeną** co frontend.
-Załatwia to `src/frontend/vercel.json`:
+To point at another backend URL, change the `destination` of the first rewrite (keep `/api/:path*`) and push; `vercel.json` doesn't read env variables.
 
-- `rewrites`: `/api/:path*` → `https://coffer-api-p9ku.onrender.com/api/:path*` (Vercel działa jak reverse proxy;
-  w pasku adresu zostaje domena Vercel), a każda inna ścieżka → `/index.html` (fallback SPA dla React Router).
-  Pliki statyczne (`/assets/...`, `favicon.svg`) Vercel serwuje przed rewrite'ami.
-- Nagłówki `Cookie` (żądanie) i `Set-Cookie` (odpowiedź) przechodzą przez zewnętrzny rewrite bez zmian.
-  Ciasteczko zapisuje się dla domeny Vercel (np. `coffer.vercel.app`), bo backend nie ustawia `Domain`.
-- `x-vercel-enable-rewrite-caching: 0` dla `/api/*`: CDN Vercel nigdy nie cache'uje odpowiedzi API
-  (nowe projekty domyślnie honorują `Cache-Control` z originu, a dane użytkownika nie mogą trafić do cache).
-- `/assets/*` (pliki z hashem w nazwie) cache'owane na rok (`immutable`), `index.html` z `no-cache`.
-- `buildCommand`: `npx tsc --noEmit -p tsconfig.app.json && npx vite build` (to samo co `make check-web`).
-  Nie używamy `npm run build`, bo `tsc -b` sprawdza też `vite.config.ts`, a ten obecnie nie przechodzi
-  type-checku (konflikt typów: `vitest@3` ma własną kopię `vite@7`, projekt używa `vite@8`).
-- Build nie potrzebuje backendu ani `openapi.json` (jest w `.gitignore`). Typy API są w
-  `src/api/schema.d.ts`, który jest w repo. Po zmianie API trzeba lokalnie uruchomić `make openapi`
-  i zacommitować `schema.d.ts`.
+## SSE limits
+`POST /api/agent/actions/{id}/run` with `Accept: text/event-stream` streams through the rewrite. Limits (Hobby and Pro alike):
+- **120 s to the first byte**, otherwise `ROUTER_EXTERNAL_TARGET_ERROR` (502/504). After the first byte the stream may continue as long as something arrives every 120 s; the backend sends `: ping` every 15 s.
+- **Render Free cold start** (~30–60 s after 15 min idle) fits within 120 s, but the first login is slow. Wake `/api/health` before a demo.
 
-### Streaming asystenta (SSE) i ograniczenia
+## Setup
+1. <https://vercel.com/signup> → **Hobby** → **Continue with GitHub**, grant access to the repo (an org owner may need to approve).
+2. **Add New → Project → Import** the repo.
+3. **Root Directory: `src/frontend`** (the key setting; `vercel.json` is read from there). Framework, build, output and install settings come from `vercel.json`. No env variables are needed.
+4. **Deploy**. Every push to `main` deploys production; every PR gets a preview URL using the same backend.
+5. On Render set `COFFER_COOKIE_SECURE=true`. No CORS needed.
+6. Custom domain (optional): **Settings → Domains → Add**, then the `CNAME`/`A` record Vercel shows. No code changes.
 
-`POST /api/agent/actions/{id}/run` z nagłówkiem `Accept: text/event-stream` zwraca `text/event-stream`, a frontend czyta go przez `fetch` + `getReader()`.
-Zewnętrzne rewrite'y Vercel przesyłają odpowiedź strumieniowo, więc zdarzenia docierają na bieżąco.
-Ograniczenia (identyczne na Hobby i Pro):
+**After deploying:** `/api/health` returns backend JSON (not HTML); you can register and log in; the cookie is for `<project>.vercel.app` with `HttpOnly; Secure; SameSite=Lax`; refreshing `/transactions` loads the app (no 404); assistant output streams; logout makes `/api/auth/me` return 401.
 
-- **Proxied request timeout: 120 s do pierwszego bajtu.** Jeśli backend nie zacznie odpowiadać w 120 s,
-  Vercel zwraca błąd `ROUTER_EXTERNAL_TARGET_ERROR` (502/504). Po pierwszym bajcie strumień może trwać dłużej,
-  o ile backend wysyła coś przynajmniej co 120 s.
-- **Usypianie Render Free.** Pierwsze żądanie po ~15 min bezczynności budzi serwis (zwykle 30–60 s).
-  Mieści się w limicie 120 s, ale pierwsze logowanie jest wolne. Obejście: przed prezentacją otworzyć
-  `https://coffer-api-p9ku.onrender.com/api/health` albo ustawić darmowy ping (np. UptimeRobot co 10 min).
-- **Długie przerwy między zdarzeniami SSE.** Jeśli pojedyncze wywołanie LLM trwałoby >120 s bez żadnego
-  zdarzenia, proxy zerwie połączenie. Obejście (zmiana po stronie backendu, poza zakresem frontu): wysyłać
-  co ~15 s komentarz SSE `: ping\n\n` (keep-alive). Ostateczność: wywoływać stream bezpośrednio pod
-  `https://coffer-api-p9ku.onrender.com`, co wymaga CORS z `credentials` i ciasteczka `SameSite=None; Secure`,
-  więc nie polecamy.
-
-## Krok po kroku
-
-### 1. Konto
-
-1. Wejdź na <https://vercel.com/signup>, wybierz **Hobby** (darmowy, do projektów niekomercyjnych).
-2. **Continue with GitHub** i zezwól Vercel na dostęp do repozytorium Coffer (wystarczy wybrane repo).
-   Jeśli repo należy do organizacji, jej właściciel może musieć zatwierdzić aplikację Vercel.
-
-### 2. Import projektu
-
-1. Dashboard → **Add New… → Project** → przy repozytorium **Import**.
-2. **Root Directory**: kliknij *Edit* i wybierz `src/frontend`. To najważniejsze ustawienie:
-   Vercel czyta `vercel.json` z tego katalogu.
-3. **Framework Preset**: Vite (wykryje się sam; i tak nadpisuje go `vercel.json`).
-4. Build/Output/Install Command zostaw domyślne: biorą się z `vercel.json`.
-5. Zmienne środowiskowe: niepotrzebne (frontend nie ma żadnych `VITE_*`).
-6. **Deploy**. Po ~1 min dostaniesz adres `https://<nazwa-projektu>.vercel.app`.
-
-Każdy push na `main` wdraża produkcję, a każdy PR dostaje własny adres podglądu (preview).
-Preview też korzysta z tego samego backendu, więc logowanie działa również tam.
-
-### 3. Backend (koordynacja z wdrożeniem Render)
-
-- Na Render ustaw `COFFER_COOKIE_SECURE=true` (strona Vercel działa po HTTPS).
-- CORS na backendzie nie jest potrzebny: przeglądarka rozmawia tylko z domeną Vercel.
-
-### 4. Własna domena (opcjonalnie)
-
-Project → **Settings → Domains → Add**, wpisz np. `coffer.example.pl` i dodaj u rejestratora rekord
-wskazany przez Vercel (`CNAME` na `cname.vercel-dns.com` dla subdomeny albo `A` dla domeny głównej).
-Certyfikat HTTPS Vercel wystawia sam. Nic w kodzie nie trzeba zmieniać.
-
-### 5. Sprawdzenie po wdrożeniu
-
-1. Otwórz `https://<projekt>.vercel.app/api/health`: ma zwrócić JSON z backendu (nie stronę HTML).
-   Jeśli czeka długo, Render się budzi.
-2. Otwórz `https://<projekt>.vercel.app/`, zarejestruj się albo zaloguj.
-3. DevTools → Application → Cookies: ciasteczko sesji ma domenę `<projekt>.vercel.app`, `HttpOnly`,
-   `Secure`, `SameSite=Lax`.
-4. Odśwież stronę na podstronie (np. `/transactions`): ma się załadować aplikacja, a nie 404 (fallback SPA).
-5. Uruchom asystenta: odpowiedź powinna pojawiać się stopniowo (DevTools → Network → typ `eventsource`/`fetch`).
-6. Wyloguj się: ciasteczko znika, a `/api/auth/me` zwraca 401.
-
-## Nagłówki bezpieczeństwa
-
-`src/frontend/vercel.json` dodaje do każdej odpowiedzi (reguła `/(.*)`, obok reguł cache):
-
+## Security headers
+`vercel.json` adds to every response:
 - `X-Content-Type-Options: nosniff`
-- `X-Frame-Options: DENY` oraz `frame-ancestors 'none'` w CSP (ochrona przed clickjackingiem)
+- `X-Frame-Options: DENY`
 - `Referrer-Policy: strict-origin-when-cross-origin`
 - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
-- `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:;
-  font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
+- `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
 
-CSP jest pełna, bo build Vite nie ma skryptów ani stylów inline, nie ładuje zewnętrznych fontów/CDN,
-a wszystkie wywołania API (także SSE asystenta) idą na względne `/api/...` (ta sama domena, rewrite do Render).
-Jeśli dodasz zewnętrzny zasób (font, analityka, inny adres API), rozszerz odpowiednią dyrektywę.
-Na deploymentach podglądowych CSP blokuje pasek Vercel Toolbar (`vercel.live`); na produkcji to bez znaczenia.
-
-Sprawdzenie po wdrożeniu:
-
+The strict CSP works because the Vite build has no inline scripts or styles, loads no external fonts or CDNs, and all API calls are relative. If you add an external resource, extend the matching directive. On previews the CSP blocks the Vercel Toolbar. Check with:
 ```bash
 curl -sI https://cofferai.vercel.app/ | grep -iE 'x-frame|content-security|x-content|referrer|permissions'
 ```
 
-Powinno wypisać pięć nagłówków. W przeglądarce: DevTools → Console nie może pokazywać błędów
-„Refused to … because it violates the Content Security Policy”.
-
-## Inny adres backendu
-
-`vercel.json` nie czyta zmiennych środowiskowych. Jeśli backend ma inny URL, zmień `destination`
-w pierwszym rewrite w `src/frontend/vercel.json` (zachowaj końcówkę `/api/:path*`), zacommituj
-i wypchnij. Vercel wdroży nową wersję sam. Lokalnego dev to nie dotyczy (tam proxy jest w `vite.config.ts`).
-
-## Alternatywy
-
-- **Netlify**: Base directory `src/frontend`, build `npx vite build`, publish `dist`, a w `public/_redirects`
-  wpisz `/api/* https://coffer-api-p9ku.onrender.com/api/:splat 200` oraz `/* /index.html 200`.
-  Proxy Netlify też przekazuje ciasteczka, ale ma krótszy limit czasu (~26 s), co gorzej znosi budzenie Render.
-- **Cloudflare Pages**: SPA fallback działa sam (brak `404.html`), ale `_redirects` nie proxuje do zewnętrznych
-  domen. Do `/api/*` potrzebna jest mała Pages Function (`functions/api/[[path]].ts` robiąca `fetch` do Render),
-  która w darmowym planie też obsługuje streaming.
+## Alternatives
+- **Netlify:** base `src/frontend`, build `npx vite build`, publish `dist`, `public/_redirects` with `/api/* https://coffer-api-p9ku.onrender.com/api/:splat 200` and `/* /index.html 200`. Its proxy timeout (~26 s) copes worse with Render cold starts.
+- **Cloudflare Pages:** `_redirects` can't proxy to external domains; `/api/*` needs a small Pages Function that `fetch`es Render.
