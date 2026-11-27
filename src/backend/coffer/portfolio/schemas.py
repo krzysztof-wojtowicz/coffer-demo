@@ -165,6 +165,36 @@ class HoldingValuationOut(BaseModel):
     as_of: dt.datetime | None = None
 
 
+class PositionLotOut(BaseModel):
+    holding_id: int
+    purchase_date: dt.date | None
+    quantity: QtyStr
+    purchase_price: MoneyStr
+    currency: str
+    cost: MoneyStr
+    value: MoneyStr
+    value_source: ValueSource
+    gain: MoneyStr
+    gain_pct: PctStr | None
+    as_of: dt.datetime | None = None
+
+
+class PositionOut(BaseModel):
+    key: str
+    symbol: str | None
+    name: str
+    asset_class: AssetClass
+    quantity: QtyStr
+    cost: MoneyStr | None
+    value: MoneyStr | None
+    gain: MoneyStr | None
+    gain_pct: PctStr | None
+    share_pct: PctStr | None
+    avg_price: MoneyStr | None
+    latest_purchase_date: dt.date | None
+    lots: list[PositionLotOut]
+
+
 class AllocationOut(BaseModel):
     asset_class: AssetClass
     value: MoneyStr
@@ -185,6 +215,7 @@ class TargetOut(BaseModel):
 
 class PortfolioSummaryOut(BaseModel):
     holdings: list[HoldingValuationOut]
+    positions: list[PositionOut]
     allocation: list[AllocationOut]
     total_value: MoneyStr
     total_cost: MoneyStr

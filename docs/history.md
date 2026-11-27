@@ -63,6 +63,9 @@ Change `ui-refactor`: the light/dark/system theme switch was removed and the app
 ## UI upgrades (Nov 2026)
 Change `ui-upgrades`: users have a required `display_name` (set at registration, shown in the navbar); portfolio and profile share one asset-class list (`stock, etf, bond, real_estate, commodity, crypto, cash`; `deposit` merged into `cash`); the profile card shows a target allocation computed in `analytics.allocation` from horizon, risk and preferred classes, and the portfolio chart shows the gap from target ("cel", pp). Category spending limits (F13, F14, `budget_limits`) were removed. The price job interval is now `COFFER_PRICE_REFRESH_MINUTES` (was `..._HOURS`). Migration `0012` wipes existing users; rollback is `alembic downgrade 0011`. Stage 5 above describes the limits as they were.
 
+## Wallet-grouped positions (Nov 2026)
+Change `wallet-grouped-positions`: `GET /api/portfolio/summary` gains `positions`. Each `PositionOut` has `key`, `symbol`, `name`, `asset_class`, `quantity`, PLN `cost`, `value`, `gain`, `gain_pct`, `share_pct`, `avg_price`, `latest_purchase_date` and `lots`; each `PositionLotOut` has `holding_id`, `purchase_date`, `quantity`, `purchase_price`, `currency`, `cost`, `value`, `value_source`, `gain`, `gain_pct` and `as_of`. Lot amounts are in the lot's own currency; a position's PLN totals are null when a lot has no FX rate. The `holdings` list is unchanged. The Wallet shows collapsible positions with filters, sorting and the add button above the list. See the [glossary](glossary.md) for position and lot.
+
 ## Open follow-ups from reviews
 - Expired `auth_sessions` and abandoned import drafts are never purged (see [data-model.md](data-model.md) §2h).
 - `OriginMiddleware` lets requests without an `Origin` header through on purpose, relying on SameSite=Lax. This should be revisited if the app is hosted again.

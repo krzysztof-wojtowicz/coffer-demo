@@ -1,3 +1,8 @@
+import { compareAmounts } from '../../lib/decimal'
+
+// Re-exported so existing imports keep working.
+export { compareAmounts }
+
 export type TypeFilter = 'all' | 'income' | 'expense'
 export type SortKey = 'date' | 'amount'
 export type SortDir = 'asc' | 'desc'
@@ -24,19 +29,6 @@ export const defaultOptions: ListOptions = {
   source: null,
   sortKey: 'date',
   sortDir: 'desc',
-}
-
-/** Compare two decimal strings without floats (sign, then integer and fraction digits). */
-export function compareAmounts(a: string, b: string): number {
-  const norm = (v: string) => {
-    const neg = v.trim().startsWith('-')
-    const [i = '0', f = ''] = v.trim().replace(/^[-+]/, '').split('.')
-    const digits = BigInt(i + f.padEnd(6, '0').slice(0, 6))
-    return neg ? -digits : digits
-  }
-  const x = norm(a)
-  const y = norm(b)
-  return x < y ? -1 : x > y ? 1 : 0
 }
 
 export function filterAndSort<T extends TxLike>(items: T[], o: ListOptions): T[] {

@@ -171,6 +171,8 @@ def summary(db: Session, user_id: int) -> SummaryResult:
                 market_price=q.price if q else None,
                 currency=h.currency,
                 price_currency=q.currency if q else None,
+                purchase_date=h.purchase_date,
+                created_at=h.created_at,
             )
         )
     db.commit()  # persist quotes/FX stored by the market module (global table, no user data)
