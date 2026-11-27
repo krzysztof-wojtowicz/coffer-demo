@@ -7,11 +7,13 @@ from coffer.core.db import DbSession
 from coffer.portfolio import service
 from coffer.portfolio.schemas import (
     AllocationOut,
+    ClassGapOut,
     HoldingCreate,
     HoldingOut,
     HoldingUpdate,
     HoldingValuationOut,
     PortfolioSummaryOut,
+    TargetOut,
 )
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
@@ -67,4 +69,10 @@ def get_summary(user: CurrentUser, db: DbSession) -> PortfolioSummaryOut:
         prices_available=result.prices_available,
         fx_missing=s.fx_missing,
         prices_as_of=result.prices_as_of,
+        target=TargetOut(
+            classes=[ClassGapOut(**asdict(c)) for c in result.target.classes],
+            total_gap_pp=result.target.total_gap_pp,
+        )
+        if result.target
+        else None,
     )

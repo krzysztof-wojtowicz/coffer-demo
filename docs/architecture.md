@@ -79,7 +79,7 @@ flowchart LR
     prices -.-> pg
 ```
 
-The Vite proxy keeps the API on the same origin as the SPA, so the `coffer_session` cookie (`HttpOnly`, `SameSite=Lax`) needs no CORS. `OriginMiddleware` rejects (403) POST/PUT/PATCH/DELETE requests whose `Origin` is not in `COFFER_ALLOWED_ORIGINS`. Migrations run with `make migrate`; quotes are refreshed with `make prices` or the optional in-process thread (`COFFER_PRICE_REFRESH_HOURS`). Setup: [development.md](development.md).
+The Vite proxy keeps the API on the same origin as the SPA, so the `coffer_session` cookie (`HttpOnly`, `SameSite=Lax`) needs no CORS. `OriginMiddleware` rejects (403) POST/PUT/PATCH/DELETE requests whose `Origin` is not in `COFFER_ALLOWED_ORIGINS`. Migrations run with `make migrate`; quotes are refreshed with `make prices` or the optional in-process thread (`COFFER_PRICE_REFRESH_MINUTES`). Setup: [development.md](development.md).
 
 ---
 
@@ -95,13 +95,13 @@ flowchart LR
     subgraph core_layer["Modules"]
         accounts["coffer.accounts<br/>(deps.CurrentUser)"]
         transactions["coffer.transactions"]
-        budget["coffer.budget<br/>limits, insights"]
+        budget["coffer.budget<br/>insights, net worth"]
         cash["coffer.cash<br/>opening balance"]
         imports["coffer.imports"]
         profile["coffer.profile"]
         portfolio["coffer.portfolio"]
         market["coffer.market<br/>service, scheduler"]
-        analytics["coffer.analytics<br/>(pure: month, compare, limits,<br/>net_worth, portfolio, shares, ...)"]
+        analytics["coffer.analytics<br/>(pure: month, compare,<br/>net_worth, portfolio, allocation (target, gap), shares, ...)"]
         core["coffer.core<br/>config, db, money, months, origin"]
     end
 
@@ -119,7 +119,7 @@ flowchart LR
     transactions -->|"TxView"| analytics
     transactions --> core
     budget -->|"service.list_views"| transactions
-    budget -->|"month_summary, compare, limit_status"| analytics
+    budget -->|"month_summary, compare"| analytics
     budget --> cash
     budget --> portfolio
     budget --> accounts
@@ -159,15 +159,15 @@ Routes (`App.tsx`): `/` (Summary), `/transactions`, `/portfolio`, `/account`, `/
 | `components/Signed` | Amount or percentage coloured by sign (`positive` / `negative`), optional `+` and `invert` |
 | `components/Money` | Plain amount, red only when negative |
 | `components/ui/Stat` | Summary tile: label, value, optional delta |
-| `components/ui/Bar`, `ui/BarList` | Progress/meter bar and a labelled list of bars (categories, limits) |
-| `features/portfolio/AllocationChart` | Hand-rolled SVG donut with legend (`role="img"` plus text legend); `compact` variant on Summary; colours from `chart-*` |
+| `components/ui/Bar`, `ui/BarList` | Progress/meter bar and a labelled list of bars (categories) |
+| `features/portfolio/AllocationChart` | Hand-rolled SVG donut with legend (`role="img"` plus text legend); `compact` variant on Summary; colours from `chart-*`; optional `target` prop adds "cel" and gap rows (Summary and Portfolio) |
 
 ```mermaid
 flowchart LR
     subgraph pages["src/frontend/src/features (React Router, App.tsx)"]
         auth["auth<br/>AuthPage, useMe"]
         tx["transactions<br/>TransactionsPage, TransactionRow, TransactionForm"]
-        bud["budget<br/>SummaryPage, NetWorthCard, LimitsSection, InsightsCard"]
+        bud["budget<br/>SummaryPage, NetWorthCard, InsightsCard"]
         imp["import<br/>ImportFlow (panel in TransactionsPage)"]
         prof["profile<br/>ProfileSection (in AccountPage)"]
         port["portfolio<br/>PortfolioPage"]
@@ -185,7 +185,7 @@ flowchart LR
     subgraph endpoints["Backend /api/*"]
         e_auth["/api/auth/{register,login,logout,me}"]
         e_tx["/api/transactions (GET, POST, PATCH, DELETE),<br/>/api/categories"]
-        e_bud["/api/budget/{month}, /api/budget/{month}/insights,<br/>/api/budget/limits, /api/budget/net-worth"]
+        e_bud["/api/budget/{month}, /api/budget/{month}/insights,<br/>/api/budget/net-worth"]
         e_imp["/api/imports, /api/imports/banks,<br/>/api/imports/{draft_id}/commit"]
         e_prof["/api/profile"]
         e_port["/api/portfolio/holdings, /api/portfolio/summary"]
@@ -223,14 +223,13 @@ erDiagram
     users ||--o{ import_drafts : "has drafts"
     users ||--o| investment_profiles : "has profile"
     users ||--o{ holdings : "has holdings"
-    users ||--o{ budget_limits : "sets limits"
-    categories ||--o{ budget_limits : "category limit"
     users ||--o| opening_balances : "opening balance"
 
     users {
         int id PK
         varchar email UK "254, unique lower(email)"
         varchar password_hash
+        varchar display_name "50, required"
         timestamptz created_at
         timestamptz password_changed_at
         timestamptz last_login_at
@@ -288,13 +287,6 @@ erDiagram
         numeric manual_value "NUMERIC(14,2)"
         varchar note
         timestamptz created_at
-    }
-    budget_limits {
-        int user_id PK, FK "CASCADE"
-        int category_id PK, FK "RESTRICT"
-        numeric amount "NUMERIC(14,2)"
-        timestamptz created_at
-        timestamptz updated_at
     }
     opening_balances {
         int user_id PK, FK "CASCADE, 1:1"

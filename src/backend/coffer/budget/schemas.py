@@ -1,7 +1,6 @@
 from datetime import date
-from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from coffer.core.money import MoneyStr, PctStr
 
@@ -36,16 +35,6 @@ class NetWorthOut(_Out):
     as_of: date
 
 
-class LimitIn(BaseModel):
-    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2, le=Decimal("999999999999.99"))
-
-
-class LimitOut(_Out):
-    category_id: int
-    category_name: str
-    amount: MoneyStr
-
-
 class CategoryChangeOut(_Out):
     category_id: int
     category_name: str
@@ -64,19 +53,8 @@ class CategoryGrowthOut(_Out):
     increase_pct: PctStr | None
 
 
-class LimitStatusOut(_Out):
-    category_id: int
-    category_name: str
-    limit: MoneyStr
-    spent: MoneyStr
-    remaining: MoneyStr
-    used_pct: PctStr
-    exceeded: bool
-
-
 class InsightsOut(_Out):
     month: str
     previous_month: str
     comparison: list[CategoryChangeOut]
     top_growth: list[CategoryGrowthOut]
-    limits: list[LimitStatusOut]

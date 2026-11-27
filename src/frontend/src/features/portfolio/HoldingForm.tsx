@@ -125,7 +125,12 @@ export function HoldingForm({ editing, onDone }: { editing: Holding | null; onDo
     if (editing) {
       update.mutate({ id: editing.id, body }, { onSuccess: onDone })
     } else {
-      create.mutate(body, { onSuccess: () => setForm(EMPTY) })
+      create.mutate(body, {
+        onSuccess: () => {
+          setForm(EMPTY)
+          onDone()
+        },
+      })
     }
   }
 
@@ -174,7 +179,7 @@ export function HoldingForm({ editing, onDone }: { editing: Holding | null; onDo
             </option>
             {ASSET_CLASSES.map((c) => (
               <option key={c} value={c}>
-                {t.classes[c]}
+                {pl.assetClass[c]}
               </option>
             ))}
           </Select>
@@ -191,18 +196,16 @@ export function HoldingForm({ editing, onDone }: { editing: Holding | null; onDo
             <Hint>{t.noteHint}</Hint>
           </Field>
         )}
-        {cfg && (
-          <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-1">
-            <Button type="submit" loading={mutation.isPending}>
-              {editing ? t.update : t.save}
-            </Button>
-            {editing && (
-              <Button type="button" variant="secondary" onClick={onDone}>
-                {t.cancel}
+        <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-1">
+            {cfg && (
+              <Button type="submit" loading={mutation.isPending}>
+                {editing ? t.update : t.save}
               </Button>
             )}
-          </div>
-        )}
+            <Button type="button" variant="secondary" onClick={onDone}>
+              {t.cancel}
+            </Button>
+        </div>
       </form>
       <ErrorMessage message={mutation.error ? portfolioErrorMessage(mutation.error) : null} />
     </Card>

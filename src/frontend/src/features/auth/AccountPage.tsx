@@ -6,11 +6,14 @@ import { Field } from '../../components/ui/Field'
 import { Input } from '../../components/ui/Input'
 import { pl } from '../../i18n/pl'
 import { OpeningBalanceSection } from '../cash/OpeningBalanceSection'
+import { useOpeningBalance } from '../cash/queries'
+import { formatMoney } from '../../lib/format'
+import { SettingsRow } from './SettingsRow'
 import { ProfileSection } from '../profile/ProfileSection'
 import { apiErrorMessage } from '../../lib/errors'
 import { NewPasswordField } from './PasswordField'
 import { passwordProblems } from './password'
-import { useChangePassword, useDeleteAccount, useLogoutAll, useMe } from './queries'
+import { useChangePassword, useDeleteAccount, useLogoutAll, useMe, useUpdateName } from './queries'
 
 function ChangePassword({ email }: { email: string }) {
   const [current, setCurrent] = useState('')
@@ -35,7 +38,7 @@ function ChangePassword({ email }: { email: string }) {
     )
   }
   return (
-    <Card title={pl.auth.changePasswordTitle}>
+    <>
       <form onSubmit={submit} className="flex max-w-sm flex-col gap-3">
         <Field label={pl.auth.currentPassword}>
           <Input
@@ -64,20 +67,54 @@ function ChangePassword({ email }: { email: string }) {
           {pl.auth.changePasswordAction}
         </Button>
       </form>
-    </Card>
+    </>
+  )
+}
+
+function ChangeName({ current }: { current: string }) {
+  const [name, setName] = useState(current)
+  const [error, setError] = useState<string | null>(null)
+  const update = useUpdateName()
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    const trimmed = name.trim()
+    if (trimmed.length < 1 || trimmed.length > 50) {
+      setError(pl.auth.nameInvalid)
+      return
+    }
+    setError(null)
+    update.mutate(trimmed)
+  }
+  return (
+    <form onSubmit={submit} className="flex max-w-sm flex-col gap-3">
+      <Field label={pl.auth.displayName}>
+        <Input required maxLength={50} value={name} onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <ErrorMessage message={error ?? (update.error ? apiErrorMessage(update.error) : null)} />
+      {update.isSuccess && (
+        <p className="text-sm text-positive" role="status">
+          {pl.auth.nameChanged}
+        </p>
+      )}
+      <div>
+        <Button type="submit" loading={update.isPending}>
+          {pl.auth.saveName}
+        </Button>
+      </div>
+    </form>
   )
 }
 
 function Sessions() {
   const logoutAll = useLogoutAll()
   return (
-    <Card title={pl.auth.sessionsTitle}>
+    <>
       <p className="mb-3 text-sm text-muted">{pl.auth.sessionsHint}</p>
       <ErrorMessage message={logoutAll.error ? apiErrorMessage(logoutAll.error) : null} />
       <Button variant="secondary" loading={logoutAll.isPending} onClick={() => logoutAll.mutate()}>
         {pl.auth.logoutAllAction}
       </Button>
-    </Card>
+    </>
   )
 }
 
@@ -89,7 +126,7 @@ function DeleteAccount() {
     remove.mutate()
   }
   return (
-    <Card title={pl.auth.deleteTitle}>
+    <>
       <form onSubmit={submit} className="flex max-w-sm flex-col gap-3">
         <p className="text-sm text-negative">{pl.auth.deleteWarning}</p>
         <Field label={pl.auth.deleteConfirmLabel}>
@@ -106,22 +143,49 @@ function DeleteAccount() {
           {pl.auth.deleteAction}
         </Button>
       </form>
-    </Card>
+    </>
   )
 }
 
+type Row = 'name' | 'password' | 'balance' | 'sessions' | 'delete'
+
 export function AccountPage() {
   const me = useMe()
+  const balance = useOpeningBalance()
+  // One row open at a time.
+  const [open, setOpen] = useState<Row | null>(null)
   const email = me.data?.email ?? ''
+  const name = me.data?.display_name ?? ''
+  const row = (r: Row) => ({ open: open === r, onToggle: () => setOpen((cur) => (cur === r ? null : r)) })
   return (
     <div className="space-y-4">
       <h1 className="sr-only">{pl.auth.accountTitle}</h1>
       <ProfileSection />
-      <OpeningBalanceSection />
-      <h2 className="pt-2 text-xl font-semibold">{pl.auth.securityTitle}</h2>
-      <ChangePassword email={email} />
-      <Sessions />
-      <DeleteAccount />
+      <Card title={pl.auth.settingsTitle}>
+        <SettingsRow label={pl.auth.displayName} value={name} {...row('name')}>
+          <ChangeName key={name} current={name} />
+        </SettingsRow>
+        <SettingsRow label={pl.auth.password} value="••••••••" {...row('password')}>
+          <ChangePassword email={email} />
+        </SettingsRow>
+        <SettingsRow
+          label={pl.auth.openingBalanceRow}
+          value={
+            balance.data
+              ? `${formatMoney(balance.data.amount)} (${balance.data.as_of})`
+              : pl.auth.notSet
+          }
+          {...row('balance')}
+        >
+          <OpeningBalanceSection />
+        </SettingsRow>
+        <SettingsRow label={pl.auth.sessionsTitle} value={pl.auth.logoutAllAction} {...row('sessions')}>
+          <Sessions />
+        </SettingsRow>
+        <SettingsRow label={pl.auth.deleteTitle} danger {...row('delete')}>
+          <DeleteAccount />
+        </SettingsRow>
+      </Card>
     </div>
   )
 }

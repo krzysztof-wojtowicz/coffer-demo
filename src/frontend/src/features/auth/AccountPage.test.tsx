@@ -29,7 +29,7 @@ beforeEach(() => {
   respond = () => new Response(null, { status: 204 })
   h.handler = async (req) => {
     const path = new URL(req.url).pathname
-    if (path === '/api/auth/me') return json({ id: 1, email: 'jan@example.com' })
+    if (path === '/api/auth/me' && req.method === 'GET') return json({ id: 1, email: 'jan@example.com', display_name: 'Jan' })
     if (path === '/api/profile') return json(null)
     if (path === '/api/cash/opening-balance') return json(null)
     const text = await req.text()
@@ -56,10 +56,48 @@ function renderPage() {
   return userEvent.setup()
 }
 
+/** Settings rows are collapsed; open one and wait for a control inside it. */
+async function openRow(user: ReturnType<typeof userEvent.setup>, row: string | RegExp) {
+  await user.click(await screen.findByRole('button', { name: row }))
+}
+async function openAndFind(user: ReturnType<typeof userEvent.setup>, row: string | RegExp, label: string) {
+  await openRow(user, row)
+  return screen.findByLabelText(label)
+}
+
 describe('AccountPage', () => {
+  it('zmienia imię przez PATCH i odrzuca puste', async () => {
+    respond = () => json({ id: 1, email: 'jan@example.com', display_name: 'Janek' })
+    const user = renderPage()
+    const input = (await openAndFind(user, /^Imię/, 'Imię')) as HTMLInputElement
+    expect(input.value).toBe('Jan')
+    await user.clear(input)
+    await user.type(input, '   ')
+    await user.click(screen.getByRole('button', { name: 'Zapisz imię' }))
+    expect(await screen.findByText('Imię musi mieć od 1 do 50 znaków')).toBeTruthy()
+    expect(calls).toHaveLength(0)
+    await user.clear(input)
+    await user.type(input, ' Janek ')
+    await user.click(screen.getByRole('button', { name: 'Zapisz imię' }))
+    expect(await screen.findByRole('status')).toBeTruthy()
+    expect(calls[0]).toMatchObject({ method: 'PATCH', path: '/api/auth/me', body: { display_name: 'Janek' } })
+  })
+
+  it('otwiera jeden wiersz naraz, Escape zamyka', async () => {
+    const user = renderPage()
+    await openRow(user, /^Hasło/)
+    expect(screen.getByLabelText('Obecne hasło')).toBeTruthy()
+    await openRow(user, /^Sesje/)
+    expect(screen.queryByLabelText('Obecne hasło')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Wyloguj ze wszystkich urządzeń' })).toBeTruthy()
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('button', { name: /^Sesje/ }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText('Bezpieczeństwo konta')).toBeNull()
+  })
+
   it('zmienia hasło po walidacji po stronie klienta', async () => {
     const user = renderPage()
-    await user.type(await screen.findByLabelText('Obecne hasło'), 'Stare-haslo-123')
+    await user.type(await openAndFind(user, /^Hasło/, 'Obecne hasło'), 'Stare-haslo-123')
     await user.type(screen.getByLabelText('Nowe hasło'), 'krotkie')
     await user.click(screen.getByRole('button', { name: 'Zmień hasło' }))
     expect(screen.getByText('Hasło musi mieć co najmniej 12 znaków.')).toBeTruthy()
@@ -79,7 +117,7 @@ describe('AccountPage', () => {
   it('pokazuje błąd złego obecnego hasła', async () => {
     respond = () => json({ detail: 'Nieprawidłowe hasło' }, 403)
     const user = renderPage()
-    await user.type(await screen.findByLabelText('Obecne hasło'), 'zle-haslo-123')
+    await user.type(await openAndFind(user, /^Hasło/, 'Obecne hasło'), 'zle-haslo-123')
     await user.type(screen.getByLabelText('Nowe hasło'), 'Pies-w-kaloszach-7')
     await user.click(screen.getByRole('button', { name: 'Zmień hasło' }))
     expect(await screen.findByText('Nieprawidłowe hasło')).toBeTruthy()
@@ -87,6 +125,7 @@ describe('AccountPage', () => {
 
   it('wylogowuje ze wszystkich urządzeń', async () => {
     const user = renderPage()
+    await openRow(user, /^Sesje/)
     await user.click(await screen.findByRole('button', { name: 'Wyloguj ze wszystkich urządzeń' }))
     expect(await screen.findByText('strona logowania')).toBeTruthy()
     expect(calls[0]).toMatchObject({ method: 'POST', path: '/api/auth/logout-all' })
@@ -94,7 +133,7 @@ describe('AccountPage', () => {
 
   it('usuwa konto po potwierdzeniu hasłem', async () => {
     const user = renderPage()
-    await user.type(await screen.findByLabelText('Potwierdź hasłem'), 'Stare-haslo-123')
+    await user.type(await openAndFind(user, 'Usuń konto', 'Potwierdź hasłem'), 'Stare-haslo-123')
     await user.click(screen.getByRole('button', { name: 'Usuń konto na zawsze' }))
     expect(await screen.findByText('strona logowania')).toBeTruthy()
     expect(calls[0]).toMatchObject({ method: 'DELETE', path: '/api/auth/account' })
@@ -104,7 +143,7 @@ describe('AccountPage', () => {
   it('przy błędnym haśle nie usuwa i pokazuje komunikat', async () => {
     respond = () => json({ detail: 'Nieprawidłowe hasło' }, 403)
     const user = renderPage()
-    await user.type(await screen.findByLabelText('Potwierdź hasłem'), 'zle')
+    await user.type(await openAndFind(user, 'Usuń konto', 'Potwierdź hasłem'), 'zle')
     await user.click(screen.getByRole('button', { name: 'Usuń konto na zawsze' }))
     expect(await screen.findByText('Nieprawidłowe hasło')).toBeTruthy()
     expect(screen.queryByText('strona logowania')).toBeNull()
@@ -116,7 +155,7 @@ describe("AccountPage: dodatkowe przypadki", () => {
   it("nowe hasło równe obecnemu jest blokowane bez żądania", async () => {
     const user = renderPage();
     await user.type(
-      await screen.findByLabelText("Obecne hasło"),
+      await openAndFind(user, /^Hasło/, 'Obecne hasło'),
       "Kot-w-butach-42",
     );
     await user.type(screen.getByLabelText("Nowe hasło"), "Kot-w-butach-42");
@@ -127,10 +166,10 @@ describe("AccountPage: dodatkowe przypadki", () => {
   it("zmiana hasła stosuje regułę e-maila zalogowanego użytkownika", async () => {
     const user = renderPage();
     await user.type(
-      await screen.findByLabelText("Obecne hasło"),
+      await openAndFind(user, /^Hasło/, 'Obecne hasło'),
       "Kot-w-butach-42",
     );
-    await screen.findByText("Bezpieczeństwo konta");
+    await screen.findByText("Ustawienia");
     await vi.waitFor(async () => {
       await user.clear(screen.getByLabelText("Nowe hasło"));
       await user.type(screen.getByLabelText("Nowe hasło"), "jan@example.com");
@@ -155,7 +194,7 @@ describe("AccountPage: dodatkowe przypadki", () => {
       );
     const user = renderPage();
     await user.type(
-      await screen.findByLabelText("Potwierdź hasłem"),
+      await openAndFind(user, 'Usuń konto', 'Potwierdź hasłem'),
       "Kot-w-butach-42",
     );
     await user.click(
@@ -170,19 +209,15 @@ describe("AccountPage: dodatkowe przypadki", () => {
   it("błąd wylogowania wszędzie zostawia użytkownika na stronie", async () => {
     respond = () => json({ detail: "Wymagane logowanie" }, 401);
     const user = renderPage();
-    await user.click(
-      await screen.findByRole("button", {
-        name: "Wyloguj ze wszystkich urządzeń",
-      }),
-    );
+    await openRow(user, /^Sesje/);
+    await user.click(await screen.findByRole("button", { name: "Wyloguj ze wszystkich urządzeń" }));
     expect(await screen.findByText("Wymagane logowanie")).toBeTruthy();
   });
 
   it("pusta zgoda hasłem nie usuwa konta", async () => {
     const user = renderPage();
-    await user.click(
-      await screen.findByRole("button", { name: "Usuń konto na zawsze" }),
-    );
+    await openRow(user, "Usuń konto");
+    await user.click(await screen.findByRole("button", { name: "Usuń konto na zawsze" }));
     await new Promise((r) => setTimeout(r, 50));
     expect(calls.filter((c) => c.method === "DELETE")).toHaveLength(0);
   });
@@ -197,7 +232,7 @@ describe("AccountPage: dodatkowe przypadki", () => {
         new Response(null, { status: 503, headers: { "Content-Length": "0" } });
       const user = renderPage();
       await user.type(
-        await screen.findByLabelText("Potwierdź hasłem"),
+        await openAndFind(user, 'Usuń konto', 'Potwierdź hasłem'),
         "Kot-w-butach-42",
       );
       await user.click(

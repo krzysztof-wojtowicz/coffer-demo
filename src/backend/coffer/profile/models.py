@@ -8,7 +8,6 @@ from coffer.core.db import Base
 
 HORIZONS = ("short", "medium", "long")
 RISK_LEVELS = ("low", "medium", "high")
-ASSET_CLASSES = ("cash", "deposit", "stocks", "etf", "bonds", "crypto", "real_estate")
 
 
 class InvestmentProfile(Base):

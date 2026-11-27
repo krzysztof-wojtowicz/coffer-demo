@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { AllocationChart } from './AllocationChart'
+import { useEffect, useRef, useState } from 'react'
+import { AllocationChart, targetSlices } from './AllocationChart'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { Money } from '../../components/Money'
 import { Signed } from '../../components/Signed'
@@ -52,10 +52,16 @@ function SummaryTiles({ s }: { s: PortfolioSummary }) {
 function Allocation({ s }: { s: PortfolioSummary }) {
   return (
     <Card title={t.allocation}>
-      {s.allocation.length === 0 ? (
-        <p className="text-muted">{t.noAllocation}</p>
+      {s.allocation.length > 0 ? (
+        <AllocationChart allocation={s.allocation} target={s.target ?? null} />
+      ) : s.target ? (
+        // Profile but nothing valued yet: show the target alone, without a comparison.
+        <AllocationChart
+          allocation={targetSlices(s.target.classes.map((c) => ({ asset_class: c.asset_class, share_pct: c.target_pct })))}
+          targetOnly
+        />
       ) : (
-        <AllocationChart allocation={s.allocation} />
+        <p className="text-muted">{t.noAllocation}</p>
       )}
     </Card>
   )
@@ -116,7 +122,7 @@ function HoldingsTable({
                       <div>{v.name}</div>
                       {v.symbol && <div className="text-xs text-muted">{v.symbol}</div>}
                     </td>
-                    <td className="py-2 pr-3">{t.classes[v.asset_class]}</td>
+                    <td className="py-2 pr-3">{pl.assetClass[v.asset_class]}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{v.quantity.replace('.', ',')}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{formatMoney(v.cost_basis, v.amount_currency)}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">
@@ -157,15 +163,26 @@ function HoldingsTable({
 }
 
 export function PortfolioPage() {
+  // `formOpen` shows the form; `editing` (when set) fills it with a holding.
+  const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Holding | null>(null)
+  const formRef = useRef<HTMLDivElement>(null)
   const summary = usePortfolioSummary()
   const holdings = useHoldings()
   const s = summary.data
 
+  useEffect(() => {
+    if (formOpen) formRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+  }, [formOpen, editing])
+
+  const closeForm = () => {
+    setFormOpen(false)
+    setEditing(null)
+  }
+
   return (
     <>
       <h1 className="text-2xl font-semibold text-text">{t.title}</h1>
-      <HoldingForm key={editing?.id ?? 'new'} editing={editing} onDone={() => setEditing(null)} />
       {summary.isLoading && <Spinner />}
       {summary.error && <ErrorMessage message={portfolioErrorMessage(summary.error)} />}
       {s && (
@@ -188,16 +205,28 @@ export function PortfolioPage() {
             )}
           </div>
           <SummaryTiles s={s} />
+          <Allocation s={s} />
           <HoldingsTable
             s={s}
             holdings={holdings.data ?? []}
             onEdit={(h) => {
               setEditing(h)
-              window.scrollTo?.({ top: 0, behavior: 'smooth' })
+              setFormOpen(true)
             }}
           />
-          <Allocation s={s} />
         </>
+      )}
+      {!formOpen && (
+        <div>
+          <Button variant="secondary" onClick={() => setFormOpen(true)}>
+            {t.addButton}
+          </Button>
+        </div>
+      )}
+      {formOpen && (
+        <div ref={formRef}>
+          <HoldingForm key={editing?.id ?? 'new'} editing={editing} onDone={closeForm} />
+        </div>
       )}
     </>
   )

@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from coffer.analytics.allocation import TargetShare, target_allocation
 from coffer.profile.models import InvestmentProfile
 from coffer.profile.schemas import ProfileIn
 
@@ -19,3 +20,7 @@ def upsert(db: Session, user_id: int, data: ProfileIn) -> InvestmentProfile:
     db.commit()
     db.refresh(profile)
     return profile
+
+
+def target(profile: InvestmentProfile) -> list[TargetShare]:
+    return target_allocation(profile.horizon, profile.risk, profile.preferred_classes)

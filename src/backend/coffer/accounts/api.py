@@ -7,7 +7,15 @@ from coffer.accounts import ratelimit, service
 from coffer.accounts.deps import CurrentUser
 from coffer.accounts.models import User
 from coffer.accounts.policy import MAX_LENGTH
-from coffer.accounts.schemas import Credentials, PasswordChange, PasswordConfirm, UserOut
+from coffer.accounts.schemas import (
+    NAME_ERROR,
+    LoginIn,
+    NameChange,
+    PasswordChange,
+    PasswordConfirm,
+    RegisterIn,
+    UserOut,
+)
 from coffer.accounts.tokens import SESSION_COOKIE
 from coffer.core.config import get_settings
 from coffer.core.db import DbSession
@@ -51,7 +59,9 @@ async def redacted_validation_handler(request: Request, exc: Exception) -> Respo
         {
             "type": err.get("type", ""),
             "loc": list(err.get("loc", ())),
-            "msg": "Pole jest wymagane"
+            "msg": NAME_ERROR
+            if "display_name" in err.get("loc", ())
+            else "Pole jest wymagane"
             if "missing" in str(err.get("type", ""))
             else "Niepoprawna wartość",
         }
@@ -61,7 +71,7 @@ async def redacted_validation_handler(request: Request, exc: Exception) -> Respo
 
 
 def _user_out(user: User) -> UserOut:
-    return UserOut(id=user.id, email=user.email)
+    return UserOut(id=user.id, email=user.email, display_name=user.display_name)
 
 
 def _weak(exc: service.WeakPassword) -> HTTPException:
@@ -90,13 +100,13 @@ def _reserve_account_attempt(user: User) -> str:
 
 
 @router.post("/register", status_code=201, responses={409: {}, 422: {}, 429: {}})
-def register(body: Credentials, request: Request, response: Response, db: DbSession) -> UserOut:
+def register(body: RegisterIn, request: Request, response: Response, db: DbSession) -> UserOut:
     _check_lengths(body.password)
     # Counts every attempt (weak password and taken e-mail included).
     ratelimit.reserve((f"register:ip:{ratelimit.client_ip(request)}", ratelimit.REGISTER_PER_IP))
     try:
         service.check_password_policy(body.password, body.email)
-        user = service.register(db, body.email, body.password)
+        user = service.register(db, body.email, body.password, body.display_name)
     except service.WeakPassword as exc:
         raise _weak(exc) from None
     except service.EmailTaken:
@@ -109,7 +119,7 @@ def register(body: Credentials, request: Request, response: Response, db: DbSess
 
 
 @router.post("/login", responses={401: {}, 429: {}})
-def login(body: Credentials, request: Request, response: Response, db: DbSession) -> UserOut:
+def login(body: LoginIn, request: Request, response: Response, db: DbSession) -> UserOut:
     _check_lengths(body.password)
     email_key = _email_key(body.email)
     ip_key = f"login:ip:{ratelimit.client_ip(request)}"
@@ -183,3 +193,8 @@ def delete_account(body: PasswordConfirm, user: CurrentUser, db: DbSession) -> R
 @router.get("/me")
 def me(user: CurrentUser) -> UserOut:
     return _user_out(user)
+
+
+@router.patch("/me", responses={422: {}})
+def update_me(body: NameChange, user: CurrentUser, db: DbSession) -> UserOut:
+    return _user_out(service.set_display_name(db, user, body.display_name))

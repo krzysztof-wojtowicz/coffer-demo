@@ -27,10 +27,6 @@ const base = {
   top_growth: [
     { category_id: 1, category_name: 'Jedzenie', current: '500.00', average_3m: '400.00', increase: '100.00', increase_pct: '25.0' },
   ],
-  limits: [
-    { category_id: 1, category_name: 'Jedzenie', limit: '400.00', spent: '500.00', remaining: '-100.00', used_pct: '125.0', exceeded: true },
-    { category_id: 3, category_name: 'Rozrywka', limit: '200.00', spent: '50.00', remaining: '150.00', used_pct: '25.0', exceeded: false },
-  ],
 }
 
 function view() {
@@ -47,23 +43,18 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('InsightsCard', () => {
-  it('formats changes, null percent as dash and flags exceeded limits', async () => {
+  it('formats changes and null percent as dash', async () => {
     view()
     expect(await screen.findByRole('table')).toBeTruthy()
     expect(screen.getByText('+25,0%')).toBeTruthy()
     expect(screen.getByText('–')).toBeTruthy()
-    expect(screen.getByText(/Przekroczono o/).textContent).toContain('100,00')
-    const bars = screen.getAllByRole('progressbar')
-    expect(bars[0].getAttribute('aria-valuenow')).toBe('125')
-    expect(bars[1].getAttribute('aria-valuenow')).toBe('25')
     expect(screen.getByText(/ponad średnią z 3 mies\./)).toBeTruthy()
   })
 
   it('shows empty states', async () => {
-    h.body = { ...base, comparison: [], top_growth: [], limits: [] }
+    h.body = { ...base, comparison: [], top_growth: [] }
     view()
     expect(await screen.findByText('Brak wydatków do porównania.')).toBeTruthy()
     expect(screen.getByText(/Brak kategorii z wydatkami powyżej średniej/)).toBeTruthy()
-    expect(screen.getByText('Nie ustawiono żadnych limitów.')).toBeTruthy()
   })
 })

@@ -73,4 +73,24 @@ describe('Select', () => {
     await userEvent.click(screen.getByRole('combobox'))
     expect(screen.queryByRole('listbox')).toBeNull()
   })
+
+  it('wariant ghost nie ma obramowania i podświetla wartość inną niż domyślna', () => {
+    render(
+      <>
+        <Select variant="ghost" aria-label="A" value="a">
+          <option value="a">Alfa</option>
+          <option value="b">Beta</option>
+        </Select>
+        <Select variant="ghost" aria-label="B" value="b">
+          <option value="a">Alfa</option>
+          <option value="b">Beta</option>
+        </Select>
+      </>,
+    )
+    const a = screen.getByRole('combobox', { name: 'A' })
+    const b = screen.getByRole('combobox', { name: 'B' })
+    expect(a.className).not.toContain('border')
+    expect(a.className).not.toContain('text-accent')
+    expect(b.className).toContain('text-accent')
+  })
 })

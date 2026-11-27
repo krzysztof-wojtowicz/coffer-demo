@@ -282,3 +282,55 @@ def test_summary_survives_max_amounts(auth_client, monkeypatch):
     r = auth_client.get("/api/portfolio/summary")
     assert r.status_code == 200
     assert r.json()["total_cost"].startswith("99999999999")
+
+
+# --- Target allocation and gap ---
+
+PROFILE_ALL = {
+    "horizon": "medium",
+    "risk": "medium",
+    "preferred_classes": ["stock", "etf", "bond", "real_estate", "commodity", "crypto", "cash"],
+}
+
+
+def test_summary_target_null_without_profile(auth_client, monkeypatch):
+    fake_market(monkeypatch)
+    auth_client.post(BASE, json=FLAT)
+    assert auth_client.get("/api/portfolio/summary").json()["target"] is None
+
+
+def test_summary_target_with_gaps(auth_client, monkeypatch):
+    fake_market(monkeypatch)
+    auth_client.put("/api/profile", json=PROFILE_ALL)
+    auth_client.post(BASE, json=FLAT)  # 100% real_estate, which is not in the target
+    t = auth_client.get("/api/portfolio/summary").json()["target"]
+    by = {c["asset_class"]: c for c in t["classes"]}
+    assert by["real_estate"]["target_pct"] in (0, "0", "0.0")
+    assert Decimal(str(by["real_estate"]["gap_pp"])) == Decimal("100")
+    assert Decimal(str(by["etf"]["gap_pp"])) == Decimal("-34")
+    assert Decimal(t["total_gap_pp"]) == Decimal("100")
+
+
+def test_summary_target_empty_portfolio_gaps_null(auth_client, monkeypatch):
+    fake_market(monkeypatch)
+    auth_client.put("/api/profile", json=PROFILE_ALL)
+    t = auth_client.get("/api/portfolio/summary").json()["target"]
+    assert t["total_gap_pp"] is None
+    assert {c["asset_class"]: c["target_pct"] for c in t["classes"]}.keys() == {
+        "stock",
+        "etf",
+        "bond",
+        "cash",
+        "commodity",
+    }
+    assert all(c["gap_pp"] is None for c in t["classes"])
+
+
+def test_summary_target_is_per_user(auth_client, other_auth_client, monkeypatch):
+    fake_market(monkeypatch)
+    auth_client.put("/api/profile", json=PROFILE_ALL)
+    assert other_auth_client.get("/api/portfolio/summary").json()["target"] is None
+
+
+def test_holding_rejects_unknown_asset_class(auth_client):
+    assert auth_client.post(BASE, json={**STOCK, "asset_class": "deposit"}).status_code == 422

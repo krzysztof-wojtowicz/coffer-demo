@@ -19,7 +19,7 @@ describe("Layout", () => {
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter>
           <Routes>
-            <Route element={<Layout email="a@b.pl" />}>
+            <Route element={<Layout name="Ola" />}>
               <Route index element={<p>treść</p>} />
             </Route>
           </Routes>
@@ -28,5 +28,6 @@ describe("Layout", () => {
     );
     expect(screen.queryByRole("radiogroup")).toBeNull();
     expect(screen.getByText("treść")).toBeTruthy();
+    expect(screen.getByText("Ola")).toBeTruthy();
   });
 });

@@ -111,6 +111,72 @@ describe('PortfolioPage', () => {
     expect(screen.getByText(/cena z 01\.01\.2020/)).toBeTruthy()
   })
 
+  it('formularz jest ukryty, przycisk go pokazuje, Edytuj wypełnia go', async () => {
+    const user = renderPage()
+    await screen.findByText('Apple')
+    expect(screen.queryByLabelText(/Klasa aktywów/)).toBeNull()
+    // Order: chart, table, then the add button.
+    const chart = screen.getByRole('img')
+    const table = screen.getByRole('table')
+    const add = screen.getByRole('button', { name: 'Dodaj pozycję' })
+    expect(chart.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(table.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await user.click(add)
+    expect(screen.getByLabelText(/Klasa aktywów/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Anuluj' }))
+    expect(screen.queryByLabelText(/Klasa aktywów/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Edytuj' }))
+    expect((screen.getByLabelText(/^Nazwa/) as HTMLInputElement).value).toBe('Apple')
+    expect(screen.getByRole('button', { name: 'Zapisz zmiany' })).toBeTruthy()
+  })
+
+  it('pokazuje cel i odchylenie obok udziałów', async () => {
+    summaryBody = {
+      ...summary,
+      allocation: [
+        { asset_class: 'stock', value: '700.00', share_pct: '70.0' },
+        { asset_class: 'bond', value: '300.00', share_pct: '30.0' },
+      ],
+      target: {
+        classes: [
+          { asset_class: 'stock', current_pct: '70.0', target_pct: '34', gap_pp: '36.0' },
+          { asset_class: 'bond', current_pct: '30.0', target_pct: '40', gap_pp: '-10.0' },
+          { asset_class: 'etf', current_pct: '0.0', target_pct: '26', gap_pp: '-26.0' },
+        ],
+        total_gap_pp: '36.0',
+      },
+    }
+    renderPage()
+    expect(await screen.findByText(/Odchylenie od profilu: 36 pp/)).toBeTruthy()
+    const row = screen.getAllByText('Akcje').map((e) => e.closest('li')).find(Boolean)
+    expect(row?.textContent).toContain('cel 34%')
+    expect(row?.textContent).toContain('+36 pp')
+    expect(screen.getByText('ETF').closest('li')?.textContent).toContain('-26 pp')
+  })
+
+  it('pusty portfel z profilem pokazuje sam cel bez porównania', async () => {
+    summaryBody = {
+      ...summary,
+      allocation: [],
+      target: {
+        classes: [{ asset_class: 'stock', current_pct: '0.0', target_pct: '11', gap_pp: null }],
+        total_gap_pp: null,
+      },
+    }
+    renderPage()
+    const row = (await screen.findAllByText('Akcje')).map((e) => e.closest('li')).find(Boolean)
+    expect(row?.textContent).toContain('cel 11%')
+    expect(row?.textContent).not.toMatch(/pp/)
+    expect(document.body.textContent).not.toContain('Odchylenie od profilu')
+  })
+
+  it('bez profilu linkuje do konta', async () => {
+    summaryBody = { ...summary, target: null }
+    renderPage()
+    const link = await screen.findByRole('link', { name: 'Ustaw profil inwestycyjny' })
+    expect(link.getAttribute('href')).toBe('/account')
+  })
+
   it('pokazuje pozycje, podsumowanie i alokację', async () => {
     renderPage()
     expect(await screen.findByText('Apple')).toBeTruthy()
@@ -135,14 +201,19 @@ describe('PortfolioPage', () => {
     expect(await screen.findByText(/Brak kursu walut: CHF/)).toBeTruthy()
   })
 
+  async function openForm(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: 'Dodaj pozycję' }))
+  }
+
   async function pickClass(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
     await user.click(screen.getByLabelText(/Klasa aktywów/))
     await user.click(screen.getByRole('option', { name }))
   }
 
   it('na starcie pokazuje tylko klasę i nazwę', async () => {
-    renderPage()
+    const user = renderPage()
     await screen.findByText('Apple')
+    await openForm(user)
     expect(screen.getByLabelText(/Klasa aktywów/)).toBeTruthy()
     expect(screen.getByLabelText(/^Nazwa/)).toBeTruthy()
     for (const l of [/Symbol/, /Waluta/, /Ilość/, /Cena/, /Data zakupu/, /Bieżąca wartość/, /Notatka/]) {
@@ -154,6 +225,7 @@ describe('PortfolioPage', () => {
   it('pokazuje pola zależnie od klasy i czyści nieużywane przy zmianie', async () => {
     const user = renderPage()
     await screen.findByText('Apple')
+    await openForm(user)
     await pickClass(user, /^Akcje/)
     expect(screen.getByLabelText(/Symbol \(ticker\)/)).toBeTruthy()
     expect(screen.getByLabelText(/^Ilość/)).toBeTruthy()
@@ -170,6 +242,7 @@ describe('PortfolioPage', () => {
   it('dodaje akcję z poprawnym body', async () => {
     const user = renderPage()
     await screen.findByText('Apple')
+    await openForm(user)
     await pickClass(user, /^Akcje/)
     await user.type(screen.getByLabelText(/^Nazwa/), 'Apple')
     await user.type(screen.getByLabelText(/Symbol \(ticker\)/), 'aapl')
@@ -195,6 +268,7 @@ describe('PortfolioPage', () => {
   it('dodaje nieruchomość z ilością 1 i bez symbolu', async () => {
     const user = renderPage()
     await screen.findByText('Apple')
+    await openForm(user)
     await pickClass(user, /Nieruchomości/)
     await user.type(screen.getByLabelText(/^Nazwa/), 'Mieszkanie')
     await user.type(screen.getByLabelText(/^Cena zakupu/), '400000,50')

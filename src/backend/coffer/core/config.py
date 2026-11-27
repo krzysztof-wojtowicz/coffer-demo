@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     password_hash_concurrency: int = Field(default=2, ge=1)
     # Max request body (413 above it); a bit over the 1 MB import cap plus multipart overhead.
     max_request_bytes: int = Field(default=2 * 1024 * 1024, gt=0)
-    price_refresh_hours: int = Field(default=0, ge=0, le=24)
+    price_refresh_minutes: int = Field(default=0, ge=0, le=1440)
 
     @field_validator("database_url")
     @classmethod

@@ -12,7 +12,7 @@ const links = [
   { to: '/account', label: pl.nav.account, end: false },
 ]
 
-export function Layout({ email }: { email: string }) {
+export function Layout({ name }: { name: string }) {
   const logout = useLogout()
   return (
     <div className="min-h-screen text-text">
@@ -20,7 +20,7 @@ export function Layout({ email }: { email: string }) {
         <div className="mx-auto flex max-w-5xl items-center gap-x-4 px-4 py-3">
           <span className="flex shrink-0 items-center gap-2">
             <Logo />
-            <strong className="text-lg tracking-tight text-accent">{pl.appName}</strong>
+            <strong className="text-lg tracking-tight text-white">{pl.appName}</strong>
           </span>
           <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto whitespace-nowrap">
             {links.map((l) => (
@@ -40,7 +40,7 @@ export function Layout({ email }: { email: string }) {
             ))}
           </nav>
           <div className="flex shrink-0 items-center gap-3">
-            <span className="hidden max-w-[12rem] truncate text-sm text-muted sm:inline">{email}</span>
+            <span className="hidden max-w-[12rem] truncate text-sm text-muted sm:inline">{name}</span>
             <Button variant="secondary" size="sm" onClick={() => logout.mutate()}>
               {pl.nav.logout}
             </Button>

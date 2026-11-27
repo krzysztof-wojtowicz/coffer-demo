@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { Button } from '../../components/ui/Button'
-import { Card } from '../../components/ui/Card'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { DatePicker } from '../../components/ui/DatePicker'
 import { Field } from '../../components/ui/Field'
@@ -60,7 +59,7 @@ export function OpeningBalanceSection() {
   const mutationError = save.error?.message ?? del.error?.message ?? null
 
   return (
-    <Card title={t.title}>
+    <div>
       <p className="mb-3 text-sm text-muted">{t.hint}</p>
       {query.isPending ? (
         <Spinner className="size-5" />
@@ -105,6 +104,6 @@ export function OpeningBalanceSection() {
         onConfirm={remove}
         onCancel={() => setConfirming(false)}
       />
-    </Card>
+    </div>
   )
 }

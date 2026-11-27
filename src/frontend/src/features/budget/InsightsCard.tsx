@@ -1,8 +1,6 @@
 import { ErrorMessage } from '../../components/ErrorMessage'
 import { Money } from '../../components/Money'
 import { Signed } from '../../components/Signed'
-import { Badge } from '../../components/ui/Badge'
-import { BarList } from '../../components/ui/BarList'
 import { Card } from '../../components/ui/Card'
 import { Spinner } from '../../components/ui/Spinner'
 import { pl } from '../../i18n/pl'
@@ -75,30 +73,6 @@ export function InsightsCard({ month }: { month: string }) {
             </li>
           ))}
         </ul>
-      )}
-      <h3 className="mt-5 text-sm font-semibold text-text">{t.limitsTitle}</h3>
-      {data.limits.length === 0 ? (
-        <p className="mt-1 text-sm text-muted">{t.limitsEmpty}</p>
-      ) : (
-        <div className="mt-2">
-          <BarList
-            role="progressbar"
-            items={data.limits.map((l) => ({
-              key: String(l.category_id),
-              label: l.category_name,
-              value: (
-                <span className="flex items-center gap-2">
-                  <span className="text-muted">{t.limitUsed(formatMoney(l.spent), formatMoney(l.limit))}</span>
-                  {l.exceeded && (
-                    <Badge tone="danger">{t.limitExceeded(formatMoney(l.remaining.replace(/^-/, '')))}</Badge>
-                  )}
-                </span>
-              ),
-              pct: Number(l.used_pct),
-              tone: l.exceeded ? 'negative' : Number(l.used_pct) >= 80 ? 'warning' : 'accent',
-            }))}
-          />
-        </div>
       )}
     </Card>
   )

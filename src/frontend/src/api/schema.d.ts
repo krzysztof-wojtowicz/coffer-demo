@@ -120,7 +120,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update Me */
+        patch: operations["update_me_api_auth_me_patch"];
         trace?: never;
     };
     "/api/categories": {
@@ -188,41 +189,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/budget/limits": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Limits */
-        get: operations["get_limits_api_budget_limits_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/budget/limits/{category_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Put Limit */
-        put: operations["put_limit_api_budget_limits__category_id__put"];
-        post?: never;
-        /** Delete Limit */
-        delete: operations["delete_limit_api_budget_limits__category_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -518,6 +484,20 @@ export interface components {
             /** Expenses */
             expenses: string;
         };
+        /** ClassGapOut */
+        ClassGapOut: {
+            /**
+             * Asset Class
+             * @enum {string}
+             */
+            asset_class: "stock" | "etf" | "bond" | "real_estate" | "commodity" | "crypto" | "cash";
+            /** Current Pct */
+            current_pct: string;
+            /** Target Pct */
+            target_pct: string;
+            /** Gap Pp */
+            gap_pp: string | null;
+        };
         /** CommitIn */
         CommitIn: {
             /**
@@ -543,13 +523,6 @@ export interface components {
             include: boolean;
             /** Category Id */
             category_id?: number | null;
-        };
-        /** Credentials */
-        Credentials: {
-            /** Email */
-            email: string;
-            /** Password */
-            password: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -741,39 +714,13 @@ export interface components {
             comparison: components["schemas"]["CategoryChangeOut"][];
             /** Top Growth */
             top_growth: components["schemas"]["CategoryGrowthOut"][];
-            /** Limits */
-            limits: components["schemas"]["LimitStatusOut"][];
         };
-        /** LimitIn */
-        LimitIn: {
-            /** Amount */
-            amount: number | string;
-        };
-        /** LimitOut */
-        LimitOut: {
-            /** Category Id */
-            category_id: number;
-            /** Category Name */
-            category_name: string;
-            /** Amount */
-            amount: string;
-        };
-        /** LimitStatusOut */
-        LimitStatusOut: {
-            /** Category Id */
-            category_id: number;
-            /** Category Name */
-            category_name: string;
-            /** Limit */
-            limit: string;
-            /** Spent */
-            spent: string;
-            /** Remaining */
-            remaining: string;
-            /** Used Pct */
-            used_pct: string;
-            /** Exceeded */
-            exceeded: boolean;
+        /** LoginIn */
+        LoginIn: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
         };
         /** MonthSummaryOut */
         MonthSummaryOut: {
@@ -789,6 +736,11 @@ export interface components {
             surplus: string;
             /** By Category */
             by_category: components["schemas"]["CategoryTotalOut"][];
+        };
+        /** NameChange */
+        NameChange: {
+            /** Display Name */
+            display_name: string;
         };
         /** NetWorthOut */
         NetWorthOut: {
@@ -863,6 +815,7 @@ export interface components {
             fx_missing: string[];
             /** Prices As Of */
             prices_as_of?: string | null;
+            target?: components["schemas"]["TargetOut"] | null;
         };
         /** ProfileIn */
         ProfileIn: {
@@ -877,7 +830,7 @@ export interface components {
              */
             risk: "low" | "medium" | "high";
             /** Preferred Classes */
-            preferred_classes: ("cash" | "deposit" | "stocks" | "etf" | "bonds" | "crypto" | "real_estate")[];
+            preferred_classes: ("stock" | "etf" | "bond" | "real_estate" | "commodity" | "crypto" | "cash")[];
         };
         /** ProfileOut */
         ProfileOut: {
@@ -892,12 +845,40 @@ export interface components {
              */
             risk: "low" | "medium" | "high";
             /** Preferred Classes */
-            preferred_classes: ("cash" | "deposit" | "stocks" | "etf" | "bonds" | "crypto" | "real_estate")[];
+            preferred_classes: ("stock" | "etf" | "bond" | "real_estate" | "commodity" | "crypto" | "cash")[];
             /**
              * Updated At
              * Format: date-time
              */
             updated_at: string;
+            /** Target */
+            target: components["schemas"]["TargetShareOut"][];
+        };
+        /** RegisterIn */
+        RegisterIn: {
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
+        };
+        /** TargetOut */
+        TargetOut: {
+            /** Classes */
+            classes: components["schemas"]["ClassGapOut"][];
+            /** Total Gap Pp */
+            total_gap_pp: string | null;
+        };
+        /** TargetShareOut */
+        TargetShareOut: {
+            /**
+             * Asset Class
+             * @enum {string}
+             */
+            asset_class: "stock" | "etf" | "bond" | "real_estate" | "commodity" | "crypto" | "cash";
+            /** Share Pct */
+            share_pct: number;
         };
         /** TransactionCreate */
         TransactionCreate: {
@@ -953,6 +934,8 @@ export interface components {
             id: number;
             /** Email */
             email: string;
+            /** Display Name */
+            display_name: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -985,7 +968,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Credentials"];
+                "application/json": components["schemas"]["RegisterIn"];
             };
         };
         responses: {
@@ -1030,7 +1013,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Credentials"];
+                "application/json": components["schemas"]["LoginIn"];
             };
         };
         responses: {
@@ -1212,6 +1195,37 @@ export interface operations {
             };
         };
     };
+    update_me_api_auth_me_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NameChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     get_categories_api_categories_get: {
         parameters: {
             query?: never;
@@ -1376,90 +1390,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NetWorthOut"];
-                };
-            };
-        };
-    };
-    get_limits_api_budget_limits_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LimitOut"][];
-                };
-            };
-        };
-    };
-    put_limit_api_budget_limits__category_id__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                category_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LimitIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LimitOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_limit_api_budget_limits__category_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                category_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

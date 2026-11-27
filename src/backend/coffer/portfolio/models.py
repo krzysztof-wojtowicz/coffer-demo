@@ -6,8 +6,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from coffer.core.db import Base
 
-ASSET_CLASSES = ("stock", "etf", "bond", "real_estate", "commodity", "crypto", "cash")
-
 
 class Holding(Base):
     """One investment position entered by the user. Prices are per unit."""

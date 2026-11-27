@@ -11,10 +11,10 @@ from pydantic import (
     model_validator,
 )
 
+from coffer.analytics.allocation import AssetClass
 from coffer.core import clock
 from coffer.core.money import MoneyStr, PctStr, money
 
-AssetClass = Literal["stock", "etf", "bond", "real_estate", "commodity", "crypto", "cash"]
 ValueSource = Literal["market", "manual", "cost"]
 
 MAX_QUANTITY = Decimal("1000000000000")  # NUMERIC(20,8) limit
@@ -171,6 +171,18 @@ class AllocationOut(BaseModel):
     share_pct: PctStr
 
 
+class ClassGapOut(BaseModel):
+    asset_class: AssetClass
+    current_pct: PctStr
+    target_pct: PctStr
+    gap_pp: PctStr | None
+
+
+class TargetOut(BaseModel):
+    classes: list[ClassGapOut]
+    total_gap_pp: PctStr | None
+
+
 class PortfolioSummaryOut(BaseModel):
     holdings: list[HoldingValuationOut]
     allocation: list[AllocationOut]
@@ -181,3 +193,4 @@ class PortfolioSummaryOut(BaseModel):
     prices_available: bool
     fx_missing: list[str]
     prices_as_of: dt.datetime | None = None
+    target: TargetOut | None = None

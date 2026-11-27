@@ -12,7 +12,7 @@ function Guard() {
   const me = useMe()
   if (me.isLoading) return <p className="p-6">{pl.common.loading}</p>
   if (!me.data) return <Navigate to="/login" replace />
-  return <Layout email={me.data.email} />
+  return <Layout name={me.data.display_name} />
 }
 
 export default function App() {

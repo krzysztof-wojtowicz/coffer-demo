@@ -1,4 +1,4 @@
-"""Periodic quote refresh in a daemon thread (F25). Disabled unless `hours > 0`.
+"""Periodic quote refresh in a daemon thread (F25). Disabled unless `minutes > 0`.
 
 Each run has two phases: `fetch` talks to the network without any open database
 transaction, then `store` writes in a short transaction guarded by an advisory lock.
@@ -56,12 +56,12 @@ def run_once[T](
 
 def start_price_scheduler[T](
     session_factory: SessionFactory,
-    hours: float,
+    minutes: float,
     fetch: Callable[[SessionFactory], T],
     store: Callable[[Session, T], object],
     first_delay_s: float = FIRST_RUN_DELAY_S,
 ) -> PriceScheduler | None:
-    if hours <= 0:
+    if minutes <= 0:
         return None
     stop = threading.Event()
 
@@ -69,7 +69,7 @@ def start_price_scheduler[T](
         delay = first_delay_s
         while not stop.wait(delay):
             run_once(session_factory, fetch, store)
-            delay = hours * 3600
+            delay = minutes * 60
 
     thread = threading.Thread(target=loop, name="price-scheduler", daemon=True)
     thread.start()

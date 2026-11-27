@@ -60,6 +60,9 @@ To simplify the refactoring, the AI assistant was removed (change `remove-ai-age
 ## UI refactor (Nov 2026)
 Change `ui-refactor`: the light/dark/system theme switch was removed and the app is dark only ("night ledger" tokens, including `chart-1..7`). Duplicated markup became shared `Signed`, `Stat`, `Bar`, `BarList`; `lib/money.ts` was folded into `lib/format.ts`; the allocation bars became an SVG donut (`AllocationChart`); Geist fonts are self-hosted. Behaviour is unchanged. See [architecture.md](architecture.md) §5.
 
+## UI upgrades (Nov 2026)
+Change `ui-upgrades`: users have a required `display_name` (set at registration, shown in the navbar); portfolio and profile share one asset-class list (`stock, etf, bond, real_estate, commodity, crypto, cash`; `deposit` merged into `cash`); the profile card shows a target allocation computed in `analytics.allocation` from horizon, risk and preferred classes, and the portfolio chart shows the gap from target ("cel", pp). Category spending limits (F13, F14, `budget_limits`) were removed. The price job interval is now `COFFER_PRICE_REFRESH_MINUTES` (was `..._HOURS`). Migration `0012` wipes existing users; rollback is `alembic downgrade 0011`. Stage 5 above describes the limits as they were.
+
 ## Open follow-ups from reviews
 - Expired `auth_sessions` and abandoned import drafts are never purged (see [data-model.md](data-model.md) §2h).
 - `OriginMiddleware` lets requests without an `Origin` header through on purpose, relying on SameSite=Lax. This should be revisited if the app is hosted again.
